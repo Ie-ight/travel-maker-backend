@@ -71,7 +71,7 @@ dmypy.json
 .ruff_cache/
 
 # Celery
-celerybeat-schedule  # ← 추가
+celerybeat-schedule*  # ← 추가
 celerybeat.pid
 celerybeat-schedule.db  # ← 추가
 
