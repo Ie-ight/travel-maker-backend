@@ -4,6 +4,7 @@ Local development settings.
 """
 
 from .base import *  # noqa
+from typing import Any
 
 DEBUG = True
 
@@ -21,8 +22,10 @@ CORS_ALLOW_ALL_ORIGINS = True
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # 개발용 로깅 레벨
-LOGGING["root"]["level"] = "DEBUG"  # noqa
-LOGGING["loggers"]["django"]["level"] = "DEBUG"  # noqa
+LOGGING_LOCAL: dict[str, Any] = LOGGING.copy()  # type: ignore[name-defined,used-before-def]  # noqa: F405
+LOGGING_LOCAL["root"]["level"] = "DEBUG"
+LOGGING_LOCAL["loggers"]["django"]["level"] = "DEBUG"
+LOGGING = LOGGING_LOCAL
 
 # Static/Media 파일 로컬 저장
 USE_S3 = False

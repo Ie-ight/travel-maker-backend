@@ -3,6 +3,7 @@ Celery configuration for travel-maker project.
 """
 
 import os
+from typing import Any
 
 from celery import Celery
 from decouple import config
@@ -19,7 +20,7 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 
-@app.task(bind=True, ignore_result=True)
-def debug_task(self):
+@app.task(bind=True, ignore_result=True)  # type: ignore[misc]
+def debug_task(self: Any) -> None:
     """디버그용 테스트 태스크"""
     print(f"Request: {self.request!r}")

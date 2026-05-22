@@ -60,18 +60,18 @@ if SENTRY_DSN:
     )
 
 # DRF - 프로덕션에서는 Browsable API 제거
-REST_FRAMEWORK_PROD: dict[str, Any] = REST_FRAMEWORK.copy()  # type: ignore[name-defined] # noqa: F405
+REST_FRAMEWORK_PROD: dict[str, Any] = REST_FRAMEWORK.copy()  # type: ignore[name-defined,used-before-def]  # noqa: F405
 REST_FRAMEWORK_PROD["DEFAULT_RENDERER_CLASSES"] = [
     "rest_framework.renderers.JSONRenderer",
 ]
 REST_FRAMEWORK = REST_FRAMEWORK_PROD
 
 # 프로덕션 로깅
-LOGGING_PROD: dict[str, Any] = LOGGING.copy()  # type: ignore[name-defined] # noqa: F405
+LOGGING_PROD: dict[str, Any] = LOGGING.copy()  # type: ignore[name-defined,used-before-def]  # noqa: F405
 LOGGING_PROD["handlers"]["file"] = {
     "level": "ERROR",
     "class": "logging.FileHandler",
-    "filename": str(BASE_DIR / "logs" / "django.log"),  # type: ignore[name-defined] # noqa: F405
+    "filename": str(BASE_DIR / "logs" / "django.log"),  # type: ignore[name-defined]  # noqa: F405
     "formatter": "verbose",
 }
 LOGGING_PROD["root"]["handlers"] = ["console", "file"]

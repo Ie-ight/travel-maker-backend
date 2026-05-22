@@ -24,9 +24,10 @@ dev = [
     "pytest-xdist>=3.3.0",
     "factory-boy>=3.3.0",
     "ruff>=0.1.0",
-    "mypy>=1.7.0",
-    "django-stubs>=4.2.0",
+    "mypy==1.13.0",
+    "django-stubs==5.1.1",
     "djangorestframework-stubs>=3.14.0",
+    "django-stubs-ext>=4.2.7",
     "pre-commit>=3.0.0",
 ]
 
@@ -53,7 +54,7 @@ select = [
     "UP",  # pyupgrade
 ]
 ignore = [
-    "E501",  # line too long (black이 처리)
+    "E501",  # line too long
     "B008",  # function calls in argument defaults
     "W191",  # indentation contains tabs
 ]
@@ -64,8 +65,13 @@ ignore = [
 
 # mypy 설정
 [tool.mypy]
+plugins = ["mypy_django_plugin.main"]
 python_version = "3.12"
 strict = true
+warn_unused_ignores = false  # ← 추가
+
+[tool.django-stubs]  # ← 추가!
+django_settings_module = "config.settings.local"
 
 [[tool.mypy.overrides]]
 module = [
@@ -111,9 +117,4 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
-]
-
-[dependency-groups]
-dev = [
-    "pre-commit>=4.6.0",
 ]
