@@ -1,0 +1,20 @@
+repos:
+  # Ruff - Python 린팅 및 포맷팅
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      # 린팅 및 자동 수정
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # 코드 포맷팅
+      - id: ruff-format
+
+  # 기본 체크
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace  # trailing 공백 제거
+      - id: end-of-file-fixer    # 파일 끝 개행 추가
+      - id: check-yaml           # YAML 문법 체크
+      - id: check-added-large-files  # 큰 파일 체크
+      - id: check-merge-conflict     # 머지 충돌 체크
