@@ -3,9 +3,11 @@ Production settings.
 프로덕션 환경에서 사용되는 설정
 """
 
+from typing import Any
+
 from decouple import config
 
-from .base import *  # noqa
+from .base import *  # noqa: F403
 
 DEBUG = False
 
@@ -58,17 +60,20 @@ if SENTRY_DSN:
     )
 
 # DRF - 프로덕션에서는 Browsable API 제거
-REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa
+REST_FRAMEWORK_PROD: dict[str, Any] = REST_FRAMEWORK.copy()  # type: ignore[name-defined] # noqa: F405
+REST_FRAMEWORK_PROD["DEFAULT_RENDERER_CLASSES"] = [
     "rest_framework.renderers.JSONRenderer",
 ]
+REST_FRAMEWORK = REST_FRAMEWORK_PROD
 
 # 프로덕션 로깅
-LOGGING["handlers"]["file"] = {  # noqa
+LOGGING_PROD: dict[str, Any] = LOGGING.copy()  # type: ignore[name-defined] # noqa: F405
+LOGGING_PROD["handlers"]["file"] = {
     "level": "ERROR",
     "class": "logging.FileHandler",
-    "filename": BASE_DIR / "logs" / "django.log",  # noqa
+    "filename": str(BASE_DIR / "logs" / "django.log"),  # type: ignore[name-defined] # noqa: F405
     "formatter": "verbose",
 }
-
-LOGGING["root"]["handlers"] = ["console", "file"]  # noqa
-LOGGING["loggers"]["django"]["handlers"] = ["console", "file"]  # noqa
+LOGGING_PROD["root"]["handlers"] = ["console", "file"]
+LOGGING_PROD["loggers"]["django"]["handlers"] = ["console", "file"]
+LOGGING = LOGGING_PROD
