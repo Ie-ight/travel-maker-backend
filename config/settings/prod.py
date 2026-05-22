@@ -3,8 +3,9 @@ Production settings.
 프로덕션 환경에서 사용되는 설정
 """
 
-from .base import *  # noqa
 from decouple import config
+
+from .base import *  # noqa
 
 DEBUG = False
 

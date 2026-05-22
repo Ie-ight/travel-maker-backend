@@ -9,12 +9,18 @@ repos:
       # 코드 포맷팅
       - id: ruff-format
 
+  # isort - import 정렬
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+
   # 기본 체크
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      - id: trailing-whitespace  # trailing 공백 제거
-      - id: end-of-file-fixer    # 파일 끝 개행 추가
-      - id: check-yaml           # YAML 문법 체크
-      - id: check-added-large-files  # 큰 파일 체크
-      - id: check-merge-conflict     # 머지 충돌 체크
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
