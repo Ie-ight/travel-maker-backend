@@ -53,12 +53,6 @@ jobs:
       - name: Run Ruff (Linting)
         run: uv run ruff check .
 
-      - name: Run Black (Code Formatting)
-        run: uv run black --check .
-
-      - name: Run isort (Import Sorting)
-        run: uv run isort --check-only .
-
       - name: Run mypy (Type Checking)
         run: uv run mypy .
         continue-on-error: true

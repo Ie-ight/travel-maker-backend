@@ -1,19 +1,13 @@
 repos:
-  # Ruff - Python 린팅 및 포맷팅
+  # Ruff만 사용
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.4
     hooks:
-      # 린팅 및 자동 수정
+      # 린팅 + import 정렬
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        args: [--fix]
       # 코드 포맷팅
       - id: ruff-format
-
-  # isort - import 정렬
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
 
   # 기본 체크
   - repo: https://github.com/pre-commit/pre-commit-hooks
