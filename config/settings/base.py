@@ -6,7 +6,7 @@ Base settings - 모든 환경에서 공통으로 사용되는 설정
 from datetime import timedelta
 from pathlib import Path
 
-from decouple import config
+from decouple import config  # type: ignore
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

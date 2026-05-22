@@ -55,7 +55,6 @@ jobs:
 
       - name: Run mypy (Type Checking)
         run: uv run mypy .
-        continue-on-error: true
 
       - name: Run Tests with Coverage
         env:
