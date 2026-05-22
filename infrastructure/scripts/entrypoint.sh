@@ -1,17 +1,19 @@
 #!/bin/bash
 set -e
 
-echo "Waiting for PostgreSQL..."
-/app/infrastructure/scripts/wait-for-it.sh db:5432 --timeout=60 --strict -- echo "PostgreSQL is ready"
-
-echo "Waiting for Redis..."
-/app/infrastructure/scripts/wait-for-it.sh redis:6379 --timeout=60 --strict -- echo "Redis is ready"
+echo "Waiting for postgres..."
+/app/infrastructure/scripts/wait-for-it.sh db:5432 --timeout=30
 
 echo "Running migrations..."
-uv run python manage.py migrate --noinput
+python manage.py migrate --noinput
 
-echo "Collecting static files..."
-uv run python manage.py collectstatic --noinput --clear
+# 프로덕션 환경에서만 collectstatic 실행
+if [ "$DJANGO_SETTINGS_MODULE" = "config.settings.prod" ]; then
+    echo "Collecting static files..."
+    python manage.py collectstatic --noinput
+else
+    echo "Development mode: Skipping collectstatic"
+fi
 
 echo "Starting server..."
 exec "$@"
