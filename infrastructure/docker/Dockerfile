@@ -5,12 +5,14 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
 # 작업 디렉토리 설정
 WORKDIR /app
 
-# 시스템 패키지 설치 (PostgreSQL, 기타 필수 도구)
+# 시스템 패키지 설치
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
@@ -23,11 +25,11 @@ RUN apt-get update && apt-get install -y \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # 의존성 파일 복사
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock ./
 
-# 의존성 설치 후 .venv를 PATH에 추가
-RUN uv sync && \
-    uv pip install -e .
+# Python을 /usr/local에 설치하도록 설정
+RUN uv python install 3.12 && \
+    uv sync --python /usr/local/bin/python3.12
 
 # 프로젝트 파일 복사
 COPY . .
