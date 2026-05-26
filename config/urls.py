@@ -7,11 +7,21 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
+
+
+# 간단한 테스트 뷰 추가
+@api_view(["GET"])
+def health_check(request):  # type: ignore[no-untyped-def]
+    """헬스체크 API"""
+    return Response({"status": "healthy", "message": "Travel Maker API is running"})
+
 
 urlpatterns = [
     # Django Admin
