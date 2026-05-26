@@ -66,14 +66,14 @@ REST_FRAMEWORK_PROD["DEFAULT_RENDERER_CLASSES"] = [
 ]
 REST_FRAMEWORK = REST_FRAMEWORK_PROD
 
-# 프로덕션 로깅
-LOGGING_PROD: dict[str, Any] = LOGGING.copy()  # type: ignore[name-defined,used-before-def]  # noqa: F405
-LOGGING_PROD["handlers"]["file"] = {
-    "level": "ERROR",
-    "class": "logging.FileHandler",
-    "filename": str(BASE_DIR / "logs" / "django.log"),  # type: ignore[name-defined]  # noqa: F405
-    "formatter": "verbose",
-}
-LOGGING_PROD["root"]["handlers"] = ["console", "file"]
-LOGGING_PROD["loggers"]["django"]["handlers"] = ["console", "file"]
-LOGGING = LOGGING_PROD
+# # 프로덕션 로깅
+# LOGGING_PROD: dict[str, Any] = LOGGING.copy()  # type: ignore[name-defined,used-before-def]  # noqa: F405
+# LOGGING_PROD["handlers"]["file"] = {
+#     "level": "ERROR",
+#     "class": "logging.FileHandler",
+#     "filename": str(BASE_DIR / "logs" / "django.log"),  # type: ignore[name-defined]  # noqa: F405
+#     "formatter": "verbose",
+# }
+# LOGGING_PROD["root"]["handlers"] = ["console", "file"]
+# LOGGING_PROD["loggers"]["django"]["handlers"] = ["console", "file"]
+# LOGGING = LOGGING_PROD
