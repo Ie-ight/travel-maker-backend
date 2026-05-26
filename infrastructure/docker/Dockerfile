@@ -25,11 +25,15 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # 의존성 파일 복사
 COPY pyproject.toml uv.lock* ./
 
-# 의존성 설치
-RUN uv sync --system
+# 의존성 설치 후 .venv를 PATH에 추가
+RUN uv sync && \
+    uv pip install -e .
 
 # 프로젝트 파일 복사
 COPY . .
+
+# PATH에 .venv 추가
+ENV PATH="/app/.venv/bin:$PATH"
 
 # 스크립트 실행 권한 부여
 RUN chmod +x /app/infrastructure/scripts/entrypoint.sh
