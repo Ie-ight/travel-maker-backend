@@ -1,60 +1,37 @@
-name: Deploy to AWS
+name: Deploy to EC2
 
 on:
   push:
-    branches: [main]  # main 브랜치에 push 시 배포
+    branches: [ main ]  # main에 push될 때만 실행
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: ${{ secrets.EC2_PORT }}
+        script: |
+          cd ~/travel-maker-backend
+          git pull origin main
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+          cd infrastructure/docker
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d --build
 
-      - name: Build and Push Docker Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: travel-maker
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -f infrastructure/docker/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          # Static 파일 업데이트
+          docker cp travel-maker-web-prod:/app/staticfiles/. /var/www/travel-maker/staticfiles/
 
-      # ECS 배포 (Fargate 사용 시)
-      - name: Deploy to Amazon ECS
-        run: |
-          # ECS Task Definition 업데이트 및 서비스 재시작
-          # aws ecs update-service --cluster travel-maker-cluster --service travel-maker-service --force-new-deployment
-          echo "ECS deployment command here"
+          # 헬스체크
+          sleep 10
+          curl -f http://localhost/health/ || exit 1
 
-      # 또는 EC2 배포 (SSH 사용 시)
-      # - name: Deploy to EC2
-      #   uses: appleboy/ssh-action@master
-      #   with:
-      #     host: ${{ secrets.EC2_HOST }}
-      #     username: ${{ secrets.EC2_USERNAME }}
-      #     key: ${{ secrets.EC2_SSH_KEY }}
-      #     script: |
-      #       cd /home/ubuntu/travel-maker
-      #       git pull origin main
-      #       docker-compose -f infrastructure/docker/docker-compose.prod.yml up -d --build
-
-      - name: Notify deployment status
-        if: always()
-        run: |
-          echo "Deployment completed with status: ${{ job.status }}"
-          # Slack 알림 등 추가 가능
+          echo "✅ Deployment completed successfully!"
