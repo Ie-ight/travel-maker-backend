@@ -2,7 +2,7 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [ main ]  # main에 push될 때만 실행
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -22,6 +22,11 @@ jobs:
         script: |
           cd ~/travel-maker-backend
           git pull origin main
+
+          # Nginx 설정 업데이트 추가!
+          sudo cp ~/travel-maker-backend/infrastructure/nginx/nginx.conf /etc/nginx/sites-available/travel-maker
+          sudo nginx -t
+          sudo systemctl reload nginx
 
           cd infrastructure/docker
           docker compose -f docker-compose.prod.yml pull
