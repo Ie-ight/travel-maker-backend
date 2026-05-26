@@ -26,7 +26,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile
     container_name: travel-maker-web-prod
-    command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
+    command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120
     volumes:
       - ../../:/app
       - static_volume:/app/staticfiles
