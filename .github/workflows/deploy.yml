@@ -20,10 +20,14 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         port: ${{ secrets.EC2_PORT }}
         script: |
+          set -e  # 에러 발생 시 즉시 중단!
+
           cd ~/travel-maker-backend
+
+          # Git pull 실패하면 여기서 중단
           git pull origin main
 
-          # Nginx 설정 업데이트 추가!
+          # Nginx 설정 업데이트
           sudo cp ~/travel-maker-backend/infrastructure/nginx/nginx.conf /etc/nginx/sites-available/travel-maker
           sudo nginx -t
           sudo systemctl reload nginx
