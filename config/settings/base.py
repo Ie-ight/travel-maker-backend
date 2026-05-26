@@ -34,6 +34,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -146,6 +147,13 @@ REST_FRAMEWORK = {
     ],
 }
 
+# DRF Spectacular 설정 추가
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Travel Maker API",
+    "DESCRIPTION": "여행 추천 플랫폼 API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
 
 # Simple JWT
 SIMPLE_JWT = {
