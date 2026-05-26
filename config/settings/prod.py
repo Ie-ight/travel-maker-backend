@@ -14,7 +14,8 @@ DEBUG = False
 ALLOWED_HOSTS = config("ALLOWED_HOSTS").split(",")
 
 # Security settings
-SECURE_SSL_REDIRECT = True  # HTTP → HTTPS 자동 리다이렉트 (암호화되지 않은 접속 차단)
+SECURE_SSL_REDIRECT = False  # HTTP → HTTPS 자동 리다이렉트 (암호화되지 않은 접속 차단)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True  # 세션 쿠키를 HTTPS에서만 전송 (세션 탈취 방지)
 CSRF_COOKIE_SECURE = True  # CSRF 토큰을 HTTPS에서만 전송 (CSRF 공격 방어)
 SECURE_HSTS_SECONDS = 31536000  # 브라우저에게 1년간 HTTPS만 사용하도록 강제 (HTTP 접속 시도 차단)
