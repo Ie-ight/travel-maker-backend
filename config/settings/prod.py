@@ -14,14 +14,15 @@ DEBUG = False
 ALLOWED_HOSTS = config("ALLOWED_HOSTS").split(",")
 
 # Security settings
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)  # ← True를 False로!
-SESSION_COOKIE_SECURE = False  # ← True를 False로!
-CSRF_COOKIE_SECURE = False  # ← True를 False로!
-# SECURE_HSTS_SECONDS = 31536000  # ← 주석 처리
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # ← 주석 처리
-# SECURE_HSTS_PRELOAD = True  # ← 주석 처리
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_SSL_REDIRECT = True  # HTTP → HTTPS 자동 리다이렉트 (암호화되지 않은 접속 차단)
+SESSION_COOKIE_SECURE = True  # 세션 쿠키를 HTTPS에서만 전송 (세션 탈취 방지)
+CSRF_COOKIE_SECURE = True  # CSRF 토큰을 HTTPS에서만 전송 (CSRF 공격 방어)
+SECURE_HSTS_SECONDS = 31536000  # 브라우저에게 1년간 HTTPS만 사용하도록 강제 (HTTP 접속 시도 차단)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True  # 서브도메인도 HTTPS 강제 (서브도메인 공격 차단)
+SECURE_HSTS_PRELOAD = True  # HSTS Preload 리스트 등록 가능 (첫 방문부터 HTTPS 강제)
+SECURE_BROWSER_XSS_FILTER = True  # XSS 공격 감지 시 브라우저가 차단
+SECURE_CONTENT_TYPE_NOSNIFF = True  # MIME 타입 추측 차단 (파일 업로드 공격 방지)
+X_FRAME_OPTIONS = "DENY"  # iframe 로딩 차단 (Clickjacking 공격 방지)
 
 # CORS - 프로덕션에서는 명시적으로 허용된 origin만
 CORS_ALLOW_ALL_ORIGINS = False
