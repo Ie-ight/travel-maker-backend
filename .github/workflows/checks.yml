@@ -48,16 +48,27 @@ jobs:
         run: uv python install 3.13
 
       - name: Install dependencies
-        run: uv sync --all-extras  # ← 변경: dev 의존성도 설치
+        run: uv sync --all-extras
 
       - name: Run Ruff (Linting)
         run: uv run ruff check .
+        env:
+          PYTHONIOENCODING: utf-8
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
 
       - name: Run mypy (Type Checking)
         run: uv run mypy .
+        env:
+          PYTHONIOENCODING: utf-8
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
 
       - name: Run Tests with Coverage
         env:
+          PYTHONIOENCODING: utf-8
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
           DJANGO_SETTINGS_MODULE: config.settings.local
           SECRET_KEY: test-secret-key-for-ci
           DB_NAME: test_db
