@@ -1,7 +1,3 @@
-"""
-Celery configuration for travel-maker project.
-"""
-
 import os
 from typing import Any
 
