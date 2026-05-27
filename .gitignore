@@ -83,3 +83,5 @@ celerybeat-schedule.db  # ← 추가
 
 # Docker
 *.log
+
+.ai/
