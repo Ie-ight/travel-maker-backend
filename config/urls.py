@@ -25,7 +25,7 @@ urlpatterns = [
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # App URLs
-    # path("api/users/", include("apps.users.urls")),
+    # path("api/user/", include("apps.user.urls")),
 ]
 
 # Static & Media files (개발 환경에서만)
