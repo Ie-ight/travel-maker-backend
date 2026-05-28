@@ -86,3 +86,7 @@ celerybeat-schedule.db  # ← 추가
 *.log
 
 .ai/
+
+celerybeat-schedule*
+
+celerybeat-schedule*
