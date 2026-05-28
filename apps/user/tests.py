@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from apps.users.apps import UsersConfig
+from apps.user.apps import UserConfig
 
 
 class UsersAppTestCase(TestCase):
@@ -8,8 +8,8 @@ class UsersAppTestCase(TestCase):
 
     def test_app_config(self) -> None:
         """앱 설정이 올바른지 확인"""
-        self.assertEqual(UsersConfig.name, "apps.users")
-        self.assertEqual(UsersConfig.verbose_name, "사용자")
+        self.assertEqual(UserConfig.name, "apps.user")
+        self.assertEqual(UserConfig.verbose_name, "사용자")
 
     def test_app_ready(self) -> None:
         """앱이 정상적으로 로드되는지 확인"""
