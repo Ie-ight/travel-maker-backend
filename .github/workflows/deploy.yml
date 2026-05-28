@@ -23,6 +23,8 @@ jobs:
           set -e  # 에러 발생 시 즉시 중단!
 
           cd ~/travel-maker-backend
+          # celerybeat 임시 파일 제거 (git pull 충돌 방지)
+          rm -f celerybeat-schedule*
 
           # Git pull 실패하면 여기서 중단
           git pull origin main
