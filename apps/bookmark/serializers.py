@@ -6,7 +6,7 @@ from apps.bookmark.models import Bookmark
 from apps.place.models import PlaceImage
 
 
-class PlaceSimpleSerializer(serializers.Serializer):  # type: ignore[misc]
+class PlaceSimpleSerializer(serializers.Serializer[Any]):
     id = serializers.IntegerField()
     place_name = serializers.CharField()
     rating_avg = serializers.DecimalField(max_digits=2, decimal_places=1)
@@ -17,7 +17,7 @@ class PlaceSimpleSerializer(serializers.Serializer):  # type: ignore[misc]
         return image.image_url if image else None
 
 
-class BookmarkSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class BookmarkSerializer(serializers.ModelSerializer[Bookmark]):
     place = PlaceSimpleSerializer(read_only=True)
 
     class Meta:
@@ -25,7 +25,7 @@ class BookmarkSerializer(serializers.ModelSerializer):  # type: ignore[misc]
         fields = ["id", "place", "created_at"]
 
 
-class BookmarkCreateSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class BookmarkCreateSerializer(serializers.ModelSerializer[Bookmark]):
     class Meta:
         model = Bookmark
         fields = ["place"]
@@ -33,6 +33,6 @@ class BookmarkCreateSerializer(serializers.ModelSerializer):  # type: ignore[mis
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         user = self.context["request"].user
         place = attrs["place"]
-        if Bookmark.objects.filter(user=user, place=place).exists():  # type: ignore[attr-defined]
+        if Bookmark.objects.filter(user=user, place=place).exists():
             raise serializers.ValidationError("이미 북마크한 여행지입니다.")
         return attrs

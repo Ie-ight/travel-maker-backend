@@ -16,7 +16,7 @@ class BookmarkService:
     @staticmethod
     def create_bookmark(user: Any, place_id: int) -> Bookmark:
         place = get_object_or_404(Place, id=place_id)
-        return Bookmark.objects.create(user=user, place=place)  # type: ignore[attr-defined, no-any-return]
+        return Bookmark.objects.create(user=user, place=place)
 
     @staticmethod
     def delete_bookmark(user: Any, place_id: int) -> None:
