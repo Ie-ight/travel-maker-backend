@@ -10,7 +10,7 @@ class Place(TimeStampModel):
     rating_avg = models.DecimalField(max_digits=2, decimal_places=1, null=True, blank=True)  # 평균 평점
     rating_count = models.PositiveIntegerField(default=0)  # 평점 개수 - 계산 보정용
     description = models.TextField(null=True, blank=True)
-    tags: models.ManyToManyField = models.ManyToManyField("Tag", related_name="places", blank=True)
+    tags = models.ManyToManyField("Tag", related_name="places", blank=True)  # type: ignore[var-annotated]
 
     class Meta:
         indexes = [models.Index(fields=["place_name"])]
