@@ -26,6 +26,7 @@ urlpatterns = [
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # App URLs
     # path("api/user/", include("apps.user.urls")),
+    path("api/v1/", include("apps.review.urls")),
 ]
 
 # Static & Media files (개발 환경에서만)
