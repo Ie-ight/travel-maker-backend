@@ -16,6 +16,8 @@ dependencies = [
     "gunicorn>=21.0.0",
     "drf-spectacular>=0.29.0",
     "django-stubs>=5.1.1",
+    "pytest>=9.0.3",
+    "factory-boy>=3.3.3",
 ]
 
 [project.optional-dependencies]
@@ -64,13 +66,15 @@ ignore = [
 "__init__.py" = ["F401"]
 "*/migrations/*.py" = ["E501"]
 
-# mypy 설정
 [tool.mypy]
 plugins = ["mypy_django_plugin.main"]
 python_version = "3.12"
 strict = true
-warn_unused_ignores = false  # ← 추가
+warn_unused_ignores = false
 ignore_missing_imports = true
+exclude = [
+    "apps/.*/tests/.*",
+]
 
 [tool.django-stubs]  # ← 추가!
 django_settings_module = "config.settings.local"
