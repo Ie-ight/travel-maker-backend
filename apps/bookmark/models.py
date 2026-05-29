@@ -12,7 +12,7 @@ class Bookmark(models.Model):
         db_column="user_id",
     )
     place = models.ForeignKey(
-        "places.Place",
+        "place.Place",
         on_delete=models.CASCADE,
         related_name="bookmarks",
         db_column="place_id",
