@@ -61,7 +61,7 @@ class User(AbstractBaseUser, TimeStampModel):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = ["nickname", "gender", "birthday"]
 
-    objects: ClassVar[CustomUserManager] = CustomUserManager()
+    objects: ClassVar[CustomUserManager] = CustomUserManager()  # type: ignore[misc]
 
     class Meta:
         db_table = "user"
