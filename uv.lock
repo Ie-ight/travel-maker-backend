@@ -1100,12 +1100,16 @@ dependencies = [
     { name = "celery" },
     { name = "django" },
     { name = "django-cors-headers" },
+    { name = "django-stubs" },
     { name = "djangorestframework" },
     { name = "djangorestframework-simplejwt" },
+    { name = "djangorestframework-stubs" },
     { name = "drf-spectacular" },
+    { name = "factory-boy" },
     { name = "gunicorn" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pytest" },
     { name = "python-decouple" },
     { name = "redis" },
 ]
@@ -1117,7 +1121,6 @@ dev = [
     { name = "djangorestframework-stubs" },
     { name = "factory-boy" },
     { name = "mypy" },
-    { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-django" },
@@ -1127,6 +1130,7 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "mypy" },
     { name = "pre-commit" },
 ]
 
@@ -1135,18 +1139,21 @@ requires-dist = [
     { name = "celery", specifier = ">=5.3.0" },
     { name = "django", specifier = ">=5.1,<5.3" },
     { name = "django-cors-headers", specifier = ">=4.3.0" },
+    { name = "django-stubs", specifier = ">=5.1.1" },
     { name = "django-stubs", marker = "extra == 'dev'", specifier = "==5.1.1" },
     { name = "django-stubs-ext", marker = "extra == 'dev'", specifier = ">=4.2.7" },
     { name = "djangorestframework", specifier = ">=3.14.0" },
     { name = "djangorestframework-simplejwt", specifier = ">=5.3.0" },
+    { name = "djangorestframework-stubs", specifier = ">=3.15.2" },
     { name = "djangorestframework-stubs", marker = "extra == 'dev'", specifier = ">=3.14.0" },
     { name = "drf-spectacular", specifier = ">=0.29.0" },
+    { name = "factory-boy", specifier = ">=3.3.3" },
     { name = "factory-boy", marker = "extra == 'dev'", specifier = ">=3.3.0" },
     { name = "gunicorn", specifier = ">=21.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = "==1.13.0" },
     { name = "pillow", specifier = ">=10.0.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1.0" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "pytest-django", marker = "extra == 'dev'", specifier = ">=4.5.0" },
@@ -1158,7 +1165,10 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pre-commit", specifier = ">=4.6.0" }]
+dev = [
+    { name = "mypy", specifier = ">=1.13.0" },
+    { name = "pre-commit", specifier = ">=4.6.0" },
+]
 
 [[package]]
 name = "types-pyyaml"

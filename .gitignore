@@ -88,3 +88,5 @@ celerybeat-schedule.db  # ← 추가
 .ai/
 
 celerybeat-schedule*
+
+CLAUDE.md

@@ -40,9 +40,14 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "apps.user",
     "apps.core",
+    "apps.place",
+    "apps.review",
+    "apps.bookmark",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
+AUTH_USER_MODEL = "user.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
