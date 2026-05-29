@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from typing import ClassVar
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.db import models
@@ -60,7 +61,7 @@ class User(AbstractBaseUser, TimeStampModel):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = ["nickname", "gender", "birthday"]
 
-    objects = CustomUserManager()
+    objects: ClassVar[CustomUserManager] = CustomUserManager()
 
     class Meta:
         db_table = "user"
