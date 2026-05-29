@@ -89,5 +89,4 @@ celerybeat-schedule.db  # ← 추가
 
 celerybeat-schedule*
 
-celerybeat-schedule*
 CLAUDE.md
