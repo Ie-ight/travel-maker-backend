@@ -8,7 +8,7 @@ from django.db import models
 from apps.core.models import TimeStampModel
 
 
-def generate_nickname():
+def generate_nickname() -> str:
     while True:
         word = "traveler"
         number = random.randint(1000, 9999)
@@ -17,14 +17,24 @@ def generate_nickname():
             return nickname
 
 
-class CustomUserManager(BaseUserManager):
-    def create_user(self, email, nickname, **extra_fields):
+class CustomUserManager(BaseUserManager["User"]):
+    def create_user(
+        self,
+        email: str,
+        nickname: str,
+        **extra_fields: bool | str,
+    ) -> "User":
         email = self.normalize_email(email)
         user: User = self.model(email=email, nickname=nickname, **extra_fields)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, nickname, **extra_fields):
+    def create_superuser(
+        self,
+        email: str,
+        nickname: str,
+        **extra_fields: bool | str,
+    ) -> "User":
         extra_fields["role"] = "ADMIN"
         extra_fields["is_active"] = True
         return self.create_user(email, nickname, **extra_fields)
@@ -48,12 +58,12 @@ class User(AbstractBaseUser, TimeStampModel):
     role = models.CharField(choices=Role.choices, default=Role.USER)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ['nickname', 'gender', 'birthday']
+    REQUIRED_FIELDS: list[str] = ["nickname", "gender", "birthday"]
 
     objects = CustomUserManager()
 
     class Meta:
-        db_table = 'user'
+        db_table = "user"
 
 
 class SocialUser(TimeStampModel):
