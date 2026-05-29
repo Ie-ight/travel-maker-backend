@@ -15,6 +15,7 @@ dependencies = [
     "redis>=5.0.0",
     "gunicorn>=21.0.0",
     "drf-spectacular>=0.29.0",
+    "django-stubs>=5.1.1",
 ]
 
 [project.optional-dependencies]
