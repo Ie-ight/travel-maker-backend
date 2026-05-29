@@ -58,8 +58,8 @@ class User(AbstractBaseUser, TimeStampModel):
     is_active = models.BooleanField(default=True)
     role = models.CharField(choices=Role.choices, default=Role.USER)
 
-    USERNAME_FIELD = "email"
-    REQUIRED_FIELDS: list[str] = ["nickname", "gender", "birthday"]
+    USERNAME_FIELD: ClassVar[str] = "email"
+    REQUIRED_FIELDS: ClassVar[list[str]] = ["nickname", "gender", "birthday"]
 
     objects: ClassVar[CustomUserManager] = CustomUserManager()  # type: ignore[misc]
 
