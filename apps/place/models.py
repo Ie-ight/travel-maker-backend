@@ -13,6 +13,7 @@ class Place(TimeStampModel):
     tags = models.ManyToManyField("Tag", related_name="places", blank=True)  # type: ignore[var-annotated]
 
     class Meta:
+        db_table = "places"
         indexes = [models.Index(fields=["place_name"])]
 
     def __str__(self) -> str:
