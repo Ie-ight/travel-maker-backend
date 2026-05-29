@@ -66,15 +66,13 @@ ignore = [
 "__init__.py" = ["F401"]
 "*/migrations/*.py" = ["E501"]
 
+# mypy 설정
 [tool.mypy]
 plugins = ["mypy_django_plugin.main"]
 python_version = "3.12"
 strict = true
-warn_unused_ignores = false
+warn_unused_ignores = false  # ← 추가
 ignore_missing_imports = true
-exclude = [
-    "apps/.*/tests/.*",
-]
 
 [tool.django-stubs]  # ← 추가!
 django_settings_module = "config.settings.local"

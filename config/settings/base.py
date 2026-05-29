@@ -38,10 +38,11 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
-    "apps.user",
+    "apps.users",
     "apps.core",
     "apps.place",
     "apps.review",
+    "apps.bookmark",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
