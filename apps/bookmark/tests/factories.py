@@ -13,7 +13,7 @@ class UserFactory(DjangoModelFactory):  # type: ignore[misc]
         model = User
 
     email = factory.Sequence(lambda n: f"user{n}@test.com")  # type: ignore[misc]
-    nickname = factory.Sequence(lambda n: f"traveler_{n:04d}")  # type: ignore[misc]
+    nickname = factory.Sequence(lambda n: f"t_{n:04d}")  # type: ignore[misc]
     gender = "M"
     birthday = "2000-01-01"
     is_active = True
