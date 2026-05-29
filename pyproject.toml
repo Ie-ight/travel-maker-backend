@@ -15,7 +15,6 @@ dependencies = [
     "redis>=5.0.0",
     "gunicorn>=21.0.0",
     "drf-spectacular>=0.29.0",
-    "django-stubs>=5.1.1",
 ]
 
 [build-system]
@@ -120,10 +119,4 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
-]
-
-[dependency-groups]
-dev = [
-    "mypy>=1.13.0",
-    "pre-commit>=4.6.0",
 ]

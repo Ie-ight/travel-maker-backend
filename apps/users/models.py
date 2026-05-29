@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import random
 
-from apps.core.models import TimeStampModel
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.db import models
+
+from apps.core.models import TimeStampModel
 
 
 def generate_nickname():
