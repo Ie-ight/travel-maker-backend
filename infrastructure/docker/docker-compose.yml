@@ -42,6 +42,7 @@ services:
     command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
     volumes:
       - ../../:/app
+      - web_venv_volume:/app/.venv  # 호스트 .venv와 격리 (컨테이너가 호스트 인터프리터를 덮어쓰지 않도록)
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     ports:
@@ -112,6 +113,7 @@ volumes:
   static_volume:
   media_volume:
   venv_volume:
+  web_venv_volume:
 
 networks:
   travel_maker_network:
