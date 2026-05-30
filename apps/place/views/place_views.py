@@ -25,8 +25,8 @@ class PlaceListView(APIView):
     @extend_schema(
         tags=["Place"],
         parameters=[
-            OpenApiParameter(name="page", type=int, description="페이지 번호: 0보다 작으면 1로 설정"),
-            OpenApiParameter(name="page_size", type=int, description="목록 출력 개수"),
+            OpenApiParameter(name="page", type=int, description="페이지 번호: 0보다 작거나 없는 페이지는 404"),
+            OpenApiParameter(name="page_size", type=int, description="목록 출력 개수: 기본 8, 최대 100"),
         ],
         responses={200: PlaceListResponseSerializer, 404: PlaceErrorResponseSerializer},
     )
