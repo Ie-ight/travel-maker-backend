@@ -4,7 +4,8 @@ from rest_framework.test import APIClient
 
 from apps.bookmark.models import Bookmark
 from apps.place.models import Place
-from apps.place.tests.factories import PlaceFactory, TagFactory, UserFactory
+from apps.place.services.place_services import get_place_detail
+from apps.place.tests.factories import PlaceFactory, PlaceImageFactory, TagFactory, UserFactory
 from apps.review.models import Review
 
 PLACE_LIST_URL = "/api/v1/places/"
@@ -55,7 +56,7 @@ class TestPlaceListView:
         assert result["place_name"] == "서울 타워"
         assert result["description"] == "멋진 전망대"
         assert result["bookmark_count"] == 0
-        assert result["rating_avg"] == "4.5"
+        assert result["rating_avg"] == 4.5
         assert result["image_url"] == "main.jpg"
         assert len(result["tags"]) == 2
 
@@ -227,3 +228,127 @@ class TestPlaceSearchView:
         PlaceFactory.create_batch(5)  # type: ignore[misc]
         response = api_client.get(PLACE_SEARCH_URL, {"page_size": 3})
         assert len(response.data["results"]) == 3
+
+
+@pytest.mark.django_db
+class TestPlaceDetailView:
+    def _url(self, place_id: int) -> str:
+        return reverse("place_detail", args=[place_id])
+
+    def test_no_auth_required(self, api_client: APIClient) -> None:
+        place = PlaceFactory()  # type: ignore[misc]
+        response = api_client.get(self._url(place.id))
+        assert response.status_code == 200
+
+    def test_returns_detail_fields(self, api_client: APIClient) -> None:
+        tag = TagFactory(tag_name="바다")  # type: ignore[misc]
+        place = PlaceFactory(  # type: ignore[misc]
+            place_name="협재해변",
+            description="상세설명",
+            rating_avg="4.5",
+            tags=[tag],
+        )
+        _add_bookmarks(place, 3)
+        response = api_client.get(self._url(place.id))
+        data = response.data
+        assert response.status_code == 200
+        assert data["id"] == place.id
+        assert data["place_name"] == "협재해변"
+        assert data["description"] == "상세설명"
+        assert data["rating_avg"] == 4.5
+        assert data["review_count"] == 0
+        assert data["bookmark_count"] == 3
+        assert data["tags"][0]["tag_name"] == "바다"
+        assert isinstance(data["images"], list)
+        assert set(data.keys()) == {
+            "id",
+            "place_name",
+            "description",
+            "latitude",
+            "longitude",
+            "rating_avg",
+            "review_count",
+            "bookmark_count",
+            "images",
+            "tags",
+        }
+
+    def test_lat_lng_rating_avg_are_numbers(self, api_client: APIClient) -> None:
+        place = PlaceFactory(rating_avg="4.5")  # type: ignore[misc]
+        data = api_client.get(self._url(place.id)).data
+        assert isinstance(data["latitude"], float)
+        assert isinstance(data["longitude"], float)
+        assert isinstance(data["rating_avg"], float)
+
+    def test_rating_avg_is_null_when_no_review(self, api_client: APIClient) -> None:
+        place = PlaceFactory()  # type: ignore[misc]  # rating_avg 기본 null
+        data = api_client.get(self._url(place.id)).data
+        assert data["rating_avg"] is None
+
+    def test_tags_use_tag_name_key(self, api_client: APIClient) -> None:
+        tag = TagFactory(tag_name="힐링")  # type: ignore[misc]
+        place = PlaceFactory(tags=[tag])  # type: ignore[misc]
+        data = api_client.get(self._url(place.id)).data
+        assert set(data["tags"][0].keys()) == {"id", "tag_name"}
+        assert data["tags"][0]["tag_name"] == "힐링"
+
+    def test_images_main_first_then_order(self, api_client: APIClient) -> None:
+        place = PlaceFactory(images=[])  # type: ignore[misc]
+        PlaceImageFactory(place=place, is_main=False, order=1, image_url="sub.jpg")  # type: ignore[misc]
+        PlaceImageFactory(place=place, is_main=True, order=5, image_url="main.jpg")  # type: ignore[misc]
+        data = api_client.get(self._url(place.id)).data
+        assert data["images"] == ["main.jpg", "sub.jpg"]
+
+    def test_bookmark_count(self, api_client: APIClient) -> None:
+        place = PlaceFactory()  # type: ignore[misc]
+        _add_bookmarks(place, 4)
+        data = api_client.get(self._url(place.id)).data
+        assert data["bookmark_count"] == 4
+
+    def test_404_when_not_found(self, api_client: APIClient) -> None:
+        response = api_client.get(self._url(999999))
+        assert response.status_code == 404
+        assert response.data["error_detail"] == "존재하지 않는 장소입니다."
+
+    def test_images_empty_when_no_image(self, api_client: APIClient) -> None:
+        place = PlaceFactory(images=[])  # type: ignore[misc]
+        data = api_client.get(self._url(place.id)).data
+        assert data["images"] == []
+
+    def test_tags_empty_when_no_tags(self, api_client: APIClient) -> None:
+        place = PlaceFactory(tags=[])  # type: ignore[misc]
+        data = api_client.get(self._url(place.id)).data
+        assert data["tags"] == []
+
+    def test_lat_lng_values_round_trip(self, api_client: APIClient) -> None:
+        # Decimal -> float 직렬화 시 좌표 값이 그대로 보존되는지 (정밀도 손실 없음)
+        place = PlaceFactory(latitude="37.5540000", longitude="126.2390000")  # type: ignore[misc]
+        data = api_client.get(self._url(place.id)).data
+        assert data["latitude"] == pytest.approx(37.554)
+        assert data["longitude"] == pytest.approx(126.239)
+
+    def test_returns_requested_place_among_many(self, api_client: APIClient) -> None:
+        PlaceFactory(place_name="다른 장소")  # type: ignore[misc]
+        target = PlaceFactory(place_name="목표 장소")  # type: ignore[misc]
+        data = api_client.get(self._url(target.id)).data
+        assert data["id"] == target.id
+        assert data["place_name"] == "목표 장소"
+
+    def test_review_count(self, api_client: APIClient) -> None:
+        place = PlaceFactory()  # type: ignore[misc]
+        _add_reviews(place, 2)
+        data = api_client.get(self._url(place.id)).data
+        assert data["review_count"] == 2
+
+    def test_counts_not_inflated_by_join(self, api_client: APIClient) -> None:
+        # bookmark/review 동시 annotate 시 distinct 없으면 3*2=6 으로 부풀려진다
+        place = PlaceFactory()  # type: ignore[misc]
+        _add_bookmarks(place, 3)
+        _add_reviews(place, 2)
+        data = api_client.get(self._url(place.id)).data
+        assert data["bookmark_count"] == 3
+        assert data["review_count"] == 2
+
+    def test_service_returns_none_when_not_found(self) -> None:
+        # 서비스는 DRF 없이 순수하게 None을 반환한다 (404 판단은 뷰가 함)
+        assert get_place_detail(999999) is None
