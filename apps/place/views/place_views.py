@@ -66,6 +66,45 @@ class PlaceSearchView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
+class PlaceFilterView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Place"],
+        parameters=[
+            OpenApiParameter(
+                name="tags",
+                type=int,
+                many=True,
+                description="태그 ID 다중 선택(AND): 모두 포함한 장소만. 예) tags=1&tags=3",
+            ),
+            OpenApiParameter(name="keyword", type=str, description="place_name 부분 검색어 (없으면 전체 목록)"),
+            OpenApiParameter(name="sort", type=str, description="정렬 기준: bookmark(기본) | review | rating"),
+            OpenApiParameter(name="order", type=str, description="정렬 방향: desc(기본) | asc"),
+            OpenApiParameter(name="page", type=int, description="페이지 번호: 0보다 작거나 없는 페이지는 404"),
+            OpenApiParameter(name="page_size", type=int, description="목록 출력 개수: 기본 8, 최대 100"),
+        ],
+        responses={200: PlaceListResponseSerializer, 404: PlaceErrorResponseSerializer},
+    )
+    def get(self, request: Request) -> Response:
+        keyword = request.query_params.get("keyword", "").strip()
+        sort = request.query_params.get("sort", "bookmark")
+        order = request.query_params.get("order", "desc")
+        # tags=1&tags=3 (반복) 및 tags=1,3 (콤마) 모두 허용, 숫자가 아니면 무시
+        tag_ids = [
+            int(part)
+            for raw in request.query_params.getlist("tags")
+            for part in raw.split(",")
+            if part.strip().isdigit()
+        ]
+
+        queryset = get_place_list(keyword=keyword, sort=sort, order=order, tags=tag_ids)
+        paginator = CustomPagination()
+        page = paginator.paginate_queryset(queryset, self.request)
+        serializer = PlaceListSerializer(page, many=True, context={"request": self.request})
+        return paginator.get_paginated_response(serializer.data)
+
+
 class PlaceDetailView(APIView):
     permission_classes = [AllowAny]
 
