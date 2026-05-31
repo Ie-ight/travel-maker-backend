@@ -110,6 +110,33 @@ class TestPlaceListView:
         assert response.data["previous"] is not None
         assert response.data["next"] is None
 
+    def test_out_of_range_page_returns_404(self, api_client: APIClient) -> None:
+        PlaceFactory.create_batch(10)  # type: ignore[misc]
+        response = api_client.get(PLACE_LIST_URL, {"page": 99, "page_size": 8})
+        assert response.status_code == 404
+        assert "error_detail" in response.data
+
+    def test_page_zero_returns_404(self, api_client: APIClient) -> None:
+        PlaceFactory.create_batch(3)  # type: ignore[misc]
+        response = api_client.get(PLACE_LIST_URL, {"page": 0})
+        assert response.status_code == 404
+        assert "error_detail" in response.data
+
+    def test_page_size_capped_at_max(self, api_client: APIClient) -> None:
+        # max_page_size=100 이므로 그보다 큰 요청은 100으로 제한
+        PlaceFactory.create_batch(101, images=[], tags=[])  # type: ignore[misc]
+        response = api_client.get(PLACE_LIST_URL, {"page_size": 500})
+        assert response.data["count"] == 101
+        assert len(response.data["results"]) == 100
+
+    def test_image_url_is_null_when_no_main_image(self, api_client: APIClient) -> None:
+        # 이미지는 있지만 대표(is_main)가 없으면 None
+        place = PlaceFactory(images=[])  # type: ignore[misc]
+        PlaceImageFactory(place=place, is_main=False, image_url="a.jpg")  # type: ignore[misc]
+        PlaceImageFactory(place=place, is_main=False, image_url="b.jpg")  # type: ignore[misc]
+        response = api_client.get(PLACE_LIST_URL)
+        assert response.data["results"][0]["image_url"] is None
+
 
 @pytest.mark.django_db
 class TestPlaceSearchView:
@@ -228,6 +255,19 @@ class TestPlaceSearchView:
         PlaceFactory.create_batch(5)  # type: ignore[misc]
         response = api_client.get(PLACE_SEARCH_URL, {"page_size": 3})
         assert len(response.data["results"]) == 3
+
+    def test_out_of_range_page_returns_404(self, api_client: APIClient) -> None:
+        PlaceFactory.create_batch(10)  # type: ignore[misc]
+        response = api_client.get(PLACE_SEARCH_URL, {"page": 99, "page_size": 8})
+        assert response.status_code == 404
+        assert "error_detail" in response.data
+
+    def test_sort_by_rating_asc_nulls_last(self, api_client: APIClient) -> None:
+        no_rating = PlaceFactory(place_name="서울 A")  # type: ignore[misc]
+        low = PlaceFactory(place_name="서울 B", rating_avg="3.0")  # type: ignore[misc]
+        high = PlaceFactory(place_name="서울 C", rating_avg="4.5")  # type: ignore[misc]
+        response = api_client.get(PLACE_SEARCH_URL, {"keyword": "서울", "sort": "rating", "order": "asc"})
+        assert [r["id"] for r in response.data["results"]] == [low.id, high.id, no_rating.id]
 
 
 @pytest.mark.django_db
