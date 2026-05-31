@@ -5,13 +5,24 @@ from apps.place.models import Place
 SORT_FIELDS = {"bookmark": "bookmark_count", "review": "review_count", "rating": "rating_avg"}
 
 
-def get_place_list(keyword: str = "", sort: str = "bookmark", order: str = "desc") -> QuerySet[Place]:
+def get_place_list(
+    keyword: str = "",
+    sort: str = "bookmark",
+    order: str = "desc",
+    tags: list[int] | None = None,
+) -> QuerySet[Place]:
     queryset = Place.objects.prefetch_related("images", "tags").annotate(
         bookmark_count=Count("bookmarks", distinct=True),
         review_count=Count("reviews", distinct=True),
     )
     if keyword:
         queryset = queryset.filter(place_name__icontains=keyword)
+    if tags:
+        # AND 매칭: 태그별로 filter를 체이닝하면 태그마다 별도 JOIN이 생겨 "모두 포함"이 된다.
+        # 각 JOIN이 동시에 만족되어야 하므로 Place 행 중복이 없고(distinct 불필요),
+        # bookmark_count/review_count도 distinct=True 덕분에 부풀려지지 않는다.
+        for tag_id in tags:
+            queryset = queryset.filter(tags__id=tag_id)
     field = F(SORT_FIELDS.get(sort, "bookmark_count"))
     ordering = field.asc(nulls_last=True) if order == "asc" else field.desc(nulls_last=True)
     # 정렬 기준이 동률일 때 페이지네이션이 결정적이도록 id 보조키 추가

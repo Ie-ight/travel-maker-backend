@@ -10,6 +10,7 @@ from apps.review.models import Review
 
 PLACE_LIST_URL = "/api/v1/places/"
 PLACE_SEARCH_URL = reverse("place_search")
+PLACE_FILTER_URL = reverse("place_filter")
 
 
 def _add_bookmarks(place: Place, n: int) -> None:
@@ -268,6 +269,234 @@ class TestPlaceSearchView:
         high = PlaceFactory(place_name="서울 C", rating_avg="4.5")  # type: ignore[misc]
         response = api_client.get(PLACE_SEARCH_URL, {"keyword": "서울", "sort": "rating", "order": "asc"})
         assert [r["id"] for r in response.data["results"]] == [low.id, high.id, no_rating.id]
+
+
+@pytest.mark.django_db
+class TestPlaceFilterView:
+    # --- 인증 / 기본 동작 ---
+    def test_no_auth_required(self, api_client: APIClient) -> None:
+        response = api_client.get(PLACE_FILTER_URL)
+        assert response.status_code == 200
+
+    def test_no_tags_returns_all(self, api_client: APIClient) -> None:
+        PlaceFactory.create_batch(3)  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL)
+        assert response.status_code == 200
+        assert response.data["count"] == 3
+
+    def test_no_tags_default_sort_bookmark_desc(self, api_client: APIClient) -> None:
+        low = PlaceFactory()  # type: ignore[misc]
+        high = PlaceFactory()  # type: ignore[misc]
+        _add_bookmarks(high, 2)
+        response = api_client.get(PLACE_FILTER_URL)
+        assert [r["id"] for r in response.data["results"]] == [high.id, low.id]
+
+    # --- 태그 매칭 (AND 핵심) ---
+    def test_single_tag_filters(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="산")  # type: ignore[misc]
+        target = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        PlaceFactory(tags=[tag_b])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == target.id
+
+    def test_multiple_tags_require_all(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="힐링")  # type: ignore[misc]
+        both = PlaceFactory(tags=[tag_a, tag_b])  # type: ignore[misc]
+        PlaceFactory(tags=[tag_a])  # type: ignore[misc]  # 하나만 가진 장소는 제외돼야 함
+        response = api_client.get(PLACE_FILTER_URL, {"tags": [tag_a.id, tag_b.id]})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == both.id
+
+    def test_and_no_match_returns_empty(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="산")  # type: ignore[misc]
+        PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        PlaceFactory(tags=[tag_b])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": [tag_a.id, tag_b.id]})
+        assert response.data["count"] == 0
+
+    def test_tag_with_extra_tags_still_matches_no_duplicate(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="힐링")  # type: ignore[misc]
+        tag_c = TagFactory(tag_name="가족")  # type: ignore[misc]
+        place = PlaceFactory(tags=[tag_a, tag_b, tag_c])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": [tag_a.id, tag_b.id]})
+        # 태그를 더 가진 장소도 매칭되며, 다중 JOIN에도 행 중복이 없어 1건이어야 함
+        assert response.data["count"] == 1
+        assert len(response.data["results"]) == 1
+        assert response.data["results"][0]["id"] == place.id
+
+    def test_nonexistent_tag_returns_empty(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": 999999})
+        assert response.data["count"] == 0
+
+    def test_duplicate_tag_ids_no_error(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        target = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": [tag_a.id, tag_a.id]})
+        assert response.status_code == 200
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == target.id
+
+    # --- 파라미터 파싱 엣지케이스 ---
+    def test_comma_separated_tags(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="힐링")  # type: ignore[misc]
+        both = PlaceFactory(tags=[tag_a, tag_b])  # type: ignore[misc]
+        PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": f"{tag_a.id},{tag_b.id}"})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == both.id
+
+    def test_mixed_valid_invalid_tags(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="산")  # type: ignore[misc]
+        target = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        PlaceFactory(tags=[tag_b])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": [tag_a.id, "abc"]})
+        # 유효한 태그만 적용
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == target.id
+
+    def test_invalid_tag_param_ignored(self, api_client: APIClient) -> None:
+        PlaceFactory.create_batch(2)  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": "abc"})
+        assert response.data["count"] == 2
+
+    def test_empty_tags_param_ignored(self, api_client: APIClient) -> None:
+        PlaceFactory.create_batch(2)  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": ""})
+        assert response.data["count"] == 2
+
+    def test_whitespace_tags_parsed(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="산")  # type: ignore[misc]
+        target = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        PlaceFactory(tags=[tag_b])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": f" {tag_a.id} "})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == target.id
+
+    # --- keyword + tags 조합 ---
+    def test_keyword_and_tags_combined(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="산")  # type: ignore[misc]
+        target = PlaceFactory(place_name="서울 타워", tags=[tag_a])  # type: ignore[misc]
+        PlaceFactory(place_name="부산 타워", tags=[tag_a])  # type: ignore[misc]  # 태그는 맞지만 keyword 불일치
+        PlaceFactory(place_name="서울 공원", tags=[tag_b])  # type: ignore[misc]  # keyword 맞지만 태그 불일치
+        response = api_client.get(PLACE_FILTER_URL, {"keyword": "서울", "tags": tag_a.id})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == target.id
+
+    def test_keyword_excludes_tag_match(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory(place_name="부산 타워", tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"keyword": "서울", "tags": tag_a.id})
+        assert response.data["count"] == 0
+
+    def test_blank_keyword_with_tags(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        target = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"keyword": "   ", "tags": tag_a.id})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == target.id
+
+    # --- 정렬 재사용 (기존 /search와 동일 동작) ---
+    def test_sort_by_rating_desc_nulls_last_with_tags(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        no_rating = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        low = PlaceFactory(rating_avg="3.0", tags=[tag_a])  # type: ignore[misc]
+        high = PlaceFactory(rating_avg="4.5", tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id, "sort": "rating", "order": "desc"})
+        assert [r["id"] for r in response.data["results"]] == [high.id, low.id, no_rating.id]
+
+    def test_order_asc_with_tags(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        low = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        high = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        _add_bookmarks(low, 1)
+        _add_bookmarks(high, 3)
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id, "sort": "bookmark", "order": "asc"})
+        assert [r["id"] for r in response.data["results"]] == [low.id, high.id]
+
+    def test_invalid_sort_falls_back_to_bookmark(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        high = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        _add_bookmarks(high, 2)
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id, "sort": "invalid"})
+        assert response.status_code == 200
+        assert response.data["results"][0]["id"] == high.id
+
+    def test_tie_break_by_id_desc(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        a = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        b = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        c = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id})
+        assert [r["id"] for r in response.data["results"]] == [c.id, b.id, a.id]
+
+    # --- 카운트 정확성 ---
+    def test_counts_not_inflated_by_join(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        tag_b = TagFactory(tag_name="힐링")  # type: ignore[misc]
+        place = PlaceFactory(tags=[tag_a, tag_b])  # type: ignore[misc]
+        _add_bookmarks(place, 3)
+        _add_reviews(place, 2)
+        # 다중 태그 JOIN + 북마크/리뷰 JOIN에도 distinct로 카운트가 부풀려지지 않아야 함
+        response = api_client.get(PLACE_FILTER_URL, {"tags": [tag_a.id, tag_b.id]})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["bookmark_count"] == 3
+
+    # --- 응답 형태 / 페이지네이션 ---
+    def test_response_shape_matches_list(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory(place_name="서울 타워", description="멋진 곳", rating_avg="4.5", tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id})
+        assert {"count", "next", "previous", "results"} <= set(response.data.keys())
+        result = response.data["results"][0]
+        assert set(result.keys()) == {
+            "id",
+            "place_name",
+            "image_url",
+            "description",
+            "bookmark_count",
+            "rating_avg",
+            "tags",
+        }
+        assert "review_count" not in result
+
+    def test_default_page_size_is_8(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory.create_batch(10, tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id})
+        assert response.data["count"] == 10
+        assert len(response.data["results"]) == 8
+
+    def test_custom_page_size(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory.create_batch(5, tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id, "page_size": 3})
+        assert len(response.data["results"]) == 3
+
+    def test_out_of_range_page_returns_404(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory.create_batch(10, tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id, "page": 99, "page_size": 8})
+        assert response.status_code == 404
+        assert "error_detail" in response.data
+
+    def test_page_zero_returns_404(self, api_client: APIClient) -> None:
+        tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
+        PlaceFactory.create_batch(3, tags=[tag_a])  # type: ignore[misc]
+        response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id, "page": 0})
+        assert response.status_code == 404
+        assert "error_detail" in response.data
 
 
 @pytest.mark.django_db
