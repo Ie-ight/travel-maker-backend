@@ -1,4 +1,5 @@
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework.exceptions import NotFound
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -6,11 +7,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.place.serializers.place_serializers import (
+    PlaceDetailSerializer,
     PlaceErrorResponseSerializer,
     PlaceListResponseSerializer,
     PlaceListSerializer,
 )
-from apps.place.services.place_services import get_place_list
+from apps.place.services.place_services import get_place_detail, get_place_list
 
 
 class CustomPagination(PageNumberPagination):
@@ -64,4 +66,15 @@ class PlaceSearchView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
-class PlaceDetailView(APIView): ...
+class PlaceDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Place"],
+        responses={200: PlaceDetailSerializer, 404: PlaceErrorResponseSerializer},
+    )
+    def get(self, request: Request, place_id: int) -> Response:
+        place = get_place_detail(place_id)
+        if place is None:
+            raise NotFound("존재하지 않는 장소입니다.")
+        return Response(PlaceDetailSerializer(place).data)
