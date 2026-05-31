@@ -1,7 +1,21 @@
 import factory
+from django.contrib.auth import get_user_model
 from factory.django import DjangoModelFactory
 
 from apps.place.models import Place, PlaceImage, Tag
+
+User = get_user_model()
+
+
+class UserFactory(DjangoModelFactory):  # type: ignore[misc]
+    class Meta:
+        model = User
+
+    email = factory.Sequence(lambda n: f"u{n}@test.com")  # type: ignore[misc]
+    nickname = factory.Sequence(lambda n: f"u_{n:04d}")  # type: ignore[misc]
+    gender = "M"
+    birthday = "2000-01-01"
+    is_active = True
 
 
 class TagFactory(DjangoModelFactory):  # type: ignore[misc]
