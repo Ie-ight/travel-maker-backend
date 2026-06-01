@@ -12,7 +12,7 @@ class TagSerializer(serializers.ModelSerializer[Tag]):
 class PlaceListSerializer(serializers.ModelSerializer[Place]):
     image_url = serializers.SerializerMethodField()
     bookmark_count = serializers.IntegerField(read_only=True)
-    rating_avg = serializers.FloatField(allow_null=True)  # DecimalField 기본(문자열) 대신 숫자로
+    rating_avg = serializers.FloatField()  # DecimalField 기본(문자열) 대신 숫자로 (미평가=0)
     tags = TagSerializer(many=True, read_only=True)
 
     def get_image_url(self, obj: Place) -> str | None:
@@ -35,7 +35,7 @@ class PlaceListSerializer(serializers.ModelSerializer[Place]):
 class PlaceDetailSerializer(serializers.ModelSerializer[Place]):
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
-    rating_avg = serializers.FloatField(allow_null=True)  # 목록과 동일 (리뷰 없으면 null)
+    rating_avg = serializers.FloatField()  # 목록과 동일 (리뷰 없으면 0)
     review_count = serializers.IntegerField(read_only=True)
     bookmark_count = serializers.IntegerField(read_only=True)
     images = serializers.SerializerMethodField()

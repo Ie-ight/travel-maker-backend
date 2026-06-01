@@ -7,7 +7,7 @@ class Place(TimeStampModel):
     place_name = models.CharField(max_length=50)
     latitude = models.DecimalField(max_digits=10, decimal_places=7)
     longitude = models.DecimalField(max_digits=10, decimal_places=7)
-    rating_avg = models.DecimalField(max_digits=2, decimal_places=1, null=True, blank=True)  # 평균 평점
+    rating_avg = models.DecimalField(max_digits=2, decimal_places=1, default=0)  # 평균 평점(미평가=0, 척도 1~5)
     rating_count = models.PositiveIntegerField(default=0)  # 평점 개수 - 계산 보정용
     description = models.TextField(null=True, blank=True)
     tags = models.ManyToManyField("Tag", related_name="places", blank=True)  # type: ignore[var-annotated]
