@@ -427,32 +427,32 @@ https://apis.data.go.kr/B551011/KorService2/detailImage2?MobileOS=ETC&MobileApp=
 8. 중복 방지는 `place + image_url` UniqueConstraint로 처리하고, sync 시 `update_or_create` 패턴을 사용한다.
 9. 대표 이미지는 `order=0` 또는 첫 번째 수집 이미지에 `is_main=True`를 부여한다.
 
-### 성향 Feature 벡터 테이블
+### 장소 성향 벡터 테이블
 
-성향 벡터는 `User`, `Place` 본체에 합치지 않고 별도 테이블에서 관리한다. 컬럼명은 범용적인 `embedding` 대신 도메인 의미가 드러나는 `style_vector`를 사용한다. 미니 프로젝트 범위에서는 버전, 산출 시각(`computed_at`), 산출 출처(`source`)까지 분리하지 않고 `updated_at`을 최신 계산 시각으로 사용한다.
+장소 성향 벡터는 `Place` 본체에 합치지 않고 별도 테이블에서 관리한다. 컬럼명은 범용적인 `embedding` 대신 도메인 의미가 드러나는 `style_vector`를 사용한다. 미니 프로젝트 범위에서는 버전, 산출 시각(`computed_at`), 산출 출처(`source`)까지 분리하지 않고 `updated_at`을 최신 계산 시각으로 사용한다.
+
+> 유저 설문 기반 벡터(`user_features`)와 설문 점수 계산 방식은 본 수집 명세 범위 밖이며 별도 추천/설문 문서에서 다룬다.
 
 | 테이블 | 참조 | 벡터 컬럼 | 설명 |
 | :--- | :--- | :--- | :--- |
-| `user_features` | `user_id` | `style_vector VECTOR(6)` | 유저 설문 결과로 계산한 성향 벡터 |
 | `place_features` | `place_id` | `style_vector VECTOR(6)` | 장소 설명/태그/AI 분석 결과로 계산한 장소 성향 벡터 |
 
 테이블 컬럼은 단순하게 유지한다.
 
 | 테이블 | 컬럼 |
 | :--- | :--- |
-| `user_features` | `id`, `user_id`, `style_vector`, `created_at`, `updated_at` |
 | `place_features` | `id`, `place_id`, `style_vector`, `created_at`, `updated_at` |
 
-`style_vector`는 아래 순서의 6차원 고정 벡터다. 저장값은 `0.0~1.0` 정규화 값을 사용한다.
+`style_vector`는 아래 순서의 6차원 고정 벡터다. 저장값은 `0.0~1.0` 정규화 값을 사용한다. `0.5`는 중립, `1.0`은 + 방향 극단, `0.0`은 - 방향 극단이다.
 
-| 인덱스 | 축 | + 방향 | - 방향 | 담당 문항 |
-| :---: | :--- | :--- | :--- | :--- |
-| 0 | 활동성 | 액티비티형 | 힐링형 | Q3, Q5, Q6, Q7, Q10 |
-| 1 | 계획성 | 계획형 | 즉흥형 | Q2, Q3, Q4, Q5, Q11 |
-| 2 | 사교성 | 혼자형 | 단체형 | Q1, Q5, Q6, Q8, Q12 |
-| 3 | 공간지향 | 자연형 | 도시형 | Q1, Q4, Q7, Q9, Q12 |
-| 4 | 경험지향 | 문화형 | 체험형 | Q7, Q8, Q9, Q10, Q11 |
-| 5 | 소비스타일 | 가성비형 | 럭셔리형 | Q1, Q2, Q9, Q10, Q12 |
+| 인덱스 | 축 | + 방향 | - 방향 |
+| :---: | :--- | :--- | :--- |
+| 0 | 활동성 | 액티비티형 | 힐링형 |
+| 1 | 계획성 | 계획형 | 즉흥형 |
+| 2 | 사교성 | 혼자형 | 단체형 |
+| 3 | 공간지향 | 자연형 | 도시형 |
+| 4 | 경험지향 | 문화형 | 체험형 |
+| 5 | 소비스타일 | 가성비형 | 럭셔리형 |
 
 각 방향의 의미는 다음과 같다.
 
@@ -464,13 +464,6 @@ https://apis.data.go.kr/B551011/KorService2/detailImage2?MobileOS=ETC&MobileApp=
 | 공간지향 | 자연, 야외, 풍경, 한적한 공간을 선호 | 도시, 상권, 실내 시설, 접근성 높은 공간을 선호 |
 | 경험지향 | 전시, 역사, 지역문화, 감상 중심의 문화 경험을 선호 | 직접 참여, 체험, 놀이, hands-on 활동을 선호 |
 | 소비스타일 | 가격 대비 만족도, 합리적 비용, 부담 없는 소비를 선호 | 프리미엄, 고급 시설, 특별한 서비스와 지출 경험을 선호 |
-
-유저 설문 점수 계산 방식은 다음과 같다.
-
-1. 각 문항의 A/B 선택에 따라 해당 축에 `+1.0` 또는 `-1.0`을 부여한다.
-2. 각 축은 5개 문항으로 구성되므로 원점수 범위는 `-5.0~+5.0`이다.
-3. DB에는 `(원점수 + 5) / 10`으로 정규화한 값을 저장한다.
-4. `0.5`는 중립, `1.0`은 해당 축의 + 방향 극단, `0.0`은 해당 축의 - 방향 극단이다.
 
 ### 장소 벡터 계산 예시 — 가가책방 (`content_id=2750143`)
 
@@ -500,7 +493,6 @@ from django.db import models
 from pgvector.django import VectorField
 
 from apps.core.models import TimeStampModel
-from apps.user.models import User
 
 
 class Place(TimeStampModel):
@@ -567,14 +559,6 @@ class PlaceInfo(models.Model):
 
     class Meta:
         db_table = "place_info"
-
-
-class UserFeature(TimeStampModel):
-    user = models.OneToOneField(User, related_name="feature", on_delete=models.CASCADE)
-    style_vector = VectorField(dimensions=6)
-
-    class Meta:
-        db_table = "user_features"
 
 
 class PlaceFeature(TimeStampModel):
@@ -754,3 +738,45 @@ class PlaceFeature(TimeStampModel):
 | 지역 | 충남 | `addr1` = "충청남도 공주시..." → 충남 파싱 |
 
 편의성 태그는 부여되지 않음: 주차 불가(`parking=False`), 유료 입장(`admission_fee="1인 5,000원"`), 반려동물·유아·카드 정보 없음(`null`).
+
+## 9. AI 가공 프롬프트 계약
+
+AI 가공 단계는 `overview` 등을 입력받아 **태그 부여**와 **`style_vector` 산출**을 동시에 수행한다. 프롬프트 문구 자체는 코드에서 튜닝하되, 아래 입출력 계약과 가드레일은 고정한다. 문구를 이 문서에 박지 않는 이유는 잦은 튜닝으로 금방 낡기 때문이다.
+
+### 입력
+
+| 항목 | 출처 | 설명 |
+| :--- | :--- | :--- |
+| `place_name` | `Place.place_name` | 장소명 |
+| `overview` | `Place.description` | 핵심 입력 텍스트 |
+| `content_type_id` | `Place.content_type_id` | 타입명으로 변환해 전달 (예: 14 → 문화시설) |
+| `lcls_systm1~3` | `Place.lcls_systm*` | `lclsSystmCode2` 코드명과 함께 전달 |
+| `address_primary` | `Place.address_primary` | 보조 맥락 |
+| 후보 태그 목록 | 태그 시드 | **`여행 스타일`·`세부 테마`·`동행`만** 후보로 제공 |
+
+### 출력 (JSON 스키마 고정)
+
+```json
+{
+  "tags": {
+    "여행 스타일": ["문화", "로맨틱"],
+    "세부 테마": ["박물관·전시", "랜드마크", "쇼핑"],
+    "동행": ["혼자", "커플"]
+  },
+  "style_vector": [0.2, 0.65, 0.75, 0.35, 0.75, 0.65],
+  "reason": "판단 근거 (디버깅용, DB 저장하지 않음)"
+}
+```
+
+### 가드레일
+
+1. 태그는 **제공된 후보 목록에서만** 선택한다. 새 태그를 생성하지 않는다.
+2. `style_vector`는 **정확히 6개**, 각 값 `0.0~1.0`, **축 순서 고정**(활동성 → 계획성 → 사교성 → 공간지향 → 경험지향 → 소비스타일).
+3. **`지역`·`편의성` tag_type은 AI가 부여하지 않는다.** 각각 `addr1` 파싱, `PlaceInfo` 필드로 결정론적으로 처리하므로 후보로 제공하지 않는다.
+4. 태그 개수에 상한을 두지 않되, 근거가 명확한 것만 부여한다.
+
+### 예외 처리
+
+- `overview`가 비어 있으면 `lcls_systm`·`content_type_id`만으로 최소 태그를 추정하고, `style_vector`는 중립(`0.5`) 또는 산출 보류를 택한다. 산출 보류 시 `PlaceFeature`를 생성하지 않는다.
+
+가가책방(§4 벡터 예시, §8 태그 예시)이 이 계약의 정답 케이스다.
