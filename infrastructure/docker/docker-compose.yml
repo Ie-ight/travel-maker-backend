@@ -96,6 +96,7 @@ services:
              uv run celery -A config beat --loglevel=info"
     volumes:
       - ../../:/app
+      - beat_venv_volume:/app/.venv  # 호스트 .venv와 격리 (beat가 호스트 인터프리터를 덮어쓰지 않도록)
     env_file:
       - ../../envs/.env.local
     environment:
@@ -114,6 +115,7 @@ volumes:
   media_volume:
   venv_volume:
   web_venv_volume:
+  beat_venv_volume:
 
 networks:
   travel_maker_network:
