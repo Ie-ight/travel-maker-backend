@@ -24,7 +24,7 @@ def get_place_list(
         for tag_id in tags:
             queryset = queryset.filter(tags__id=tag_id)
     field = F(SORT_FIELDS.get(sort, "bookmark_count"))
-    ordering = field.asc(nulls_last=True) if order == "asc" else field.desc(nulls_last=True)
+    ordering = field.asc() if order == "asc" else field.desc()
     # 정렬 기준이 동률일 때 페이지네이션이 결정적이도록 id 보조키 추가
     return queryset.order_by(ordering, "-id")
 

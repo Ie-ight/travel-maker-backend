@@ -80,10 +80,10 @@ class TestPlaceListView:
         assert tags[0]["id"] == tag.id
         assert tags[0]["tag_name"] == "조용한"
 
-    def test_rating_avg_is_null_by_default(self, api_client: APIClient) -> None:
+    def test_rating_avg_is_zero_by_default(self, api_client: APIClient) -> None:
         PlaceFactory()  # type: ignore[misc]
         response = api_client.get(PLACE_LIST_URL)
-        assert response.data["results"][0]["rating_avg"] is None
+        assert response.data["results"][0]["rating_avg"] == 0
 
     def test_default_sort_by_bookmark_desc(self, api_client: APIClient) -> None:
         low = PlaceFactory()  # type: ignore[misc]
@@ -216,8 +216,8 @@ class TestPlaceSearchView:
         response = api_client.get(PLACE_SEARCH_URL, {"keyword": "서울", "sort": "review", "order": "desc"})
         assert [r["id"] for r in response.data["results"]] == [b.id, a.id]
 
-    def test_sort_by_rating_desc_nulls_last(self, api_client: APIClient) -> None:
-        no_rating = PlaceFactory(place_name="서울 A")  # type: ignore[misc]
+    def test_sort_by_rating_desc(self, api_client: APIClient) -> None:
+        no_rating = PlaceFactory(place_name="서울 A")  # type: ignore[misc]  # 미평가=0
         low = PlaceFactory(place_name="서울 B", rating_avg="3.0")  # type: ignore[misc]
         high = PlaceFactory(place_name="서울 C", rating_avg="4.5")  # type: ignore[misc]
         response = api_client.get(PLACE_SEARCH_URL, {"keyword": "서울", "sort": "rating", "order": "desc"})
@@ -263,12 +263,12 @@ class TestPlaceSearchView:
         assert response.status_code == 404
         assert "error_detail" in response.data
 
-    def test_sort_by_rating_asc_nulls_last(self, api_client: APIClient) -> None:
-        no_rating = PlaceFactory(place_name="서울 A")  # type: ignore[misc]
+    def test_sort_by_rating_asc(self, api_client: APIClient) -> None:
+        no_rating = PlaceFactory(place_name="서울 A")  # type: ignore[misc]  # 미평가=0 → asc 맨 앞
         low = PlaceFactory(place_name="서울 B", rating_avg="3.0")  # type: ignore[misc]
         high = PlaceFactory(place_name="서울 C", rating_avg="4.5")  # type: ignore[misc]
         response = api_client.get(PLACE_SEARCH_URL, {"keyword": "서울", "sort": "rating", "order": "asc"})
-        assert [r["id"] for r in response.data["results"]] == [low.id, high.id, no_rating.id]
+        assert [r["id"] for r in response.data["results"]] == [no_rating.id, low.id, high.id]
 
 
 @pytest.mark.django_db
@@ -407,9 +407,9 @@ class TestPlaceFilterView:
         assert response.data["results"][0]["id"] == target.id
 
     # --- 정렬 재사용 (기존 /search와 동일 동작) ---
-    def test_sort_by_rating_desc_nulls_last_with_tags(self, api_client: APIClient) -> None:
+    def test_sort_by_rating_desc_with_tags(self, api_client: APIClient) -> None:
         tag_a = TagFactory(tag_name="바다")  # type: ignore[misc]
-        no_rating = PlaceFactory(tags=[tag_a])  # type: ignore[misc]
+        no_rating = PlaceFactory(tags=[tag_a])  # type: ignore[misc]  # 미평가=0
         low = PlaceFactory(rating_avg="3.0", tags=[tag_a])  # type: ignore[misc]
         high = PlaceFactory(rating_avg="4.5", tags=[tag_a])  # type: ignore[misc]
         response = api_client.get(PLACE_FILTER_URL, {"tags": tag_a.id, "sort": "rating", "order": "desc"})
@@ -549,10 +549,10 @@ class TestPlaceDetailView:
         assert isinstance(data["longitude"], float)
         assert isinstance(data["rating_avg"], float)
 
-    def test_rating_avg_is_null_when_no_review(self, api_client: APIClient) -> None:
-        place = PlaceFactory()  # type: ignore[misc]  # rating_avg 기본 null
+    def test_rating_avg_is_zero_when_no_review(self, api_client: APIClient) -> None:
+        place = PlaceFactory()  # type: ignore[misc]  # rating_avg 기본 0
         data = api_client.get(self._url(place.id)).data
-        assert data["rating_avg"] is None
+        assert data["rating_avg"] == 0
 
     def test_tags_use_tag_name_key(self, api_client: APIClient) -> None:
         tag = TagFactory(tag_name="힐링")  # type: ignore[misc]
