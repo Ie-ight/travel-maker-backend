@@ -5,6 +5,7 @@ Production settings.
 
 from typing import Any
 
+import sentry_sdk
 from decouple import config
 
 from .base import *  # noqa: F403
@@ -79,3 +80,10 @@ REST_FRAMEWORK = REST_FRAMEWORK_PROD
 # LOGGING_PROD["root"]["handlers"] = ["console", "file"]
 # LOGGING_PROD["loggers"]["django"]["handlers"] = ["console", "file"]
 # LOGGING = LOGGING_PROD
+
+
+sentry_sdk.init(
+    dsn=config("SENTRY_DSN", default=""),
+    send_default_pii=True,
+    environment="production",
+)
