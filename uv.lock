@@ -1132,6 +1132,8 @@ dev = [
 dev = [
     { name = "mypy" },
     { name = "pre-commit" },
+    { name = "pytest-cov" },
+    { name = "pytest-django" },
 ]
 
 [package.metadata]
@@ -1168,6 +1170,8 @@ provides-extras = ["dev"]
 dev = [
     { name = "mypy", specifier = ">=1.13.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-django", specifier = ">=4.12.0" },
 ]
 
 [[package]]
