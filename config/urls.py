@@ -13,6 +13,8 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from apps.bookmark.views import BookmarkCreateDeleteView
+
 urlpatterns = [
     # Django Admin
     path("admin/", admin.site.urls),
@@ -29,7 +31,8 @@ urlpatterns = [
     path("api/v1/", include("apps.review.urls")),
     # path("api/users/", include("apps.users.urls")),
     path("api/v1/bookmarks/", include("apps.bookmark.urls")),
-    path("api/v1/places/", include("apps.place.urls")),
+    # todo: place url 옮기기
+    path("api/v1/places/<int:place_id>/bookmarks/", BookmarkCreateDeleteView.as_view()),
 ]
 
 # Static & Media files (개발 환경에서만)
