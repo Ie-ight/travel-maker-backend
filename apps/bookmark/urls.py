@@ -1,8 +1,7 @@
 from django.urls import path
 
-from apps.bookmark.views import BookmarkDeleteView, BookmarkListCreateView
+from apps.bookmark.views import BookmarkListView
 
 urlpatterns = [
-    path("", BookmarkListCreateView.as_view()),  # GET / POST
-    path("<int:place_id>/", BookmarkDeleteView.as_view()),  # DELETE
+    path("", BookmarkListView.as_view()),  # GET
 ]

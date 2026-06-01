@@ -45,17 +45,17 @@ class TestBookmarkList:
 @pytest.mark.django_db
 class TestBookmarkCreate:
     def test_북마크_추가_성공(self, auth_client: APIClient, place: Place) -> None:
-        response = auth_client.post("/api/v1/bookmarks/", {"place": place.id})
+        response = auth_client.post(f"/api/v1/places/{place.id}/bookmarks/")
         assert response.status_code == status.HTTP_201_CREATED
         assert Bookmark.objects.count() == 1  # type: ignore[attr-defined]
 
     def test_북마크_중복_추가_실패(self, auth_client: APIClient, user: User, place: Place) -> None:
         BookmarkFactory(user=user, place=place)  # type: ignore[misc]
-        response = auth_client.post("/api/v1/bookmarks/", {"place": place.id})
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        response = auth_client.post(f"/api/v1/places/{place.id}/bookmarks/")
+        assert response.status_code == status.HTTP_409_CONFLICT
 
     def test_북마크_비로그인_실패(self, client: APIClient, place: Place) -> None:
-        response = client.post("/api/v1/bookmarks/", {"place": place.id})
+        response = client.post(f"/api/v1/places/{place.id}/bookmarks/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -63,14 +63,14 @@ class TestBookmarkCreate:
 class TestBookmarkDelete:
     def test_북마크_삭제_성공(self, auth_client: APIClient, user: User, place: Place) -> None:
         BookmarkFactory(user=user, place=place)  # type: ignore[misc]
-        response = auth_client.delete(f"/api/v1/bookmarks/{place.id}/")
+        response = auth_client.delete(f"/api/v1/places/{place.id}/bookmarks/")
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert Bookmark.objects.count() == 0  # type: ignore[attr-defined]
 
     def test_북마크_없는거_삭제_실패(self, auth_client: APIClient, place: Place) -> None:
-        response = auth_client.delete(f"/api/v1/bookmarks/{place.id}/")
+        response = auth_client.delete(f"/api/v1/places/{place.id}/bookmarks/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_북마크_비로그인_삭제_실패(self, client: APIClient, place: Place) -> None:
-        response = client.delete(f"/api/v1/bookmarks/{place.id}/")
+        response = client.delete(f"/api/v1/places/{place.id}/bookmarks/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
