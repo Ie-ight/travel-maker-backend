@@ -41,3 +41,6 @@ def get_place_detail(place_id: int) -> Place | None:
         .filter(id=place_id)
         .first()
     )
+
+
+# 테스트용 커밋
