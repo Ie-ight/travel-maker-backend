@@ -13,6 +13,8 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from apps.place.urls import tag_urlpatterns
+
 urlpatterns = [
     # Django Admin
     path("admin/", admin.site.urls),
@@ -30,6 +32,7 @@ urlpatterns = [
     # path("api/users/", include("apps.users.urls")),
     path("api/v1/bookmarks/", include("apps.bookmark.urls")),
     path("api/v1/places/", include("apps.place.urls")),
+    path("api/v1/tags/", include(tag_urlpatterns)),
 ]
 # Static & Media files (개발 환경에서만)
 if settings.DEBUG:
