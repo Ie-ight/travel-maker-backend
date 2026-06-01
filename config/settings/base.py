@@ -210,6 +210,11 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@travel-maker.com")
 
 
+# 한국관광공사 Tour API (KorService2)
+TOUR_API_CODE = config("TOUR_API_CODE", default="")
+TOUR_API_BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
+
+
 # Logging
 LOGGING = {
     "version": 1,

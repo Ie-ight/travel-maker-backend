@@ -1204,6 +1204,7 @@ dependencies = [
     { name = "pytest" },
     { name = "python-decouple" },
     { name = "redis" },
+    { name = "requests" },
     { name = "sentry-sdk", extra = ["django"] },
 ]
 
@@ -1219,6 +1220,7 @@ dev = [
     { name = "pytest-django" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "types-requests" },
 ]
 
 [package.dev-dependencies]
@@ -1256,8 +1258,10 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.3.0" },
     { name = "python-decouple", specifier = ">=3.8" },
     { name = "redis", specifier = ">=5.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "sentry-sdk", extras = ["django"], specifier = ">=2.61.0" },
+    { name = "types-requests", marker = "extra == 'dev'", specifier = ">=2.31.0" },
 ]
 provides-extras = ["dev"]
 

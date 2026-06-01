@@ -33,11 +33,11 @@
 - [x] `makemigrations` + `migrate`
 
 **2단계 — 소량 수집 흐름 검증**
-- [ ] `areaBasedList2` 한 타입·한 지역 호출
-- [ ] §3 파싱 주의사항(빈 `items`, 단일 `item` dict, 전부 문자열) 실제 응답으로 확인
-- [ ] `detailCommon2`로 `overview`·`homepage` 보강
-- [ ] `detailImage2`로 이미지 수집·저장
-- [ ] `Place`·`PlaceImage` 저장 결과 확인
+- [x] `areaBasedList2` 한 타입·한 지역 호출
+- [x] §3 파싱 주의사항(빈 `items`, 단일 `item` dict, 전부 문자열) 실제 응답으로 확인
+- [x] `detailCommon2`로 `overview`·`homepage` 보강
+- [x] `detailImage2`로 이미지 수집·저장
+- [x] `Place`·`PlaceImage` 저장 결과 확인
 
 **3단계 — 운영 정보 (`PlaceInfo`)**
 - [ ] `detailIntro2` 호출 + 타입별 필드 실측 (type 14 외 보완)
