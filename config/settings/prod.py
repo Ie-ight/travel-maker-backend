@@ -7,6 +7,7 @@ from typing import Any
 
 import sentry_sdk
 from decouple import config
+from sentry_sdk.integrations.django import DjangoIntegration
 
 from .base import *  # noqa: F403
 
@@ -52,14 +53,12 @@ if USE_S3:
 # Sentry (에러 트래킹 - 선택사항)
 SENTRY_DSN = config("SENTRY_DSN", default="")
 if SENTRY_DSN:
-    import sentry_sdk
-    from sentry_sdk.integrations.django import DjangoIntegration
-
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration()],
         traces_sample_rate=0.1,
         send_default_pii=True,
+        environment="production",
     )
 
 # DRF - 프로덕션에서는 Browsable API 제거
@@ -80,10 +79,3 @@ REST_FRAMEWORK = REST_FRAMEWORK_PROD
 # LOGGING_PROD["root"]["handlers"] = ["console", "file"]
 # LOGGING_PROD["loggers"]["django"]["handlers"] = ["console", "file"]
 # LOGGING = LOGGING_PROD
-
-
-sentry_sdk.init(
-    dsn=config("SENTRY_DSN", default=""),
-    send_default_pii=True,
-    environment="production",
-)
