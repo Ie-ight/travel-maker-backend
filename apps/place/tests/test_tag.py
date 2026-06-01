@@ -32,7 +32,6 @@ class TestTagList:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 2
 
-    def test_존재하지_않는_태그_타입_필터(self, client: APIClient, tags: list[Tag]) -> None:
+    def test_유효하지_않은_태그_타입_필터(self, client: APIClient, tags: list[Tag]) -> None:
         response = client.get("/api/v1/tags/", {"tag_type": "없는타입"})
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 0
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
