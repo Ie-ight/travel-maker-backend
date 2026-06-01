@@ -8,14 +8,16 @@ from django.db import models
 
 from apps.core.models import TimeStampModel
 
+_MAX_NICKNAME_RETRIES = 50
+
 
 def generate_nickname() -> str:
-    while True:
-        word = "traveler"
-        number = random.randint(1000, 9999)
-        nickname = f"{word}_{number}"
+    for _ in range(_MAX_NICKNAME_RETRIES):
+        number = random.randint(10000, 99999)
+        nickname = f"traveler_{number}"
         if not User.objects.filter(nickname=nickname).exists():
             return nickname
+    raise RuntimeError("닉네임 생성 실패: 재시도 횟수 초과")
 
 
 class CustomUserManager(BaseUserManager["User"]):
@@ -23,7 +25,7 @@ class CustomUserManager(BaseUserManager["User"]):
         self,
         email: str,
         nickname: str,
-        **extra_fields: bool | str,
+        **extra_fields: bool | str | None,
     ) -> User:
         email = self.normalize_email(email)
         user: User = self.model(email=email, nickname=nickname, **extra_fields)
@@ -34,7 +36,7 @@ class CustomUserManager(BaseUserManager["User"]):
         self,
         email: str,
         nickname: str,
-        **extra_fields: bool | str,
+        **extra_fields: bool | str | None,
     ) -> User:
         extra_fields["role"] = "ADMIN"
         extra_fields["is_active"] = True
