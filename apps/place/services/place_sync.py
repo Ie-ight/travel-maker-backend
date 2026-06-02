@@ -18,6 +18,7 @@ from apps.place.services.place_info_mapping import (
     LODGING_TYPE_ID,
     PLACE_INFO_FIELD_MAP,
 )
+from apps.place.services.tagging import assign_deterministic_tags
 from apps.place.services.tour_api import TourApiClient, TourApiError
 
 _HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.IGNORECASE)
@@ -216,6 +217,9 @@ def sync_area(
                         defaults=build_place_info_defaults(content_type_id, intro),
                     )
                     summary.info_saved += 1
+
+            # 결정론 태그(지역·편의성) 부여 — PlaceInfo 저장 이후 (§8, 4단계)
+            assign_deterministic_tags(place)
 
     return summary
 
