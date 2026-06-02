@@ -27,3 +27,17 @@ class TokenRefreshResponseSerializer(serializers.Serializer[Any]):
 
 class ErrorDetailSerializer(serializers.Serializer[Any]):
     error_detail = serializers.CharField()
+
+
+class WithdrawSerializer(serializers.Serializer[Any]):
+    """DELETE /api/v1/auth/withdraw"""
+
+    REASON_CHOICES = ["서비스 불만족", "개인정보", "기타"]
+    reason = serializers.ChoiceField(choices=REASON_CHOICES)
+
+
+class RecoveryResponseSerializer(serializers.Serializer[Any]):
+    """POST /api/v1/auth/recovery"""
+
+    access_token = serializers.CharField()
+    message = serializers.CharField()

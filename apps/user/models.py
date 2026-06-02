@@ -62,6 +62,7 @@ class User(AbstractBaseUser, TimeStampModel):
     tags = models.ManyToManyField("place.Tag", blank=True, related_name="users")
     is_active = models.BooleanField(default=True)
     role = models.CharField(choices=Role.choices, default=Role.USER)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD: ClassVar[str] = "email"
     REQUIRED_FIELDS: ClassVar[list[str]] = ["nickname", "gender", "birthday"]

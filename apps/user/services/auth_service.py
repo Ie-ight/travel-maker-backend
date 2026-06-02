@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 
 import requests
 from django.conf import settings
@@ -11,7 +12,9 @@ from django.db import IntegrityError, transaction
 
 from apps.user.models import SocialUser, User, generate_nickname
 from apps.user.utils.auth_exceptions import (
+    AlreadyWithdrawnError,
     EmailNotProvidedError,
+    InvalidWithdrawReasonError,
     KakaoServerError,
     KakaoTokenVerificationError,
     MissingAuthCodeError,
@@ -162,6 +165,24 @@ class KakaoAuthService:
 
         return user, True
 
+    WITHDRAW_REASONS = {"서비스 불만족", "개인정보", "기타"}
+    RECOVERY_WINDOW_DAYS = 14
+
+    @classmethod
+    def withdraw_user(cls, user: User, reason: str) -> None:
+        """회원 탈퇴: 소프트 딜리트 (is_active=False, deleted_at=now())"""
+        if reason not in cls.WITHDRAW_REASONS:
+            raise InvalidWithdrawReasonError()
+
+        if not user.is_active:
+            raise AlreadyWithdrawnError()
+
+        from django.utils import timezone
+
+        user.is_active = False
+        user.deleted_at = timezone.now()
+        user.save(update_fields=["is_active", "deleted_at"])
+
     @classmethod
     def recover_user(cls, code: str) -> User:
         """
@@ -186,8 +207,14 @@ class KakaoAuthService:
         if user.is_active:
             raise RecoveryAccountNotFoundError()
 
+        from django.utils import timezone
+
+        if user.deleted_at is None or timezone.now() > user.deleted_at + timedelta(days=cls.RECOVERY_WINDOW_DAYS):
+            raise RecoveryAccountNotFoundError()
+
         user.is_active = True
-        user.save(update_fields=["is_active"])
+        user.deleted_at = None
+        user.save(update_fields=["is_active", "deleted_at"])
         return user
 
     # ── JWT 토큰 ─────────────────────────────────────────────────────────────
