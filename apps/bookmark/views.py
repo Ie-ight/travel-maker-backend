@@ -32,7 +32,7 @@ class BookmarkCreateDeleteView(APIView):
         """북마크 추가"""
         place = get_object_or_404(Place, id=place_id)  # 없으면 404
 
-        if Bookmark.objects.filter(user=request.user, place=place).exists():  # type: ignore[attr-defined]
+        if Bookmark.objects.filter(user=request.user, place=place).exists():  # type: ignore[misc, attr-defined]
             raise Conflict("이미 북마크된 장소입니다.")
 
         bookmark = BookmarkService.create_bookmark(request.user, place_id)
