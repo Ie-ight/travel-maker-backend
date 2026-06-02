@@ -72,9 +72,9 @@ dmypy.json
 .ruff_cache/
 
 # Celery
-celerybeat-schedule*  # ← 추가
+celerybeat-schedule*
 celerybeat.pid
-celerybeat-schedule.db  # ← 추가
+celerybeat-schedule.db
 
 # Database
 *.sqlite3
@@ -87,6 +87,8 @@ celerybeat-schedule.db  # ← 추가
 
 .ai/
 
-celerybeat-schedule*
 
 CLAUDE.md
+
+# 로컬 Docker override (Windows 환경 전용)
+infrastructure/docker/docker-compose.override.yml

@@ -1,5 +1,5 @@
-# Python 3.12 베이스 이미지
-FROM python:3.12-slim
+# Python 3.13 베이스 이미지
+FROM python:3.13-slim
 
 # 환경변수 설정
 ENV PYTHONUNBUFFERED=1 \
@@ -28,8 +28,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
 
 # Python을 /usr/local에 설치하도록 설정
-RUN uv python install 3.12 && \
-    uv sync --python /usr/local/bin/python3.12
+RUN uv python install 3.13 && \
+    uv sync --python /usr/local/bin/python3.13
 
 # 프로젝트 파일 복사
 COPY . .

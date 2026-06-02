@@ -8,14 +8,16 @@ from django.db import models
 
 from apps.core.models import TimeStampModel
 
+_MAX_NICKNAME_RETRIES = 50
+
 
 def generate_nickname() -> str:
-    while True:
-        word = "traveler"
-        number = random.randint(1000, 9999)
-        nickname = f"{word}_{number}"
+    for _ in range(_MAX_NICKNAME_RETRIES):
+        number = random.randint(10000, 99999)
+        nickname = f"traveler_{number}"
         if not User.objects.filter(nickname=nickname).exists():
             return nickname
+    raise RuntimeError("닉네임 생성 실패: 재시도 횟수 초과")
 
 
 class CustomUserManager(BaseUserManager["User"]):
@@ -23,7 +25,7 @@ class CustomUserManager(BaseUserManager["User"]):
         self,
         email: str,
         nickname: str,
-        **extra_fields: bool | str,
+        **extra_fields: bool | str | None,
     ) -> User:
         email = self.normalize_email(email)
         user: User = self.model(email=email, nickname=nickname, **extra_fields)
@@ -34,7 +36,7 @@ class CustomUserManager(BaseUserManager["User"]):
         self,
         email: str,
         nickname: str,
-        **extra_fields: bool | str,
+        **extra_fields: bool | str | None,
     ) -> User:
         extra_fields["role"] = "ADMIN"
         extra_fields["is_active"] = True
@@ -51,7 +53,8 @@ class User(AbstractBaseUser, TimeStampModel):
         ADMIN = "ADMIN", "관리자"
 
     email = models.EmailField(max_length=255, null=False, unique=True)
-    nickname = models.CharField(max_length=13, null=False, unique=True)
+    nickname = models.CharField(max_length=14, null=False, unique=True)
+    bio = models.CharField(max_length=100, blank=True, default="")
     gender = models.CharField(choices=Gender.choices, max_length=6, null=True)
     birthday = models.DateField(null=False)
     profile_img_url = models.CharField(max_length=255, blank=True, null=False)
@@ -77,3 +80,14 @@ class SocialUser(TimeStampModel):
 
     class Meta:
         db_table = "social_users"
+
+
+class Follow(models.Model):
+    follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followers")
+    following = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followings")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "follow"
+        constraints = [models.UniqueConstraint(fields=["follower", "following"], name="unique_follow")]
+        # follower + following 조합 중복 방지 (같은 사람 두 번 팔로우 불가)

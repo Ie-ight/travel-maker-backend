@@ -3,6 +3,7 @@ Django settings for travel-maker project.
 Base settings - 모든 환경에서 공통으로 사용되는 설정
 """
 
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -52,7 +53,7 @@ AUTH_USER_MODEL = "user.User"
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",  # CORS - SessionMiddleware 다음에 위치
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -237,3 +238,11 @@ LOGGING = {
         },
     },
 }
+
+
+# Kakao OAuth Settings
+KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
+KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
+
+# Frontend URL
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
