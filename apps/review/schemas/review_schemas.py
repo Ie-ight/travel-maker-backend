@@ -11,6 +11,7 @@ from apps.review.serializers.review_serializers import (
 
 review_list_schema = extend_schema(
     tags=["Review"],
+    summary="리뷰 목록 조회",
     parameters=[
         OpenApiParameter(name="page", type=int, description="페이지 번호"),
         OpenApiParameter(name="page_size", type=int, description="목록 출력 개수: 기본 4"),
@@ -20,6 +21,7 @@ review_list_schema = extend_schema(
 
 review_create_schema = extend_schema(
     tags=["Review"],
+    summary="리뷰 등록",
     request=ReviewCreateSerializer,
     responses={
         201: ReviewCreateResponseSerializer,
@@ -31,6 +33,7 @@ review_create_schema = extend_schema(
 
 review_update_schema = extend_schema(
     tags=["Review"],
+    summary="리뷰 수정",
     request=ReviewUpdateSerializer,
     responses={
         200: ReviewUpdateResponseSerializer,
@@ -43,6 +46,7 @@ review_update_schema = extend_schema(
 
 review_delete_schema = extend_schema(
     tags=["Review"],
+    summary="리뷰 삭제",
     responses={
         204: None,
         401: PlaceErrorResponseSerializer,
