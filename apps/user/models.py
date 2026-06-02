@@ -58,6 +58,8 @@ class User(AbstractBaseUser, TimeStampModel):
     gender = models.CharField(choices=Gender.choices, max_length=6, null=True)
     birthday = models.DateField(null=False)
     profile_img_url = models.CharField(max_length=255, blank=True, null=False)
+    # 마이페이지 관심태그
+    tags = models.ManyToManyField("place.Tag", blank=True, related_name="users")
     is_active = models.BooleanField(default=True)
     role = models.CharField(choices=Role.choices, default=Role.USER)
 
