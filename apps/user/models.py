@@ -53,7 +53,7 @@ class User(AbstractBaseUser, TimeStampModel):
         ADMIN = "ADMIN", "관리자"
 
     email = models.EmailField(max_length=255, null=False, unique=True)
-    nickname = models.CharField(max_length=13, null=False, unique=True)
+    nickname = models.CharField(max_length=14, null=False, unique=True)
     gender = models.CharField(choices=Gender.choices, max_length=6, null=True)
     birthday = models.DateField(null=False)
     profile_img_url = models.CharField(max_length=255, blank=True, null=False)

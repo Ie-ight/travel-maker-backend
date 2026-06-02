@@ -53,7 +53,7 @@ class KakaoAuthService:
                 KAKAO_TOKEN_URL,
                 data={
                     "grant_type": "authorization_code",
-                    "client_id": settings.KAKAO_REST_API_KEY,  # type: ignore[misc]
+                    "client_id": settings.KAKAO_CLIENT_ID,  # type: ignore[misc]
                     "redirect_uri": settings.KAKAO_REDIRECT_URI,  # type: ignore[misc]
                     "code": code,
                 },

@@ -154,16 +154,25 @@ class TokenRefreshView(APIView):
         refresh_token_str = request.COOKIES.get(REFRESH_COOKIE)
 
         if not refresh_token_str:
-            raise SessionExpiredError()
+            return Response(
+                {"error_detail": SessionExpiredError.default_detail},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         try:
             token = RefreshToken(refresh_token_str)  # type: ignore[arg-type]
         except TokenError:
-            raise SessionExpiredError() from None
+            return Response(
+                {"error_detail": SessionExpiredError.default_detail},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         jti: str = token.payload.get("jti", "")
         if KakaoAuthService.is_jti_blacklisted(jti):
-            raise SessionExpiredError()
+            return Response(
+                {"error_detail": SessionExpiredError.default_detail},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         return Response(
             {"access_token": str(token.access_token)},

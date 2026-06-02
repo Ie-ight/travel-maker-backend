@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>카카오 로그인 테스트</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        button { background: #FEE500; border: none; padding: 12px 24px; cursor: pointer; font-size: 16px; border-radius: 6px; }
+        pre { background: #f4f4f4; padding: 16px; border-radius: 6px; overflow-x: auto; }
+        .token-box { margin-top: 20px; }
+        .action-btn { background: #333; color: white; margin: 8px 4px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <h2>카카오 소셜 로그인 테스트</h2>
+
+    <button onclick="kakaoLogin()">카카오 로그인</button>
+
+    <div class="token-box" id="result" style="display:none">
+        <h3>결과</h3>
+        <pre id="result-text"></pre>
+
+        <button class="action-btn" onclick="logout()">로그아웃</button>
+        <button class="action-btn" onclick="refreshToken()">토큰 재발급</button>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8000';
+        const KAKAO_CLIENT_ID = 'aa52a2618c356d5346c98fa3914415c2';
+        const REDIRECT_URI = 'http://localhost:3000/social-callback';
+
+        let accessToken = '';
+
+        function kakaoLogin() {
+            const url = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code`;
+            window.location.href = url;
+        }
+
+        // 콜백 처리
+        async function handleCallback() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            if (!code) return;
+
+            showResult('로그인 처리 중...');
+
+            try {
+                const res = await fetch(`${API}/api/v1/auth/kakao/login/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ code }),
+                });
+                const data = await res.json();
+                accessToken = data.access_token;
+                showResult(data);
+
+                // URL 정리
+                window.history.replaceState({}, '', '/');
+            } catch (e) {
+                showResult({ error: e.message });
+            }
+        }
+
+        async function logout() {
+            const res = await fetch(`${API}/api/v1/auth/logout/`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                credentials: 'include',
+            });
+            showResult({ status: res.status, message: '로그아웃 완료' });
+            accessToken = '';
+        }
+
+        async function refreshToken() {
+            const res = await fetch(`${API}/api/v1/auth/token/refresh/`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            const data = await res.json();
+            accessToken = data.access_token || accessToken;
+            showResult(data);
+        }
+
+        function showResult(data) {
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result-text').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // 페이지 로드 시 콜백 처리
+        handleCallback();
+    </script>
+</body>
+</html>

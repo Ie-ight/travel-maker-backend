@@ -90,3 +90,6 @@ celerybeat-schedule.db  # ← 추가
 celerybeat-schedule*
 
 CLAUDE.md
+
+# 로컬 Docker override (Windows 환경 전용)
+infrastructure/docker/docker-compose.override.yml
