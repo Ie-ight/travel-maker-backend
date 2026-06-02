@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>회원탈퇴 / 복구 테스트</title>
+    <style>
+        body { font-family: sans-serif; max-width: 640px; margin: 50px auto; padding: 20px; }
+        h2 { margin-bottom: 4px; }
+        p.desc { color: #666; font-size: 14px; margin-top: 0; }
+        section { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+        section h3 { margin-top: 0; }
+        label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: bold; }
+        input[type="text"], select {
+            width: 100%; padding: 8px 10px; border: 1px solid #ccc;
+            border-radius: 6px; font-size: 14px; box-sizing: border-box; margin-bottom: 12px;
+        }
+        button {
+            border: none; padding: 10px 20px; cursor: pointer;
+            font-size: 14px; border-radius: 6px; margin-right: 8px;
+        }
+        .btn-kakao { background: #FEE500; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-dark { background: #333; color: white; }
+        pre {
+            background: #f4f4f4; padding: 14px; border-radius: 6px;
+            overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all;
+        }
+        .status { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+        .status.ok { background: #d4edda; color: #155724; }
+        .status.err { background: #f8d7da; color: #721c24; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+        .token-display { font-size: 12px; word-break: break-all; color: #555; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <h2>🧪 회원탈퇴 / 복구 테스트</h2>
+    <p class="desc">로컬 개발환경 전용 테스트 페이지 (localhost:8000)</p>
+
+    <!-- 로그인 상태 -->
+    <section>
+        <h3>1. 로그인 상태</h3>
+        <div id="login-status" class="status info">로그인 정보 없음</div>
+        <div class="token-display" id="token-display"></div>
+        <button class="btn-kakao" onclick="kakaoLogin()">카카오 로그인</button>
+        <button class="btn-dark" onclick="refreshToken()">토큰 재발급</button>
+        <button class="btn-dark" onclick="logout()">로그아웃</button>
+    </section>
+
+    <!-- 회원 탈퇴 -->
+    <section>
+        <h3>2. 회원 탈퇴</h3>
+        <label for="reason">탈퇴 사유</label>
+        <select id="reason">
+            <option value="서비스 불만족">서비스 불만족</option>
+            <option value="개인정보">개인정보</option>
+            <option value="기타">기타</option>
+        </select>
+        <button class="btn-danger" onclick="withdraw()">탈퇴하기</button>
+        <pre id="withdraw-result" style="display:none"></pre>
+    </section>
+
+    <!-- 탈퇴 계정 복구 -->
+    <section>
+        <h3>3. 탈퇴 계정 복구</h3>
+        <p style="font-size:13px; color:#666; margin-top:0">
+            탈퇴 후 14일 이내에만 복구 가능합니다.<br>
+            카카오 재로그인 → 인가코드로 복구를 진행합니다.
+        </p>
+        <button class="btn-primary" onclick="kakaoRecovery()">카카오로 계정 복구</button>
+        <pre id="recovery-result" style="display:none"></pre>
+    </section>
+
+    <script>
+        const API = 'http://localhost:8000';
+        const KAKAO_CLIENT_ID = 'aa52a2618c356d5346c98fa3914415c2';
+        const REDIRECT_URI = 'http://localhost:3000/social-callback';
+
+        let accessToken = sessionStorage.getItem('access_token') || '';
+
+        // ── 초기화 ──────────────────────────────────────────────────────────
+
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const mode = params.get('mode');  // 'recovery' 또는 없음(일반 로그인)
+
+            if (code && mode === 'recovery') {
+                window.history.replaceState({}, '', '/withdrawal.html');
+                handleRecoveryCallback(code);
+            } else if (code) {
+                window.history.replaceState({}, '', '/withdrawal.html');
+                handleLoginCallback(code);
+            } else {
+                updateLoginStatus();
+            }
+        };
+
+        // ── 로그인 ──────────────────────────────────────────────────────────
+
+        function kakaoLogin() {
+            const url = `https://kauth.kakao.com/oauth/authorize`
+                + `?client_id=${KAKAO_CLIENT_ID}`
+                + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+                + `&response_type=code`;
+            window.location.href = url;
+        }
+
+        async function handleLoginCallback(code) {
+            showLoginStatus('로그인 처리 중...', 'info');
+            try {
+                const res = await fetch(`${API}/api/v1/auth/kakao/login/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ code }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    accessToken = data.access_token;
+                    sessionStorage.setItem('access_token', accessToken);
+                    showLoginStatus(`✅ 로그인 성공 (is_new_user: ${data.is_new_user})`, 'ok');
+                    showToken(accessToken);
+                } else {
+                    showLoginStatus(`❌ 로그인 실패: ${JSON.stringify(data)}`, 'err');
+                }
+            } catch (e) {
+                showLoginStatus(`❌ 오류: ${e.message}`, 'err');
+            }
+        }
+
+        async function refreshToken() {
+            const res = await fetch(`${API}/api/v1/auth/token/refresh/`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            const data = await res.json();
+            if (res.ok) {
+                accessToken = data.access_token;
+                sessionStorage.setItem('access_token', accessToken);
+                showLoginStatus('✅ 토큰 재발급 성공', 'ok');
+                showToken(accessToken);
+            } else {
+                showLoginStatus(`❌ 재발급 실패: ${JSON.stringify(data)}`, 'err');
+            }
+        }
+
+        async function logout() {
+            const res = await fetch(`${API}/api/v1/auth/logout/`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+            });
+            accessToken = '';
+            sessionStorage.removeItem('access_token');
+            showLoginStatus('로그아웃 완료', 'info');
+            showToken('');
+        }
+
+        // ── 회원 탈퇴 ────────────────────────────────────────────────────────
+
+        async function withdraw() {
+            if (!accessToken) {
+                alert('먼저 로그인하세요.');
+                return;
+            }
+            const reason = document.getElementById('reason').value;
+            if (!confirm(`"${reason}" 사유로 탈퇴하시겠습니까?`)) return;
+
+            const res = await fetch(`${API}/api/v1/auth/withdraw/`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+                credentials: 'include',
+                body: JSON.stringify({ reason }),
+            });
+
+            const el = document.getElementById('withdraw-result');
+            el.style.display = 'block';
+
+            if (res.status === 204) {
+                accessToken = '';
+                sessionStorage.removeItem('access_token');
+                showLoginStatus('탈퇴 완료 — 로그인 정보 초기화됨', 'info');
+                showToken('');
+                el.textContent = '✅ 204 No Content — 탈퇴 성공';
+            } else {
+                const data = await res.json();
+                el.textContent = `❌ ${res.status} — ${JSON.stringify(data, null, 2)}`;
+            }
+        }
+
+        // ── 탈퇴 계정 복구 ───────────────────────────────────────────────────
+
+        function kakaoRecovery() {
+            const url = `https://kauth.kakao.com/oauth/authorize`
+                + `?client_id=${KAKAO_CLIENT_ID}`
+                + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+                + `&response_type=code`
+                + `&state=recovery`;  // state로 복구 모드 구분
+            window.location.href = url;
+        }
+
+        async function handleRecoveryCallback(code) {
+            const el = document.getElementById('recovery-result');
+            el.style.display = 'block';
+            el.textContent = '복구 처리 중...';
+
+            try {
+                const res = await fetch(`${API}/api/v1/auth/recovery/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ code }),
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    accessToken = data.access_token;
+                    sessionStorage.setItem('access_token', accessToken);
+                    showLoginStatus('✅ 계정 복구 성공', 'ok');
+                    showToken(accessToken);
+                    el.textContent = `✅ 200 OK\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    el.textContent = `❌ ${res.status} — ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (e) {
+                el.textContent = `❌ 오류: ${e.message}`;
+            }
+        }
+
+        // ── 유틸 ────────────────────────────────────────────────────────────
+
+        function updateLoginStatus() {
+            if (accessToken) {
+                showLoginStatus('✅ 로그인 상태 (세션 토큰 있음)', 'ok');
+                showToken(accessToken);
+            } else {
+                showLoginStatus('로그인 정보 없음', 'info');
+            }
+        }
+
+        function showLoginStatus(msg, type) {
+            const el = document.getElementById('login-status');
+            el.textContent = msg;
+            el.className = `status ${type}`;
+        }
+
+        function showToken(token) {
+            const el = document.getElementById('token-display');
+            el.textContent = token ? `Access Token: ${token.slice(0, 40)}...` : '';
+        }
+
+        // 카카오 콜백의 state 파라미터로 복구 모드 구분
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const state = params.get('state');
+
+            if (code && state === 'recovery') {
+                window.history.replaceState({}, '', '/withdrawal.html');
+                handleRecoveryCallback(code);
+            } else if (code) {
+                window.history.replaceState({}, '', '/withdrawal.html');
+                handleLoginCallback(code);
+            } else {
+                updateLoginStatus();
+            }
+        };
+    </script>
+</body>
+</html>

@@ -22,6 +22,7 @@
 
         <button class="action-btn" onclick="logout()">로그아웃</button>
         <button class="action-btn" onclick="refreshToken()">토큰 재발급</button>
+        <button class="action-btn" onclick="goWithdrawal()">회원탈퇴 테스트 →</button>
     </div>
 
     <script>
@@ -40,25 +41,43 @@
         async function handleCallback() {
             const params = new URLSearchParams(window.location.search);
             const code = params.get('code');
+            const state = params.get('state');
             if (!code) return;
 
-            showResult('로그인 처리 중...');
+            window.history.replaceState({}, '', '/social-callback');
 
-            try {
-                const res = await fetch(`${API}/api/v1/auth/kakao/login/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ code }),
-                });
-                const data = await res.json();
-                accessToken = data.access_token;
-                showResult(data);
-
-                // URL 정리
-                window.history.replaceState({}, '', '/');
-            } catch (e) {
-                showResult({ error: e.message });
+            if (state === 'recovery') {
+                // 탈퇴 계정 복구
+                showResult('계정 복구 처리 중...');
+                try {
+                    const res = await fetch(`${API}/api/v1/auth/recovery/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ code }),
+                    });
+                    const data = await res.json();
+                    accessToken = data.access_token || '';
+                    showResult({ mode: '계정 복구', ...data });
+                } catch (e) {
+                    showResult({ error: e.message });
+                }
+            } else {
+                // 일반 로그인
+                showResult('로그인 처리 중...');
+                try {
+                    const res = await fetch(`${API}/api/v1/auth/kakao/login/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ code }),
+                    });
+                    const data = await res.json();
+                    accessToken = data.access_token;
+                    showResult(data);
+                } catch (e) {
+                    showResult({ error: e.message });
+                }
             }
         }
 
@@ -80,6 +99,12 @@
             const data = await res.json();
             accessToken = data.access_token || accessToken;
             showResult(data);
+        }
+
+        function goWithdrawal() {
+            // access token을 sessionStorage에 저장 후 이동
+            sessionStorage.setItem('access_token', accessToken);
+            window.location.href = '/withdrawal.html';
         }
 
         function showResult(data) {
