@@ -40,9 +40,9 @@
 - [x] `Place`·`PlaceImage` 저장 결과 확인
 
 **3단계 — 운영 정보 (`PlaceInfo`)**
-- [ ] `detailIntro2` 호출 + 타입별 필드 실측 (type 14 외 보완)
-- [ ] `PlaceInfo` 모델 추가 + 마이그레이션
-- [ ] `PlaceInfo` 저장 (boolean 정규화 포함)
+- [x] `detailIntro2` 호출 + 타입별 필드 실측 (type 14 외 보완)
+- [x] `PlaceInfo` 모델 추가 + 마이그레이션
+- [x] `PlaceInfo` 저장 (boolean 정규화 포함)
 
 **4단계 — 태그 (결정론 영역)**
 - [ ] `Tag` 시드 적재 (여행 스타일·세부 테마·동행·지역·편의성)
@@ -397,7 +397,7 @@ https://apis.data.go.kr/B551011/KorService2/detailImage2?MobileOS=ETC&MobileApp=
 }
 ```
 
-편의성 태그 판단에 사용하는 필드는 `contenttypeid`마다 접미사가 다르다. 현재 확인된 타입(14)을 기준으로 나머지 타입은 실제 응답에서 검증 필요.
+편의성 태그 판단에 사용하는 필드는 `contenttypeid`마다 접미사가 다르다. 아래는 type 14 기준이며, 12·28·32·38·39 타입의 실측 매핑은 §4 "타입별 `detailIntro2` 필드 매핑"을 참고한다.
 
 | 편의성 태그 | contenttypeid=14 필드 | 태그 부여 조건 |
 | :--- | :--- | :--- |
@@ -438,14 +438,33 @@ https://apis.data.go.kr/B551011/KorService2/detailImage2?MobileOS=ETC&MobileApp=
 | :--- | :--- | :--- | :--- |
 | `usetimeculture` | `operating_hours` | `TextField` | 운영시간 |
 | `restdateculture` | `closed_days` | `TextField` | 휴무일 |
-| `parkingculture` | `parking` | `BooleanField(null=True)` | 주차 가능 여부. "불가" 포함 시 False, 값 있으면 True, 빈 값이면 None |
+| `parkingculture` | `parking` | `BooleanField(null=True)` | 주차 가능 여부. "불가"/"없음" 포함 시 False, 값 있으면 True, 빈 값이면 None |
 | `usefee` | `admission_fee` | `TextField` | 입장료 원문 텍스트 |
 | `spendtime` | `spend_time` | `CharField(max_length=50)` | 관람소요시간 |
 | `discountinfo` | `discount_info` | `TextField` | 할인정보 |
 | `accomcountculture` | `accom_count` | `CharField(max_length=50)` | 수용인원 |
-| `chkpetculture` | `pet` | `BooleanField(null=True)` | 반려동물 동반 가능. "불가" 포함 시 False, 값 있으면 True, 빈 값이면 None |
-| `chkbabycarriageculture` | `baby_carriage` | `BooleanField(null=True)` | 유모차 대여 가능. "불가" 포함 시 False, 값 있으면 True, 빈 값이면 None |
-| `chkcreditcardculture` | `credit_card` | `BooleanField(null=True)` | 카드 결제 가능. "불가" 포함 시 False, 값 있으면 True, 빈 값이면 None |
+| `chkpetculture` | `pet` | `BooleanField(null=True)` | 반려동물 동반 가능. "불가"/"없음" 포함 시 False, 값 있으면 True, 빈 값이면 None |
+| `chkbabycarriageculture` | `baby_carriage` | `BooleanField(null=True)` | 유모차 대여 가능. "불가"/"없음" 포함 시 False, 값 있으면 True, 빈 값이면 None |
+| `chkcreditcardculture` | `credit_card` | `BooleanField(null=True)` | 카드 결제 가능. "불가"/"없음" 포함 시 False, 값 있으면 True, 빈 값이면 None |
+
+#### 타입별 `detailIntro2` 필드 매핑 (실측 확정)
+
+장소 타입 6종을 실제 응답으로 실측해 확정한 매핑이다(`apps/place/services/place_info_mapping.py`). 빈 칸은 해당 타입에 그 필드가 없어 `PlaceInfo` 컬럼이 `None`으로 남는다. 축제(15)·여행코스(25)는 `PlaceInfo` 스키마와 맞지 않아 제외한다. `parking`·`pet`·`baby_carriage`·`credit_card`는 boolean 정규화("불가"/"없음" 포함→False, 값 있으면→True, 빈 값→None. 실데이터에 "불가능" 외 "유모차 없음"처럼 "없음"이 와서 함께 False 처리).
+
+| 모델 필드 | 12 관광지 | 14 문화시설 | 28 레포츠 | 32 숙박 | 38 쇼핑 | 39 음식점 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `operating_hours` | `usetime` | `usetimeculture` | `usetimeleports` | `checkintime`+`checkouttime` 조합 | `opentime` | `opentimefood` |
+| `closed_days` | `restdate` | `restdateculture` | `restdateleports` | — | `restdateshopping` | `restdatefood` |
+| `parking` | `parking` | `parkingculture` | `parkingleports` | `parkinglodging` | `parkingshopping` | `parkingfood` |
+| `admission_fee` | — | `usefee` | `usefeeleports` | — | — | — |
+| `spend_time` | — | `spendtime` | — | — | — | — |
+| `discount_info` | — | `discountinfo` | — | — | — | `discountinfofood` |
+| `accom_count` | `accomcount` | `accomcountculture` | `accomcountleports` | `accomcountlodging` | — | — |
+| `pet` | `chkpet` | `chkpetculture` | `chkpetleports` | — | `chkpetshopping` | — |
+| `baby_carriage` | `chkbabycarriage` | `chkbabycarriageculture` | `chkbabycarriageleports` | — | `chkbabycarriageshopping` | — |
+| `credit_card` | `chkcreditcard` | `chkcreditcardculture` | `chkcreditcardleports` | — | `chkcreditcardshopping` | `chkcreditcardfood` |
+
+> 숙박(32)은 운영시간이 `checkintime`/`checkouttime`으로 분리돼 와서 `operating_hours`에 `"체크인 15:00 / 체크아웃 10:00"` 형태로 합쳐 저장한다(`place_sync._lodging_operating_hours`). 그 외 1:1 필드는 `PLACE_INFO_FIELD_MAP`로, 타입 추가 시 실측 후 한 줄 추가한다.
 
 ### 저장하지 않거나 별도 처리할 필드
 

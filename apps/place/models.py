@@ -52,3 +52,22 @@ class PlaceImage(models.Model):
 class Tag(models.Model):
     tag_type = models.CharField(max_length=20)
     tag_name = models.CharField(max_length=20, unique=True)
+
+
+class PlaceInfo(models.Model):
+    """detailIntro2 기반 운영 정보. Place와 1:1, 선택적(호출 전/실패해도 Place는 독립 동작)."""
+
+    place = models.OneToOneField(Place, related_name="info", on_delete=models.CASCADE)
+    operating_hours = models.TextField(null=True, blank=True)  # 운영시간
+    closed_days = models.TextField(null=True, blank=True)  # 휴무일
+    parking = models.BooleanField(null=True)  # 주차 가능 여부
+    admission_fee = models.TextField(null=True, blank=True)  # 입장료 원문
+    spend_time = models.CharField(max_length=50, null=True, blank=True)  # 관람소요시간
+    discount_info = models.TextField(null=True, blank=True)  # 할인정보
+    accom_count = models.CharField(max_length=50, null=True, blank=True)  # 수용인원
+    pet = models.BooleanField(null=True)  # 반려동물 동반 가능
+    baby_carriage = models.BooleanField(null=True)  # 유모차 동반 가능
+    credit_card = models.BooleanField(null=True)  # 카드 결제 가능
+
+    class Meta:
+        db_table = "place_info"

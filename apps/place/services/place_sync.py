@@ -10,7 +10,14 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from apps.place.models import Place, PlaceImage
+from apps.place.models import Place, PlaceImage, PlaceInfo
+from apps.place.services.place_info_mapping import (
+    BOOLEAN_FIELDS,
+    LODGING_CHECKIN_KEY,
+    LODGING_CHECKOUT_KEY,
+    LODGING_TYPE_ID,
+    PLACE_INFO_FIELD_MAP,
+)
 from apps.place.services.tour_api import TourApiClient, TourApiError
 
 _HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.IGNORECASE)
@@ -42,6 +49,46 @@ def _clean_homepage(value: Any) -> str | None:
         return None
     match = _HREF_RE.search(text)
     return match.group(1) if match else text
+
+
+def _to_bool(value: Any) -> bool | None:
+    """편의성 boolean 정규화(§4). 음성 지표("불가"/"없음") 포함 시 False, 다른 값 있으면 True, 빈 값이면 None.
+
+    실데이터에 "불가"(예: "불가능") 외에 "없음"(예: "유모차 없음")도 '불가'를 뜻해 함께 False 처리한다.
+    """
+    text = _blank_to_none(value)
+    if text is None:
+        return None
+    return "불가" not in text and "없음" not in text
+
+
+def _lodging_operating_hours(intro_item: dict[str, Any]) -> str | None:
+    """숙박(32)은 운영시간이 checkin/checkout으로 분리돼 와서 하나로 합친다."""
+    checkin = _blank_to_none(intro_item.get(LODGING_CHECKIN_KEY))
+    checkout = _blank_to_none(intro_item.get(LODGING_CHECKOUT_KEY))
+    parts = []
+    if checkin:
+        parts.append(f"체크인 {checkin}")
+    if checkout:
+        parts.append(f"체크아웃 {checkout}")
+    return " / ".join(parts) or None
+
+
+def build_place_info_defaults(content_type_id: int, intro_item: dict[str, Any]) -> dict[str, Any] | None:
+    """detailIntro2 항목을 PlaceInfo 필드로 매핑한다(타입별, §4).
+
+    매핑이 없는 타입(축제·여행코스 등)은 None을 반환한다.
+    """
+    field_map = PLACE_INFO_FIELD_MAP.get(content_type_id)
+    if field_map is None:
+        return None
+    defaults: dict[str, Any] = {}
+    for model_field, api_key in field_map.items():
+        raw = intro_item.get(api_key)
+        defaults[model_field] = _to_bool(raw) if model_field in BOOLEAN_FIELDS else _blank_to_none(raw)
+    if content_type_id == LODGING_TYPE_ID:  # 운영시간 = 체크인/체크아웃 조합
+        defaults["operating_hours"] = _lodging_operating_hours(intro_item)
+    return defaults
 
 
 def build_place_defaults(list_item: dict[str, Any], common_item: dict[str, Any] | None) -> dict[str, Any]:
@@ -103,6 +150,7 @@ class SyncSummary:
     created: int = 0
     updated: int = 0
     images_saved: int = 0
+    info_saved: int = 0
 
 
 def sync_area(
@@ -159,6 +207,16 @@ def sync_area(
                 firstimage2=list_item.get("firstimage2"),
             )
 
+            # 운영 정보(PlaceInfo)는 매핑이 있는 타입만 detailIntro2 호출(불필요 호출 회피, §3)
+            if content_type_id in PLACE_INFO_FIELD_MAP:
+                intro = _safe_detail_intro(api, content_id, content_type_id)
+                if intro is not None:
+                    PlaceInfo.objects.update_or_create(
+                        place=place,
+                        defaults=build_place_info_defaults(content_type_id, intro),
+                    )
+                    summary.info_saved += 1
+
     return summary
 
 
@@ -176,3 +234,11 @@ def _safe_detail_image(api: TourApiClient, content_id: int) -> list[dict[str, An
         return api.detail_image(content_id)
     except TourApiError:
         return []
+
+
+def _safe_detail_intro(api: TourApiClient, content_id: int, content_type_id: int) -> dict[str, Any] | None:
+    """detailIntro2는 보강용이라 실패해도 Place 저장을 막지 않는다."""
+    try:
+        return api.detail_intro(content_id, content_type_id)
+    except TourApiError:
+        return None

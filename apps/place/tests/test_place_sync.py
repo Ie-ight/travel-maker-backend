@@ -9,13 +9,15 @@ from typing import Any
 
 import pytest
 
-from apps.place.models import Place, PlaceImage
+from apps.place.models import Place, PlaceImage, PlaceInfo
 from apps.place.services.place_sync import (
     SyncSummary,
     _blank_to_none,
     _clean_homepage,
+    _to_bool,
     _to_decimal,
     build_place_defaults,
+    build_place_info_defaults,
     save_images,
     sync_area,
 )
@@ -54,6 +56,32 @@ IMAGE_ITEMS = [
     {"originimgurl": "http://img/a_origin.jpg", "smallimageurl": "http://img/a_small.jpg"},
     {"originimgurl": "http://img/b_origin.jpg", "smallimageurl": "http://img/b_small.jpg"},
 ]
+# 명세 §3 detailIntro2 실제 응답 예시 (type 14 가가책방)
+INTRO_ITEM_14 = {
+    "contentid": "2750143",
+    "scale": "",
+    "usefee": "1인 5,000원",
+    "discountinfo": "",
+    "spendtime": "",
+    "parkingfee": "",
+    "infocenterculture": "0507-1486-4982",
+    "accomcountculture": "",
+    "usetimeculture": "07:00~24:00",
+    "restdateculture": "연중무휴",
+    "parkingculture": "불가능",
+    "chkbabycarriageculture": "",
+    "chkpetculture": "",
+    "chkcreditcardculture": "",
+}
+LIST_ITEM_FESTIVAL = {  # 매핑 없는 타입(15 축제)
+    "contentid": "888",
+    "contenttypeid": "15",
+    "title": "어느축제",
+    "addr1": "부산광역시",
+    "mapx": "129.0",
+    "mapy": "35.1",
+    "firstimage": "http://img/festival.jpg",
+}
 
 
 class FakeClient:
@@ -65,10 +93,12 @@ class FakeClient:
         *,
         common_by_id: dict[int, dict[str, Any]] | None = None,
         images_by_id: dict[int, list[dict[str, Any]]] | None = None,
+        intro_by_id: dict[int, dict[str, Any]] | None = None,
     ) -> None:
         self._list_items = list_items
         self._common = common_by_id or {}
         self._images = images_by_id or {}
+        self._intro = intro_by_id or {}
 
     def area_based_list(
         self,
@@ -85,6 +115,9 @@ class FakeClient:
 
     def detail_image(self, content_id: int, *, image_yn: str = "Y") -> list[dict[str, Any]]:
         return self._images.get(content_id, [])
+
+    def detail_intro(self, content_id: int, content_type_id: int) -> dict[str, Any] | None:
+        return self._intro.get(content_id)
 
 
 class TestNormalizers:
@@ -129,6 +162,63 @@ class TestBuildPlaceDefaults:
         defaults = build_place_defaults(LIST_ITEM, None)
         assert defaults["description"] is None
         assert defaults["homepage"] is None
+
+
+class TestToBool:
+    @pytest.mark.parametrize("value", ["불가", "불가능", "주차 불가능"])
+    def test_불가_포함은_False(self, value: str) -> None:
+        assert _to_bool(value) is False
+
+    @pytest.mark.parametrize("value", ["없음", "유모차 없음", "주차공간 없음"])
+    def test_없음_포함은_False(self, value: str) -> None:
+        # 실데이터에서 "없음"은 해당 옵션이 없다는 뜻 → 불가(False)
+        assert _to_bool(value) is False
+
+    @pytest.mark.parametrize("value", ["가능", "주차 가능", "가능 (약 소형 61대)", "있음", "Y"])
+    def test_값_있으면_True(self, value: str) -> None:
+        assert _to_bool(value) is True
+
+    @pytest.mark.parametrize("value", ["", "   ", None])
+    def test_빈값은_None(self, value: Any) -> None:
+        assert _to_bool(value) is None
+
+
+class TestBuildPlaceInfoDefaults:
+    def test_type14_매핑과_boolean정규화(self) -> None:
+        # 명세 §8 가가책방 예시: 주차 불가, 유료 입장, 반려동물·유아·카드 정보 없음(None)
+        defaults = build_place_info_defaults(14, INTRO_ITEM_14)
+        assert defaults is not None
+        assert defaults["operating_hours"] == "07:00~24:00"
+        assert defaults["closed_days"] == "연중무휴"
+        assert defaults["parking"] is False  # "불가능"
+        assert defaults["admission_fee"] == "1인 5,000원"
+        assert defaults["pet"] is None
+        assert defaults["baby_carriage"] is None
+        assert defaults["credit_card"] is None
+        assert defaults["spend_time"] is None  # "" → None
+        assert defaults["accom_count"] is None
+
+    def test_매핑없는_타입은_None(self) -> None:
+        assert build_place_info_defaults(15, {"eventstartdate": "20260601"}) is None
+
+    def test_숙박_운영시간_조합(self) -> None:
+        # 숙박(32)은 checkin/checkout을 operating_hours 하나로 합친다
+        defaults = build_place_info_defaults(
+            32, {"checkintime": "15:00", "checkouttime": "11:00", "parkinglodging": "가능"}
+        )
+        assert defaults is not None
+        assert defaults["operating_hours"] == "체크인 15:00 / 체크아웃 11:00"
+        assert defaults["parking"] is True
+
+    def test_숙박_체크아웃만_있어도_조합(self) -> None:
+        defaults = build_place_info_defaults(32, {"checkintime": "", "checkouttime": "11:00"})
+        assert defaults is not None
+        assert defaults["operating_hours"] == "체크아웃 11:00"
+
+    def test_숙박_둘다_없으면_None(self) -> None:
+        defaults = build_place_info_defaults(32, {"checkintime": "", "checkouttime": ""})
+        assert defaults is not None
+        assert defaults["operating_hours"] is None
 
 
 @pytest.mark.django_db
@@ -217,5 +307,29 @@ class TestSyncArea:
         assert summary.created == 0
         assert Place.objects.count() == 0
 
+    def test_PlaceInfo_저장(self) -> None:
+        client = FakeClient([LIST_ITEM], common_by_id={2750143: COMMON_ITEM}, intro_by_id={2750143: INTRO_ITEM_14})
+        summary = sync_area(14, client=client)
+        assert summary.info_saved == 1
+        info = PlaceInfo.objects.get(place__content_id=2750143)
+        assert info.parking is False  # "불가능"
+        assert info.admission_fee == "1인 5,000원"
+        assert info.operating_hours == "07:00~24:00"
+        assert info.pet is None
+
+    def test_매핑없는_타입은_PlaceInfo_미저장(self) -> None:
+        # 축제(15)는 매핑 없음 → detailIntro2 미호출, PlaceInfo 생성 안 함 (Place는 저장)
+        client = FakeClient([LIST_ITEM_FESTIVAL], intro_by_id={888: INTRO_ITEM_14})
+        summary = sync_area(15, client=client)
+        assert summary.created == 1
+        assert summary.info_saved == 0
+        assert PlaceInfo.objects.count() == 0
+
+    def test_PlaceInfo_재실행_멱등(self) -> None:
+        client = FakeClient([LIST_ITEM], common_by_id={2750143: COMMON_ITEM}, intro_by_id={2750143: INTRO_ITEM_14})
+        sync_area(14, client=client)
+        sync_area(14, client=client)
+        assert PlaceInfo.objects.filter(place__content_id=2750143).count() == 1
+
     def test_summary_기본값(self) -> None:
-        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0)
+        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0)

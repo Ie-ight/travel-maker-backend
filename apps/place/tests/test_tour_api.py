@@ -125,6 +125,16 @@ class TestTourApiClient:
         client, _ = _client_returning(_fake_response(payload))
         assert len(client.detail_image(2750143)) == 2
 
+    def test_detail_intro_contentTypeId_전송(self) -> None:
+        payload = _envelope({"item": {"contentid": "2750143", "usetimeculture": "07:00~24:00"}})
+        client, session = _client_returning(_fake_response(payload))
+        intro = client.detail_intro(2750143, 14)
+        assert intro is not None
+        url, params = session.get.call_args[0][0], session.get.call_args[1]["params"]
+        assert url.endswith("/detailIntro2")
+        assert params["contentId"] == 2750143
+        assert params["contentTypeId"] == 14
+
     def test_비정상_resultCode는_TourApiError(self) -> None:
         client, _ = _client_returning(_fake_response(_envelope("", result_code="30")))
         with pytest.raises(TourApiError):

@@ -116,3 +116,8 @@ class TourApiClient:
     def detail_image(self, content_id: int, *, image_yn: str = "Y") -> list[dict[str, Any]]:
         """콘텐츠 이미지 목록. imageYN=Y는 일반 이미지, N은 음식점 메뉴 이미지."""
         return self._get("detailImage2", {"contentId": content_id, "imageYN": image_yn})
+
+    def detail_intro(self, content_id: int, content_type_id: int) -> dict[str, Any] | None:
+        """소개 상세(운영시간·휴무일·주차 등). contentTypeId가 필수 파라미터다. 결과 없으면 None."""
+        items = self._get("detailIntro2", {"contentId": content_id, "contentTypeId": content_type_id})
+        return items[0] if items else None

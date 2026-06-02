@@ -43,3 +43,4 @@ class Command(BaseCommand):
         self.stdout.write(f"  생성: {summary.created}")
         self.stdout.write(f"  갱신: {summary.updated}")
         self.stdout.write(f"  이미지 저장: {summary.images_saved}")
+        self.stdout.write(f"  운영정보 저장: {summary.info_saved}")
