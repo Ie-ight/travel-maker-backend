@@ -3,6 +3,7 @@ Django settings for travel-maker project.
 Base settings - 모든 환경에서 공통으로 사용되는 설정
 """
 
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -237,3 +238,11 @@ LOGGING = {
         },
     },
 }
+
+
+# Kakao OAuth Settings
+KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
+KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
+
+# Frontend URL
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
