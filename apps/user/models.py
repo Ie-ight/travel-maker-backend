@@ -54,6 +54,7 @@ class User(AbstractBaseUser, TimeStampModel):
 
     email = models.EmailField(max_length=255, null=False, unique=True)
     nickname = models.CharField(max_length=14, null=False, unique=True)
+    bio = models.CharField(max_length=100, blank=True, default="")
     gender = models.CharField(choices=Gender.choices, max_length=6, null=True)
     birthday = models.DateField(null=False)
     profile_img_url = models.CharField(max_length=255, blank=True, null=False)
@@ -79,3 +80,14 @@ class SocialUser(TimeStampModel):
 
     class Meta:
         db_table = "social_users"
+
+
+class Follow(models.Model):
+    follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followers")
+    following = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followings")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "follow"
+        constraints = [models.UniqueConstraint(fields=["follower", "following"], name="unique_follow")]
+        # follower + following 조합 중복 방지 (같은 사람 두 번 팔로우 불가)
