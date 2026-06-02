@@ -3,7 +3,6 @@ from typing import Any
 from rest_framework import serializers
 
 from apps.bookmark.models import Bookmark
-from apps.core.exceptions import Conflict  # 추가
 from apps.place.models import PlaceImage
 
 
@@ -30,13 +29,6 @@ class BookmarkCreateSerializer(serializers.ModelSerializer[Bookmark]):
     class Meta:
         model = Bookmark
         fields = ["place"]
-
-    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        user = self.context["request"].user
-        place = attrs["place"]
-        if Bookmark.objects.filter(user=user, place=place).exists():  # type: ignore[attr-defined]
-            raise Conflict("이미 북마크된 장소입니다.")
-        return attrs
 
 
 class BookmarkCreateResponseSerializer(serializers.Serializer[Any]):
