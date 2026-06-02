@@ -4,7 +4,7 @@ from apps.user.models import User
 
 
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
+class UserAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_display = ["id", "nickname", "email", "is_active", "role", "created_at"]
     list_filter = ["is_active", "role"]
     search_fields = ["nickname", "email"]
