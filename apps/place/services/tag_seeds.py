@@ -50,16 +50,27 @@ TAG_SEEDS: dict[str, list[str]] = {
         "제주",
     ],
     "편의성": [
-        "주차 가능 여부",
-        "반려동물 동반 가능",
-        "무료 입장 여부",
-        "유아 동반 가능",
-        "카드 결제 가능",
+        "주차",
+        "반려동물",
+        "무료",
+        "유아 동반",
+        "카드 결제",
     ],
 }
 
 REGION_TAG_TYPE = "지역"
 FACILITY_TAG_TYPE = "편의성"
+
+#: AI(5단계)가 부여하는 tag_type. 후보는 TAG_SEEDS의 해당 항목에서만 고른다(§9 가드레일 #1).
+AI_TAG_TYPES = ("여행 스타일", "세부 테마", "동행")
+
+#: 음식 계열 AI 태그. 공식 분류상 음식 장소가 아니면 후처리로 제거한다(모델이 '식사 가능' 등으로 과다부여 → 보정).
+FOOD_TAG_NAMES = frozenset({"미식", "음식점", "카페·디저트", "시장·먹거리"})
+#: lclsSystm1 음식 대분류 코드 / §2 음식점 contenttypeid — 둘 중 하나면 음식 장소로 본다.
+FOOD_LCLS1_CODE = "FD"
+FOOD_CONTENT_TYPE_ID = 39
+#: §2 축제공연행사 contenttypeid. 음식 축제(김치·디저트·맥주 페스타 등)가 있어 음식 필터에서 제외한다.
+FESTIVAL_CONTENT_TYPE_ID = 15
 
 #: addr1 첫 토큰(시·도) → `지역` tag_name. 행정구역 개편 전/후 명칭을 모두 포함한다.
 REGION_PREFIX_MAP: dict[str, str] = {
@@ -87,11 +98,11 @@ REGION_PREFIX_MAP: dict[str, str] = {
 
 #: PlaceInfo boolean 필드 → `편의성` tag_name. True일 때만 부여한다(§8).
 FACILITY_BOOL_TAGS: dict[str, str] = {
-    "parking": "주차 가능 여부",
-    "pet": "반려동물 동반 가능",
-    "baby_carriage": "유아 동반 가능",
-    "credit_card": "카드 결제 가능",
+    "parking": "주차",
+    "pet": "반려동물",
+    "baby_carriage": "유아 동반",
+    "credit_card": "카드 결제",
 }
 
 #: 입장료 원문(admission_fee)에 "무료"가 포함될 때 부여하는 편의성 태그.
-FREE_ADMISSION_TAG = "무료 입장 여부"
+FREE_ADMISSION_TAG = "무료"

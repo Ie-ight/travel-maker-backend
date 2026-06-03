@@ -50,9 +50,9 @@
 - [x] `편의성` `PlaceInfo` 기반 부여
 
 **5단계 — 태그 (AI 영역) + 성향 벡터**
-- [ ] `PlaceFeature` 모델 추가 + 마이그레이션
-- [ ] `style_vector` 산출 (§9 계약)
-- [ ] `여행 스타일`·`세부 테마`·`동행` AI 부여
+- [x] `PlaceFeature` 모델 추가 + 마이그레이션
+- [x] `style_vector` 산출 (§9 계약)
+- [x] `여행 스타일`·`세부 테마`·`동행` AI 부여
 - [ ] (실험) 리뷰 검색 보강 A/B 테스트 — 효과 검증 후 정식 편입 검토
 
 **6단계 — 대량 적재 + 운영**
@@ -401,11 +401,11 @@ https://apis.data.go.kr/B551011/KorService2/detailImage2?MobileOS=ETC&MobileApp=
 
 | 편의성 태그 | contenttypeid=14 필드 | 태그 부여 조건 |
 | :--- | :--- | :--- |
-| 주차 가능 여부 | `parkingculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
-| 반려동물 동반 가능 | `chkpetculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
-| 무료 입장 여부 | `usefee` | 값이 비어 있거나 "무료"일 때 |
-| 유아 동반 가능 | `chkbabycarriageculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
-| 카드 결제 가능 | `chkcreditcardculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
+| 주차 | `parkingculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
+| 반려동물 | `chkpetculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
+| 무료 | `usefee` | 값이 비어 있거나 "무료"일 때 |
+| 유아 동반 | `chkbabycarriageculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
+| 카드 결제 | `chkcreditcardculture` | 값이 비어 있지 않고 "불가"가 아닐 때 |
 
 ## 4. 저장 필드 매핑
 
@@ -780,11 +780,11 @@ class PlaceFeature(TimeStampModel):
 
 | tag_name | 소스 필드 (contenttypeid=14 기준) |
 | :--- | :--- |
-| 주차 가능 여부 | `parkingculture` → `PlaceInfo.parking` |
-| 반려동물 동반 가능 | `chkpetculture` → `PlaceInfo.pet` |
-| 무료 입장 여부 | `usefee` → `PlaceInfo.admission_fee` |
-| 유아 동반 가능 | `chkbabycarriageculture` → `PlaceInfo.baby_carriage` |
-| 카드 결제 가능 | `chkcreditcardculture` → `PlaceInfo.credit_card` |
+| 주차 | `parkingculture` → `PlaceInfo.parking` |
+| 반려동물 | `chkpetculture` → `PlaceInfo.pet` |
+| 무료 | `usefee` → `PlaceInfo.admission_fee` |
+| 유아 동반 | `chkbabycarriageculture` → `PlaceInfo.baby_carriage` |
+| 카드 결제 | `chkcreditcardculture` → `PlaceInfo.credit_card` |
 
 타입별 필드명 접미사가 다르므로 실제 구현 시 각 타입의 응답을 확인해 매핑 테이블을 보완한다.
 

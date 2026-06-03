@@ -85,7 +85,7 @@ class TestAssignFacilityTags:
     def test_True_필드만_부여(self, seeded: None) -> None:
         place = make_place(content_type_id=14)
         self._info(place, parking=True, credit_card=True, pet=False, baby_carriage=None, admission_fee="무료")
-        assert set(assign_facility_tags(place)) == {"주차 가능 여부", "카드 결제 가능", "무료 입장 여부"}
+        assert set(assign_facility_tags(place)) == {"주차", "카드 결제", "무료"}
 
     def test_유료면_무료입장_미부여(self, seeded: None) -> None:
         place = make_place(content_type_id=14)
@@ -103,14 +103,14 @@ class TestAssignDeterministicTags:
         place = make_place("전북특별자치도 익산시", content_type_id=14)
         PlaceInfo.objects.create(place=place, parking=True, admission_fee="무료", credit_card=False)
         assign_deterministic_tags(place)
-        assert tag_names(place) == {"전북", "주차 가능 여부", "무료 입장 여부"}
+        assert tag_names(place) == {"전북", "주차", "무료"}
 
     def test_멱등_재실행(self, seeded: None) -> None:
         place = make_place("서울특별시 종로구", content_type_id=14)
         PlaceInfo.objects.create(place=place, parking=True)
         assign_deterministic_tags(place)
         assign_deterministic_tags(place)
-        assert tag_names(place) == {"서울", "주차 가능 여부"}
+        assert tag_names(place) == {"서울", "주차"}
         assert place.tags.count() == 2  # 중복 없음
 
     def test_AI_태그_보존(self, seeded: None) -> None:
@@ -124,9 +124,9 @@ class TestAssignDeterministicTags:
         place = make_place("서울특별시 종로구", content_type_id=14)
         info = PlaceInfo.objects.create(place=place, parking=True)
         assign_deterministic_tags(place)
-        assert "주차 가능 여부" in tag_names(place)
+        assert "주차" in tag_names(place)
         info.parking = False
         info.save()
         assign_deterministic_tags(place)
-        assert "주차 가능 여부" not in tag_names(place)
+        assert "주차" not in tag_names(place)
         assert "서울" in tag_names(place)

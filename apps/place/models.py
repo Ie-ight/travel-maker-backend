@@ -1,4 +1,5 @@
 from django.db import models
+from pgvector.django import VectorField
 
 from apps.core.models import TimeStampModel
 
@@ -71,3 +72,13 @@ class PlaceInfo(models.Model):
 
     class Meta:
         db_table = "place_info"
+
+
+class PlaceFeature(TimeStampModel):
+    """AI가 산출한 장소 성향 6차원 벡터(§4·§9). Place와 1:1, updated_at = 최신 계산 시각."""
+
+    place = models.OneToOneField(Place, related_name="place_feature", on_delete=models.CASCADE)
+    style_vector = VectorField(dimensions=6)
+
+    class Meta:
+        db_table = "place_features"

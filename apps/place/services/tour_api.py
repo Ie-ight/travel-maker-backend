@@ -121,3 +121,12 @@ class TourApiClient:
         """소개 상세(운영시간·휴무일·주차 등). contentTypeId가 필수 파라미터다. 결과 없으면 None."""
         items = self._get("detailIntro2", {"contentId": content_id, "contentTypeId": content_type_id})
         return items[0] if items else None
+
+    def lcls_systm_code(
+        self, *, lcls_systm1: str | None = None, lcls_systm2: str | None = None, num_of_rows: int = 100
+    ) -> list[dict[str, Any]]:
+        """분류체계 코드 목록(lclsSystmCode2, §6). 파라미터 없으면 1단계, lclsSystm1만 주면 2단계, +lclsSystm2면 3단계."""
+        return self._get(
+            "lclsSystmCode2",
+            {"lclsSystm1": lcls_systm1, "lclsSystm2": lcls_systm2, "numOfRows": num_of_rows},
+        )

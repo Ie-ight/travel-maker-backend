@@ -214,6 +214,15 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@travel-maker.
 TOUR_API_CODE = config("TOUR_API_CODE", default="")
 TOUR_API_BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
 
+# AI 태깅 (provider 토글: gemini | ollama)
+AI_TAGGING_PROVIDER = config("AI_TAGGING_PROVIDER", default="gemini")
+# Gemini (Google AI Studio)
+GEMINI_API_KEY = config("GEMINI_API_KEY", default="")
+GEMINI_MODEL = config("GEMINI_MODEL", default="gemini-2.5-flash-lite")
+# Ollama (로컬 Gemma 등) — 컨테이너에서 호스트 Ollama 접근(Ollama는 OLLAMA_HOST=0.0.0.0로 기동 필요할 수 있음)
+OLLAMA_HOST = config("OLLAMA_HOST", default="http://host.docker.internal:11434")
+OLLAMA_MODEL = config("OLLAMA_MODEL", default="gemma3:12b")
+
 
 # Logging
 LOGGING = {
