@@ -210,6 +210,23 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@travel-maker.com")
 
 
+# 한국관광공사 Tour API (KorService2)
+TOUR_API_CODE = config("TOUR_API_CODE", default="")
+TOUR_API_BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
+
+# AI 태깅 (provider 토글: gemini | ollama)
+AI_TAGGING_PROVIDER = config("AI_TAGGING_PROVIDER", default="gemini")
+# Gemini (Google AI Studio)
+GEMINI_API_KEY = config("GEMINI_API_KEY", default="")
+GEMINI_MODEL = config("GEMINI_MODEL", default="gemini-2.5-flash-lite")
+# Ollama (로컬 Gemma 등) — 컨테이너에서 호스트 Ollama 접근(Ollama는 OLLAMA_HOST=0.0.0.0로 기동 필요할 수 있음)
+OLLAMA_HOST = config("OLLAMA_HOST", default="http://host.docker.internal:11434")
+OLLAMA_MODEL = config("OLLAMA_MODEL", default="gemma3:12b")
+# 배포 환경은 ollama 부재 → Gemini로만 태깅. 일일 스케줄 태스크의 Gemini 한도(무료 등급: 일 20·분당 4)
+AI_TAG_GEMINI_DAILY_LIMIT = config("AI_TAG_GEMINI_DAILY_LIMIT", default=20, cast=int)
+AI_TAG_GEMINI_RPM = config("AI_TAG_GEMINI_RPM", default=4, cast=int)
+
+
 # Logging
 LOGGING = {
     "version": 1,
@@ -243,6 +260,14 @@ LOGGING = {
 # Kakao OAuth Settings
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
+KAKAO_JS_KEY = os.getenv("KAKAO_JS_KEY", "")
+KAKAO_REST_API_KEY = os.getenv("KAKAO_CLIENT_ID", "")
 
 # Frontend URL
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# AWS 설정
+AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID", default="")
+AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY", default="")
+AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME", default="")
+AWS_S3_REGION_NAME = config("AWS_S3_REGION_NAME", default="ap-northeast-2")

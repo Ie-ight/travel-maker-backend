@@ -34,6 +34,8 @@ class PlaceFactory(DjangoModelFactory):  # type: ignore[misc]
     place_name = factory.Sequence(lambda n: f"place{n}")  # type: ignore[misc]
     latitude = "37.1234567"
     longitude = "127.1234567"
+    content_id = factory.Sequence(lambda n: n + 1)  # type: ignore[misc]
+    content_type_id = 12
 
     @factory.post_generation
     def images(self, create: bool, extracted: list[PlaceImage] | None, **kwargs: object) -> None:

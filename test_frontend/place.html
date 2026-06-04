@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>여행지 지도 테스트</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
+
+        header {
+            background: #333;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        header h1 { font-size: 16px; margin-right: auto; }
+        header input {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: none;
+            font-size: 13px;
+            width: 260px;
+        }
+        header button {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            background: #FEE500;
+            font-weight: bold;
+        }
+        header button.blue { background: #4A90E2; color: white; }
+
+        #map { flex: 1; }
+
+        #panel {
+            position: fixed;
+            right: 16px;
+            top: 70px;
+            width: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+            display: none;
+            flex-direction: column;
+            max-height: calc(100vh - 90px);
+            overflow-y: auto;
+        }
+        #panel.open { display: flex; }
+        #panel-header {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        #panel-name { font-size: 15px; font-weight: bold; }
+        #panel-close { cursor: pointer; font-size: 18px; color: #999; background: none; border: none; }
+        #panel-body { padding: 14px 16px; }
+        #panel-rating { color: #f5a623; font-size: 14px; margin-bottom: 10px; }
+        #panel-img { width: 100%; height: 160px; object-fit: cover; border-radius: 6px; margin-bottom: 12px; background: #eee; display: none; }
+
+        .route-btn {
+            width: 100%;
+            padding: 10px;
+            background: #4A90E2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .route-btn:disabled { background: #aaa; cursor: default; }
+
+        #route-info { margin-top: 12px; font-size: 13px; color: #333; line-height: 1.6; }
+        #route-info .label { color: #888; }
+
+        #status { padding: 6px 14px; font-size: 12px; color: #666; border-top: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🗺 여행지 지도 테스트</h1>
+    <button class="blue" onclick="locateMe()">📍 내 위치</button>
+</header>
+
+<div id="map"></div>
+
+<div id="panel">
+    <div id="panel-header">
+        <span id="panel-name">장소명</span>
+        <button id="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div id="panel-body">
+        <img id="panel-img" src="" alt="장소 이미지" />
+        <div id="panel-rating"></div>
+        <button class="route-btn" id="route-btn" onclick="requestRoute()">🚗 내 위치에서 경로 보기</button>
+        <div id="route-info"></div>
+    </div>
+    <div id="status" id="status-bar"></div>
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:8000/api/v1';
+
+    let map = null;
+    let markers = [];
+    let polyline = null;
+    let myLocationMarker = null;
+    let myLat = null, myLng = null;
+    let selectedPlace = null;
+
+    // ── 지도 초기화 (JS 키 자동 fetch) ───────────────────
+    async function initMap() {
+        setStatus('카카오 JS 키 로딩 중...');
+        try {
+            const res = await fetch(`${API_BASE}/places/config/kakao`);
+            const { js_key } = await res.json();
+            if (!js_key) { setStatus('❌ .env.local에 KAKAO_JS_KEY가 없습니다.'); return; }
+
+            const script = document.createElement('script');
+            script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${js_key}&autoload=false`;
+            script.onload = () => {
+                kakao.maps.load(() => {
+                    const container = document.getElementById('map');
+                    map = new kakao.maps.Map(container, {
+                        center: new kakao.maps.LatLng(36.5, 127.8),
+                        level: 13,
+                    });
+                    loadPlaces();
+                });
+            };
+            document.head.appendChild(script);
+        } catch (e) {
+            setStatus(`❌ 키 로드 실패: ${e.message}`);
+        }
+    }
+
+    // ── 장소 목록 로드 & 마커 ─────────────────────────────
+    async function loadPlaces() {
+        setStatus('장소 데이터 로딩 중...');
+        try {
+            const res = await fetch(`${API_BASE}/places/map`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const places = await res.json();
+
+            places.forEach(place => addMarker(place));
+            setStatus(`✅ 장소 ${places.length}개 마커 표시 완료`);
+        } catch (e) {
+            setStatus(`❌ 장소 로드 실패: ${e.message}`);
+        }
+    }
+
+    function addMarker(place) {
+        const position = new kakao.maps.LatLng(place.latitude, place.longitude);
+        const marker = new kakao.maps.Marker({ position, map });
+
+        kakao.maps.event.addListener(marker, 'click', () => {
+            window.open(
+                `https://map.kakao.com/link/map/${place.place_name},${place.latitude},${place.longitude}`,
+                '_blank'
+            );
+        });
+        markers.push(marker);
+    }
+
+    // ── 내 위치 ───────────────────────────────────────────
+    function locateMe() {
+        if (!map) { alert('먼저 지도를 로드하세요.'); return; }
+        if (!navigator.geolocation) { alert('이 브라우저는 위치 정보를 지원하지 않습니다.'); return; }
+
+        setStatus('📡 GPS 수신 중...');
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                myLat = pos.coords.latitude;
+                myLng = pos.coords.longitude;
+
+                const myPos = new kakao.maps.LatLng(myLat, myLng);
+                map.setCenter(myPos);
+                map.setLevel(7);
+
+                if (myLocationMarker) myLocationMarker.setMap(null);
+                myLocationMarker = new kakao.maps.Marker({
+                    position: myPos,
+                    map,
+                    image: new kakao.maps.MarkerImage(
+                        'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png',
+                        new kakao.maps.Size(24, 35)
+                    ),
+                });
+
+                setStatus(`✅ 내 위치: ${myLat.toFixed(5)}, ${myLng.toFixed(5)}`);
+            },
+            err => setStatus(`❌ 위치 오류: ${err.message}`)
+        );
+    }
+
+    // ── 패널 ─────────────────────────────────────────────
+    function openPanel(place) {
+        selectedPlace = place;
+        document.getElementById('panel-name').textContent = place.place_name;
+        document.getElementById('panel-rating').textContent =
+            place.rating_avg > 0 ? `★ ${place.rating_avg.toFixed(1)}` : '아직 평가 없음';
+
+        const img = document.getElementById('panel-img');
+        if (place.image_url) {
+            img.src = place.image_url;
+            img.style.display = 'block';
+        } else {
+            img.style.display = 'none';
+        }
+
+        document.getElementById('route-info').innerHTML = '';
+        document.getElementById('route-btn').disabled = !myLat;
+        document.getElementById('panel').classList.add('open');
+    }
+
+    function closePanel() {
+        document.getElementById('panel').classList.remove('open');
+        if (polyline) { polyline.setMap(null); polyline = null; }
+    }
+
+    // ── 경로 조회 ─────────────────────────────────────────
+    async function requestRoute() {
+        if (!myLat || !selectedPlace) return;
+
+        const btn = document.getElementById('route-btn');
+        btn.disabled = true;
+        btn.textContent = '경로 조회 중...';
+        setStatus('🚗 Kakao Mobility 경로 조회 중...');
+
+        try {
+            const params = new URLSearchParams({
+                origin_lat: myLat,
+                origin_lng: myLng,
+                place_id: selectedPlace.id,
+            });
+            const res = await fetch(`${API_BASE}/places/map/route?${params}`);
+            const data = await res.json();
+
+            if (!res.ok) {
+                setStatus(`❌ ${data.error_detail}`);
+                return;
+            }
+
+            drawRoute(data);
+        } catch (e) {
+            setStatus(`❌ 경로 조회 실패: ${e.message}`);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🚗 내 위치에서 경로 보기';
+        }
+    }
+
+    function drawRoute(data) {
+        const route = data?.routes?.[0];
+        if (!route) { setStatus('❌ 경로를 찾을 수 없습니다.'); return; }
+
+        // 기존 경로선 제거
+        if (polyline) polyline.setMap(null);
+
+        // 모든 섹션의 도로 좌표 수집
+        const path = [];
+        route.sections?.forEach(section => {
+            section.roads?.forEach(road => {
+                const coords = road.vertexes; // [lng, lat, lng, lat, ...]
+                for (let i = 0; i < coords.length; i += 2) {
+                    path.push(new kakao.maps.LatLng(coords[i + 1], coords[i]));
+                }
+            });
+        });
+
+        polyline = new kakao.maps.Polyline({
+            path,
+            strokeWeight: 5,
+            strokeColor: '#4A90E2',
+            strokeOpacity: 0.8,
+            strokeStyle: 'solid',
+        });
+        polyline.setMap(map);
+
+        // 경로가 다 보이도록 지도 이동
+        const bounds = new kakao.maps.LatLngBounds();
+        path.forEach(p => bounds.extend(p));
+        map.setBounds(bounds);
+
+        // 요약 정보 표시
+        const summary = route.summary;
+        const distKm = (summary.distance / 1000).toFixed(1);
+        const durMin = Math.round(summary.duration / 60);
+        document.getElementById('route-info').innerHTML = `
+            <p><span class="label">거리</span> ${distKm} km</p>
+            <p><span class="label">예상 시간</span> ${durMin} 분</p>
+        `;
+        setStatus(`✅ 경로: ${distKm}km · 약 ${durMin}분`);
+    }
+
+    function setStatus(msg) {
+        document.getElementById('status').textContent = msg;
+    }
+
+    window.addEventListener('DOMContentLoaded', initMap);
+</script>
+</body>
+</html>

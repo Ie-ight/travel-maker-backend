@@ -46,6 +46,7 @@ db.sqlite3-journal
 .env.prod
 envs/.env.local
 envs/.env.prod
+envs/
 
 # IDE
 .vscode/
@@ -89,6 +90,9 @@ celerybeat-schedule.db
 
 
 CLAUDE.md
+
+# AI 태깅 리포트 (생성 산출물)
+reports/
 
 # 로컬 Docker override (Windows 환경 전용)
 infrastructure/docker/docker-compose.override.yml

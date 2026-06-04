@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from django.db.models import Avg, Count, QuerySet
 
@@ -13,6 +14,7 @@ from apps.review.exceptions import (
     ReviewNotFound,
 )
 from apps.review.models import Review
+from apps.review.tasks import upload_review_image
 
 
 def _get_place_or_404(place_id: int) -> Place:
@@ -41,16 +43,30 @@ def _update_place_rating(place_id: int) -> None:
 
 
 @transaction.atomic  # 함수 전체를 묶어, 평점 업데이트 중 오류 시 리뷰 생성도 롤백
-def create_review(user: AbstractBaseUser, place_id: int, rating: int, content: str) -> Review:
+def create_review(
+    user: AbstractBaseUser,
+    place_id: int,
+    rating: int,
+    content: str,
+    image: InMemoryUploadedFile | None = None,
+) -> Review:
     _get_place_or_404(place_id)
     if Review.objects.filter(user_id=user.pk, place_id=place_id).exists():
         raise AlreadyReviewed()
-    review = Review.objects.create(user_id=user.pk, place_id=place_id, rating=rating, content=content)
+    review = Review.objects.create(
+        user_id=user.pk,
+        place_id=place_id,
+        rating=rating,
+        content=content,
+        image_url=None,
+    )
+    if image is not None:
+        upload_review_image.delay(review.id, image.read(), image.content_type or "image/jpeg")
     _update_place_rating(place_id)
     return review
 
 
-_REVIEW_UPDATABLE_FIELDS = {"rating", "content"}
+_REVIEW_UPDATABLE_FIELDS = {"rating", "content", "image_url"}
 
 
 @transaction.atomic

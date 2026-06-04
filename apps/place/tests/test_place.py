@@ -61,6 +61,14 @@ class TestPlaceListView:
         assert result["image_url"] == "main.jpg"
         assert len(result["tags"]) == 2
 
+    def test_inactive_place_excluded(self, api_client: APIClient) -> None:
+        # 소프트삭제(is_active=False) 장소는 목록에서 제외 (단계 7)
+        active = PlaceFactory(place_name="활성")  # type: ignore[misc]
+        PlaceFactory(place_name="삭제됨", is_active=False)  # type: ignore[misc]
+        response = api_client.get(PLACE_LIST_URL)
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == active.id
+
     def test_image_url_returns_main_image(self, api_client: APIClient) -> None:
         PlaceFactory()  # type: ignore[misc]  # 기본 생성: 대표 1장 + 비대표 2장
         response = api_client.get(PLACE_LIST_URL)
@@ -621,3 +629,13 @@ class TestPlaceDetailView:
     def test_service_returns_none_when_not_found(self) -> None:
         # 서비스는 DRF 없이 순수하게 None을 반환한다 (404 판단은 뷰가 함)
         assert get_place_detail(999999) is None
+
+    def test_inactive_place_returns_404(self, api_client: APIClient) -> None:
+        # 소프트삭제 장소는 상세도 404 (단계 7)
+        place = PlaceFactory(is_active=False)  # type: ignore[misc]
+        response = api_client.get(self._url(place.id))
+        assert response.status_code == 404
+
+    def test_service_returns_none_when_inactive(self) -> None:
+        place = PlaceFactory(is_active=False)  # type: ignore[misc]
+        assert get_place_detail(place.id) is None
