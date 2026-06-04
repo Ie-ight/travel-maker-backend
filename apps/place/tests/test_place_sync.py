@@ -21,6 +21,7 @@ from apps.place.services.place_sync import (
     save_images,
     sync_all,
     sync_area,
+    sync_incremental,
 )
 
 LIST_ITEM = {
@@ -145,6 +146,11 @@ class FakePagedClient:
         pages = self._pages.get(content_type_id, [])
         return pages[page_no - 1] if 1 <= page_no <= len(pages) else []
 
+    def area_based_sync_list(
+        self, content_type_id: int, *, num_of_rows: int = 1000, page_no: int = 1
+    ) -> list[dict[str, Any]]:
+        return self.area_based_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no)
+
     def detail_common(self, content_id: int) -> dict[str, Any] | None:
         return self._common.get(content_id)
 
@@ -197,6 +203,12 @@ class TestBuildPlaceDefaults:
         defaults = build_place_defaults(LIST_ITEM, None)
         assert defaults["description"] is None
         assert defaults["homepage"] is None
+
+    def test_modifiedtime_매핑(self) -> None:
+        # 단계 7: 목록 modifiedtime → source_modified_at, is_active=True
+        defaults = build_place_defaults({**LIST_ITEM, "modifiedtime": "20260101120000"}, None)
+        assert defaults["source_modified_at"] == "20260101120000"
+        assert defaults["is_active"] is True
 
 
 class TestToBool:
@@ -367,7 +379,7 @@ class TestSyncArea:
         assert PlaceInfo.objects.filter(place__content_id=2750143).count() == 1
 
     def test_summary_기본값(self) -> None:
-        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0, 0)
+        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 
 @pytest.mark.django_db
@@ -412,3 +424,69 @@ class TestSyncAll:
         summary = sync_all([14], num_of_rows=1, max_pages=1, client=client)
         assert client.list_calls == [(14, 1)]  # 1페이지에서 멈춤
         assert summary.created == 1
+
+
+@pytest.mark.django_db
+class TestSyncIncremental:
+    """증분 동기화(단계 7): 신규·변경·미변경·소프트삭제·멱등."""
+
+    @staticmethod
+    def _item(cid: str, *, showflag: str = "1", modifiedtime: str = "20260101000000", **over: Any) -> dict[str, Any]:
+        return {**LIST_ITEM, "contentid": cid, "showflag": showflag, "modifiedtime": modifiedtime, **over}
+
+    def test_신규_생성(self) -> None:
+        client = FakePagedClient({14: [[self._item("1001")]]}, common_by_id={1001: COMMON_ITEM})
+        summary = sync_incremental([14], num_of_rows=1, client=client)
+        assert summary.created == 1
+        p = Place.objects.get(content_id=1001)
+        assert p.source_modified_at == "20260101000000"
+        assert p.is_active is True
+
+    def test_변경_갱신(self) -> None:
+        Place.objects.create(
+            content_id=1002, content_type_id=14, place_name="옛이름", source_modified_at="20240101000000"
+        )
+        item = self._item("1002", title="새이름", modifiedtime="20260101000000")
+        client = FakePagedClient({14: [[item]]}, common_by_id={1002: COMMON_ITEM})
+        summary = sync_incremental([14], num_of_rows=1, client=client)
+        assert summary.updated == 1 and summary.created == 0
+        p = Place.objects.get(content_id=1002)
+        assert p.place_name == "새이름"
+        assert p.source_modified_at == "20260101000000"
+
+    def test_미변경_스킵(self) -> None:
+        Place.objects.create(
+            content_id=1003, content_type_id=14, place_name="그대로", source_modified_at="20260101000000"
+        )
+        client = FakePagedClient({14: [[self._item("1003", modifiedtime="20260101000000")]]})
+        summary = sync_incremental([14], num_of_rows=1, client=client)
+        assert summary.skipped_unchanged == 1
+        assert summary.created == 0 and summary.updated == 0
+        assert Place.objects.get(content_id=1003).place_name == "그대로"  # detail 미호출
+
+    def test_showflag0_소프트삭제(self) -> None:
+        Place.objects.create(content_id=1004, content_type_id=14, place_name="삭제될곳")
+        client = FakePagedClient({14: [[self._item("1004", showflag="0")]]})
+        summary = sync_incremental([14], num_of_rows=1, client=client)
+        assert summary.deactivated == 1
+        assert Place.objects.get(content_id=1004).is_active is False
+
+    def test_showflag0_DB에없으면_무시(self) -> None:
+        client = FakePagedClient({14: [[self._item("9999", showflag="0")]]})
+        summary = sync_incremental([14], num_of_rows=1, client=client)
+        assert summary.deactivated == 0
+        assert Place.objects.count() == 0
+
+    def test_dry_run은_저장안함(self) -> None:
+        Place.objects.create(content_id=1005, content_type_id=14, place_name="x")
+        client = FakePagedClient({14: [[self._item("1005", showflag="0")]]})
+        summary = sync_incremental([14], num_of_rows=1, dry_run=True, client=client)
+        assert summary.deactivated == 1  # 카운트는 됨
+        assert Place.objects.get(content_id=1005).is_active is True  # 저장 안 됨
+
+    def test_재실행_멱등_두번째는_미변경(self) -> None:
+        client = FakePagedClient({14: [[self._item("1006")]]}, common_by_id={1006: COMMON_ITEM})
+        first = sync_incremental([14], num_of_rows=1, client=client)
+        second = sync_incremental([14], num_of_rows=1, client=client)
+        assert first.created == 1
+        assert second.created == 0 and second.skipped_unchanged == 1  # baseline 저장돼 두 번째는 스킵

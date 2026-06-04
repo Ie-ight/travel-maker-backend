@@ -156,6 +156,15 @@ class TourApiClient:
             },
         )
 
+    def area_based_sync_list(
+        self, content_type_id: int, *, num_of_rows: int = 1000, page_no: int = 1
+    ) -> list[dict[str, Any]]:
+        """증분 동기화 목록(areaBasedSyncList2, 단계 7). areaBasedList 필드 + showflag(1 공개/0 삭제) + modifiedtime."""
+        return self._get(
+            "areaBasedSyncList2",
+            {"contentTypeId": content_type_id, "numOfRows": num_of_rows, "pageNo": page_no},
+        )
+
     def detail_common(self, content_id: int) -> dict[str, Any] | None:
         """공통 상세(overview·homepage 보강). 결과가 없으면 None."""
         items = self._get("detailCommon2", {"contentId": content_id})

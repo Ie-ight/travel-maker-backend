@@ -117,6 +117,8 @@ def build_place_defaults(list_item: dict[str, Any], common_item: dict[str, Any] 
         "lcls_systm3": _blank_to_none(list_item.get("lclsSystm3")),
         "description": _blank_to_none(common.get("overview")),
         "homepage": _clean_homepage(common.get("homepage")),
+        "source_modified_at": _blank_to_none(list_item.get("modifiedtime")),  # 증분 비교 기준(단계 7)
+        "is_active": True,  # 수집/갱신되는 곳은 활성(소프트삭제 복구 포함)
     }
 
 
@@ -161,6 +163,8 @@ class SyncSummary:
     updated: int = 0
     images_saved: int = 0
     info_saved: int = 0
+    deactivated: int = 0  # 소프트삭제(showflag=0, 단계 7)
+    skipped_unchanged: int = 0  # modifiedtime 미변경 스킵(단계 7)
 
     def add(self, other: "SyncSummary") -> None:
         """다른 요약을 누적한다(타입별 → 전체 합산)."""
@@ -323,6 +327,101 @@ def _safe_area_based_list(
         return api.area_based_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no)
     except TourApiError as exc:
         logger.error("타입 %s page %d 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
+        return []
+
+
+def sync_incremental(
+    content_type_ids: Sequence[int] = DEFAULT_CONTENT_TYPE_IDS,
+    *,
+    num_of_rows: int = 1000,
+    max_pages: int | None = None,
+    dry_run: bool = False,
+    client: TourApiClient | None = None,
+) -> SyncSummary:
+    """areaBasedSyncList2로 변경분만 반영한다(단계 7).
+
+    목록 modifiedtime을 저장된 source_modified_at과 비교해 신규·변경만 detail을 재조회하고(미변경은 0콜),
+    showflag=0은 소프트삭제(is_active=False)한다. 단계 6의 _process_list_item/재시도를 재사용.
+    """
+    api = client or TourApiClient()
+    total = SyncSummary()
+    for content_type_id in content_type_ids:
+        # 기존 {content_id: source_modified_at} — 변경 판정 기준
+        existing: dict[int, str | None] = dict(
+            Place.objects.filter(content_type_id=content_type_id).values_list("content_id", "source_modified_at")
+        )
+        sub = SyncSummary()
+        logger.info("타입 %s 증분 시작 (기존 %d건)", content_type_id, len(existing))
+        page = 1
+        while max_pages is None or page <= max_pages:
+            list_items = _safe_area_based_sync_list(api, content_type_id, num_of_rows=num_of_rows, page_no=page)
+            if not list_items:
+                break
+            for list_item in list_items:
+                _process_sync_item(api, content_type_id, list_item, existing, dry_run=dry_run, summary=sub)
+            logger.info("타입 %s page %d 처리 (%d건)", content_type_id, page, len(list_items))
+            if len(list_items) < num_of_rows:  # 마지막 페이지
+                break
+            page += 1
+        logger.info(
+            "타입 %s 완료: 생성 %d·갱신 %d·미변경 %d·삭제 %d",
+            content_type_id,
+            sub.created,
+            sub.updated,
+            sub.skipped_unchanged,
+            sub.deactivated,
+        )
+        total.add(sub)
+    logger.info(
+        "전체 증분 완료: 생성 %d·갱신 %d·미변경 %d·삭제 %d·이미지없음 %d",
+        total.created,
+        total.updated,
+        total.skipped_unchanged,
+        total.deactivated,
+        total.skipped_no_image,
+    )
+    return total
+
+
+def _process_sync_item(
+    api: TourApiClient,
+    content_type_id: int,
+    list_item: dict[str, Any],
+    existing: dict[int, str | None],
+    *,
+    dry_run: bool,
+    summary: SyncSummary,
+) -> None:
+    """증분 항목 1건: showflag=0 소프트삭제 / 신규·변경 수집 / 미변경 스킵."""
+    content_id = int(list_item["contentid"])
+    if _blank_to_none(list_item.get("showflag")) == "0":  # 비공개/삭제
+        if content_id in existing:
+            if not dry_run:
+                Place.objects.filter(content_id=content_id).update(is_active=False)
+            summary.deactivated += 1
+        return
+
+    if content_id not in existing:  # 신규
+        _process_list_item(api, content_type_id, list_item, dry_run=dry_run, summary=summary)
+        return
+
+    # 기존: modifiedtime 비교(고정폭 문자열). 저장값 없거나 더 크면 변경 → 재수집(update_or_create로 갱신)
+    new_mtime = _blank_to_none(list_item.get("modifiedtime"))
+    stored = existing[content_id]
+    if new_mtime is not None and (stored is None or new_mtime > stored):
+        _process_list_item(api, content_type_id, list_item, dry_run=dry_run, summary=summary)
+    else:
+        summary.skipped_unchanged += 1
+
+
+def _safe_area_based_sync_list(
+    api: TourApiClient, content_type_id: int, *, num_of_rows: int, page_no: int
+) -> list[dict[str, Any]]:
+    """증분 목록 호출 실패 시 로그 후 빈 리스트 → 해당 타입 종료(전체 abort 방지)."""
+    try:
+        return api.area_based_sync_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no)
+    except TourApiError as exc:
+        logger.error("타입 %s page %d 증분 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
         return []
 
 

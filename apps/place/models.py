@@ -25,6 +25,10 @@ class Place(TimeStampModel):
     lcls_systm2 = models.CharField(max_length=20, null=True, blank=True, db_index=True)  # 분류체계 중분류
     lcls_systm3 = models.CharField(max_length=20, null=True, blank=True, db_index=True)  # 분류체계 소분류
 
+    # 증분 동기화(단계 7): 목록 modifiedtime(YYYYMMDDHHMMSS 원문). 저장값보다 크면 변경으로 보고 재수집
+    source_modified_at = models.CharField(max_length=14, null=True, blank=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)  # 소프트삭제(showflag=0). 비공개/삭제 시 False
+
     tags = models.ManyToManyField("Tag", related_name="places", blank=True)  # type: ignore[var-annotated]
 
     class Meta:

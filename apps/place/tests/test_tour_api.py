@@ -125,6 +125,15 @@ class TestTourApiClient:
         client, _ = _client_returning(_fake_response(payload))
         assert len(client.detail_image(2750143)) == 2
 
+    def test_area_based_sync_list_엔드포인트(self) -> None:
+        payload = _envelope({"item": [{"contentid": "1", "showflag": "1", "modifiedtime": "20260101000000"}]})
+        client, session = _client_returning(_fake_response(payload))
+        result = client.area_based_sync_list(14, num_of_rows=2, page_no=1)
+        assert result[0]["showflag"] == "1"
+        url, params = session.get.call_args[0][0], session.get.call_args[1]["params"]
+        assert url.endswith("/areaBasedSyncList2")
+        assert params["contentTypeId"] == 14
+
     def test_detail_intro_contentTypeId_전송(self) -> None:
         payload = _envelope({"item": {"contentid": "2750143", "usetimeculture": "07:00~24:00"}})
         client, session = _client_returning(_fake_response(payload))
