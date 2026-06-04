@@ -222,6 +222,9 @@ GEMINI_MODEL = config("GEMINI_MODEL", default="gemini-2.5-flash-lite")
 # Ollama (로컬 Gemma 등) — 컨테이너에서 호스트 Ollama 접근(Ollama는 OLLAMA_HOST=0.0.0.0로 기동 필요할 수 있음)
 OLLAMA_HOST = config("OLLAMA_HOST", default="http://host.docker.internal:11434")
 OLLAMA_MODEL = config("OLLAMA_MODEL", default="gemma3:12b")
+# 배포 환경은 ollama 부재 → Gemini로만 태깅. 일일 스케줄 태스크의 Gemini 한도(무료 등급: 일 20·분당 4)
+AI_TAG_GEMINI_DAILY_LIMIT = config("AI_TAG_GEMINI_DAILY_LIMIT", default=20, cast=int)
+AI_TAG_GEMINI_RPM = config("AI_TAG_GEMINI_RPM", default=4, cast=int)
 
 
 # Logging
