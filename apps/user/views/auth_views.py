@@ -15,9 +15,11 @@ from apps.user.schemas.auth_schemas import (
     kakao_callback_schema,
     kakao_login_schema,
     logout_schema,
+    recovery_schema,
     token_refresh_schema,
+    withdraw_schema,
 )
-from apps.user.serializers.auth_serializer import KakaoLoginSerializer
+from apps.user.serializers.auth_serializer import KakaoLoginSerializer, WithdrawSerializer
 from apps.user.services.auth_service import KakaoAuthService
 from apps.user.utils.auth_exceptions import (
     AuthBaseException,
@@ -178,3 +180,69 @@ class TokenRefreshView(APIView):
             {"access_token": str(token.access_token)},
             status=status.HTTP_200_OK,
         )
+
+
+# ── 회원 탈퇴 ────────────────────────────────────────────────────────────────
+
+
+class WithdrawView(APIView):
+    """DELETE /api/v1/auth/withdraw"""
+
+    permission_classes = [IsAuthenticated]
+
+    @withdraw_schema
+    def delete(self, request: Request) -> Response:
+        serializer = WithdrawSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"error_detail": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reason: str = serializer.validated_data["reason"]
+
+        try:
+            KakaoAuthService.withdraw_user(request.user, reason)  # type: ignore[arg-type]
+        except AuthBaseException as e:
+            return Response({"error_detail": e.detail}, status=e.status_code)
+
+        refresh_token = request.COOKIES.get(REFRESH_COOKIE)
+        if refresh_token:
+            KakaoAuthService.blacklist_token(refresh_token)
+
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        _clear_refresh_cookie(response)
+        return response
+
+
+# ── 탈퇴 계정 복구 ───────────────────────────────────────────────────────────
+
+
+class RecoveryView(APIView):
+    """POST /api/v1/auth/recovery"""
+
+    permission_classes = []
+
+    @recovery_schema
+    def post(self, request: Request) -> Response:
+        serializer = KakaoLoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"error_detail": MissingAuthCodeError.default_detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        code: str = serializer.validated_data["code"]
+
+        try:
+            user = KakaoAuthService.recover_user(code)
+        except AuthBaseException as e:
+            return Response({"error_detail": e.detail}, status=e.status_code)
+
+        access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
+        response = Response(
+            {"access_token": access_token, "message": "계정이 복구되었습니다."},
+            status=status.HTTP_200_OK,
+        )
+        _set_refresh_cookie(response, refresh_token)
+        return response
