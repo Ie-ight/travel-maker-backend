@@ -38,6 +38,11 @@ jobs:
 
           cd infrastructure/docker
           docker compose -f docker-compose.prod.yml pull
+
+          # 불필요한 이미지/캐시 정리 추가
+          docker image prune -f
+          docker builder prune -f
+
           docker compose -f docker-compose.prod.yml up -d --build
 
           # Static 파일 업데이트
