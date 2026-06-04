@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Avg, Count
 from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -28,6 +29,8 @@ from apps.review.services.review_services import (
 
 
 class PlaceReviewListCreateView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
     def get_permissions(self) -> list[BasePermission]:
         if self.request.method == "GET":
             return [AllowAny()]
@@ -63,6 +66,7 @@ class PlaceReviewListCreateView(APIView):
             place_id=place_id,
             rating=data["rating"],
             content=data["content"],
+            image=data.get("image"),
         )
         return Response(ReviewCreateResponseSerializer(review).data, status=status.HTTP_201_CREATED)
 

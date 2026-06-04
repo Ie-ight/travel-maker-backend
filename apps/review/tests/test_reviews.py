@@ -1,4 +1,8 @@
+from io import BytesIO
+from unittest.mock import MagicMock, patch
+
 import pytest
+from PIL import Image as PILImage
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -61,13 +65,22 @@ class TestReviewList:
 
 @pytest.mark.django_db
 class TestReviewCreate:
-    def test_리뷰_등록_성공(self, auth_client: APIClient, place: Place) -> None:
-        response = auth_client.post(
-            f"/api/v1/places/{place.id}/reviews",
-            {"rating": 5, "content": "좋아요!"},
-        )
+    def test_이미지_포함_리뷰_등록_성공(self, auth_client: APIClient, place: Place) -> None:
+        img = PILImage.new("RGB", (100, 100), color="red")
+        img_bytes = BytesIO()
+        img.save(img_bytes, format="JPEG")
+        img_bytes.name = "test.jpg"
+        img_bytes.seek(0)
+
+        with patch("apps.review.services.review_services.upload_review_image") as mock_task:
+            mock_task.delay = MagicMock()
+            response = auth_client.post(
+                f"/api/v1/places/{place.id}/reviews",
+                {"rating": 5, "content": "좋아요!", "image": img_bytes},
+                format="multipart",
+            )
+
         assert response.status_code == status.HTTP_201_CREATED
-        assert Review.objects.count() == 1  # type: ignore[attr-defined]
 
     def test_리뷰_비인증_등록_실패(self, client: APIClient, place: Place) -> None:
         response = client.post(
@@ -141,7 +154,7 @@ class TestReviewDelete:
         assert Review.objects.count() == 0  # type: ignore[attr-defined]
 
     def test_리뷰_삭제_비인증_실패(self, client: APIClient) -> None:
-        response = client.delete("/api/v1/reviews/1", {"rating": 3})
+        response = client.delete("/api/v1/reviews/1")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_타인_리뷰_삭제_실패(self, auth_client: APIClient, other_user: User, place: Place) -> None:

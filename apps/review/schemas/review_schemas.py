@@ -22,7 +22,8 @@ review_list_schema = extend_schema(
 review_create_schema = extend_schema(
     tags=["Review"],
     summary="리뷰 등록",
-    request=ReviewCreateSerializer,
+    description="장소에 리뷰를 등록합니다. 이미지는 비동기로 S3에 업로드됩니다.",
+    request={"multipart/form-data": ReviewCreateSerializer},
     responses={
         201: ReviewCreateResponseSerializer,
         400: PlaceErrorResponseSerializer,
