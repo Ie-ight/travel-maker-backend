@@ -13,7 +13,7 @@ def get_places_for_map() -> QuerySet[Place]:
     return Place.objects.prefetch_related("images").only("id", "place_name", "latitude", "longitude", "rating_avg")
 
 
-def get_route(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float) -> dict:
+def get_route(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float) -> dict[str, object]:
     """
     Kakao Mobility Directions API 호출 (자동차 경로).
     REST_API_KEY 필요: settings.KAKAO_REST_API_KEY
@@ -33,6 +33,7 @@ def get_route(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: f
 
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode())
+            result: dict[str, object] = json.loads(resp.read().decode())
+            return result
     except urllib.error.HTTPError as e:
         raise urllib.error.HTTPError(e.url, e.code, e.msg, e.hdrs, e.fp) from e

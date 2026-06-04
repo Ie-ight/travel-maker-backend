@@ -38,7 +38,7 @@ class PlaceRouteView(APIView):
             return Response({"error_detail": "존재하지 않는 장소입니다."}, status=404)
 
         try:
-            data = get_route(origin_lat, origin_lng, float(place.latitude), float(place.longitude))
+            data = get_route(origin_lat, origin_lng, float(place.latitude or 0), float(place.longitude or 0))
         except ValueError as e:
             return Response({"error_detail": str(e)}, status=500)
         except urllib.error.HTTPError as e:
