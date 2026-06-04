@@ -8,10 +8,11 @@ provider 토글(gemini | ollama). gemini는 GEMINI_API_KEY 필요, ollama는 로
         --out reports/ai_tags.md --settings=config.settings.local
 """
 
+import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
@@ -28,6 +29,13 @@ from apps.place.services.lcls_codes import lcls_label
 
 #: §4 6축 순서(벡터 헤더 범례용)
 _VECTOR_AXES = "활동성·계획성·사교성·공간지향·경험지향·소비스타일"
+
+#: 프롬프트 튜닝 회귀용 골든 샘플(타입·엣지케이스 대표 content_id 목록). sync 후 손으로 큐레이션.
+_GOLDEN_SAMPLE_PATH = Path(__file__).resolve().parents[2] / "services" / "golden_sample.json"
+
+
+def _load_golden_ids() -> list[int]:
+    return cast(list[int], json.loads(_GOLDEN_SAMPLE_PATH.read_text(encoding="utf-8")))
 
 
 def _md_cell(text: str) -> str:
@@ -88,6 +96,11 @@ class Command(BaseCommand):
         parser.add_argument("--model", default=None, help="모델 오버라이드(미지정 시 provider 기본값)")
         parser.add_argument("--out", default=None, help="결과를 Markdown 표로 저장할 경로(미지정 시 화면 출력만)")
         parser.add_argument(
+            "--golden",
+            action="store_true",
+            help="골든 샘플(golden_sample.json)만 태깅 — 프롬프트 튜닝 회귀 확인용(타입·limit 무시)",
+        )
+        parser.add_argument(
             "--rpm",
             type=int,
             default=None,
@@ -101,11 +114,15 @@ class Command(BaseCommand):
 
         # overview(description)가 있는 장소만 — 없으면 분석 보류라 호출 자체를 아낀다
         queryset = Place.objects.exclude(description__isnull=True).exclude(description="")
-        if options["content_type_id"] is not None:
-            queryset = queryset.filter(content_type_id=options["content_type_id"])
-        if options["only_missing"]:
-            queryset = queryset.filter(place_feature__isnull=True)
-        queryset = queryset.order_by("id")[: options["limit"]]
+        if options["golden"]:
+            # 골든 샘플은 고정 세트 — 타입·only-missing·limit 필터를 무시하고 전량 태깅
+            queryset = queryset.filter(content_id__in=_load_golden_ids()).order_by("id")
+        else:
+            if options["content_type_id"] is not None:
+                queryset = queryset.filter(content_type_id=options["content_type_id"])
+            if options["only_missing"]:
+                queryset = queryset.filter(place_feature__isnull=True)
+            queryset = queryset.order_by("id")[: options["limit"]]
 
         dry_run = options["dry_run"]
         model = options["model"]
