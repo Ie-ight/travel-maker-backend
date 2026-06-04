@@ -260,6 +260,8 @@ LOGGING = {
 # Kakao OAuth Settings
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
+KAKAO_JS_KEY = os.getenv("KAKAO_JS_KEY", "")
+KAKAO_REST_API_KEY = os.getenv("KAKAO_CLIENT_ID", "")
 
 # Frontend URL
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
