@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
+import pytest
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -10,11 +10,8 @@ from rest_framework.test import APIClient
 from apps.user.models import SocialUser, User
 from apps.user.services.auth_service import KakaoAuthService, KakaoUserInfo
 
-# ── 헬퍼 ────────────────────────────────────────────────────────────────────
-
 
 def make_user(email: str = "test@example.com", nickname: str = "traveler_10000") -> User:
-    """테스트용 유저 생성"""
     user = User.objects.create_user(
         email=email,
         nickname=nickname,
@@ -27,7 +24,6 @@ def make_user(email: str = "test@example.com", nickname: str = "traveler_10000")
 
 
 def make_kakao_user_info(**kwargs: str | None) -> KakaoUserInfo:
-    """테스트용 KakaoUserInfo 생성"""
     defaults: dict[str, str | None] = {
         "provider_id": "kakao_12345",
         "email": "kakao@example.com",
@@ -40,12 +36,8 @@ def make_kakao_user_info(**kwargs: str | None) -> KakaoUserInfo:
     return KakaoUserInfo(**defaults)
 
 
-# ── KakaoAuthService 단위 테스트 ─────────────────────────────────────────────
-
-
-class KakaoAuthServiceTest(TestCase):
-    # ── get_or_create_user ──────────────────────────────────────────────────
-
+@pytest.mark.django_db
+class TestKakaoAuthService:
     @patch.object(KakaoAuthService, "get_user_info")
     @patch.object(KakaoAuthService, "get_access_token")
     def test_신규_유저_생성(self, mock_get_token: MagicMock, mock_get_info: MagicMock) -> None:
@@ -55,9 +47,9 @@ class KakaoAuthServiceTest(TestCase):
 
         user, is_new_user = KakaoAuthService.get_or_create_user("fake_code")
 
-        self.assertTrue(is_new_user)
-        self.assertEqual(user.email, "kakao@example.com")
-        self.assertTrue(SocialUser.objects.filter(provider_id="kakao_12345").exists())
+        assert is_new_user is True
+        assert user.email == "kakao@example.com"
+        assert SocialUser.objects.filter(provider_id="kakao_12345").exists()
 
     @patch.object(KakaoAuthService, "get_user_info")
     @patch.object(KakaoAuthService, "get_access_token")
@@ -75,9 +67,9 @@ class KakaoAuthServiceTest(TestCase):
 
         returned_user, is_new_user = KakaoAuthService.get_or_create_user("fake_code")
 
-        self.assertFalse(is_new_user)
-        self.assertEqual(returned_user.pk, user.pk)
-        self.assertEqual(User.objects.count(), 1)
+        assert is_new_user is False
+        assert returned_user.pk == user.pk
+        assert User.objects.count() == 1
 
     @patch.object(KakaoAuthService, "get_user_info")
     @patch.object(KakaoAuthService, "get_access_token")
@@ -88,22 +80,18 @@ class KakaoAuthServiceTest(TestCase):
         mock_get_token.return_value = "fake_access_token"
         mock_get_info.return_value = make_kakao_user_info(email=None)
 
-        with self.assertRaises(EmailNotProvidedError):
+        with pytest.raises(EmailNotProvidedError):
             KakaoAuthService.get_or_create_user("fake_code")
-
-    # ── generate_token_pair ─────────────────────────────────────────────────
 
     def test_토큰_쌍_발급(self) -> None:
         """generate_token_pair는 access/refresh 토큰 문자열을 반환한다."""
         user = make_user()
         access, refresh = KakaoAuthService.generate_token_pair(user)
 
-        self.assertIsInstance(access, str)
-        self.assertIsInstance(refresh, str)
-        self.assertTrue(len(access) > 0)
-        self.assertTrue(len(refresh) > 0)
-
-    # ── blacklist / is_blacklisted ──────────────────────────────────────────
+        assert isinstance(access, str)
+        assert isinstance(refresh, str)
+        assert len(access) > 0
+        assert len(refresh) > 0
 
     def test_블랙리스트_등록_및_확인(self) -> None:
         """로그아웃한 refresh token은 블랙리스트에서 True를 반환한다."""
@@ -112,28 +100,26 @@ class KakaoAuthServiceTest(TestCase):
 
         KakaoAuthService.blacklist_token(refresh_str)
 
-        self.assertTrue(KakaoAuthService.is_blacklisted(refresh_str))
+        assert KakaoAuthService.is_blacklisted(refresh_str) is True
 
     def test_블랙리스트_미등록_토큰(self) -> None:
         """블랙리스트에 없는 토큰은 False를 반환한다."""
         user = make_user()
         _, refresh_str = KakaoAuthService.generate_token_pair(user)
 
-        self.assertFalse(KakaoAuthService.is_blacklisted(refresh_str))
+        assert KakaoAuthService.is_blacklisted(refresh_str) is False
 
     def test_만료된_토큰_블랙리스트_등록_무시(self) -> None:
         """만료되거나 유효하지 않은 토큰 등록 시 예외 없이 무시된다."""
         try:
             KakaoAuthService.blacklist_token("invalid.token.string")
         except Exception as e:
-            self.fail(f"예외가 발생하면 안 됩니다: {e}")
+            pytest.fail(f"예외가 발생하면 안 됩니다: {e}")
 
 
-# ── API View 통합 테스트 ──────────────────────────────────────────────────────
-
-
-class KakaoLoginViewTest(TestCase):
-    def setUp(self) -> None:
+@pytest.mark.django_db
+class TestKakaoLoginView:
+    def setup_method(self) -> None:
         self.client = APIClient()
         self.url = reverse("kakao-login")
 
@@ -145,10 +131,10 @@ class KakaoLoginViewTest(TestCase):
 
         res = self.client.post(self.url, {"code": "fake_code"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertIn("access_token", res.data)
-        self.assertFalse(res.data["is_new_user"])
-        self.assertIn("refresh_token", res.cookies)
+        assert res.status_code == status.HTTP_200_OK
+        assert "access_token" in res.data
+        assert res.data["is_new_user"] is False
+        assert "refresh_token" in res.cookies
 
     @patch.object(KakaoAuthService, "get_or_create_user")
     def test_신규_유저_가입_201(self, mock_get_or_create: MagicMock) -> None:
@@ -158,16 +144,16 @@ class KakaoLoginViewTest(TestCase):
 
         res = self.client.post(self.url, {"code": "fake_code"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        self.assertIn("access_token", res.data)
-        self.assertTrue(res.data["is_new_user"])
+        assert res.status_code == status.HTTP_201_CREATED
+        assert "access_token" in res.data
+        assert res.data["is_new_user"] is True
 
     def test_code_누락_400(self) -> None:
         """code 없이 요청 시 400을 반환한다."""
         res = self.client.post(self.url, {}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error_detail", res.data)
+        assert res.status_code == status.HTTP_400_BAD_REQUEST
+        assert "error_detail" in res.data
 
     @patch.object(KakaoAuthService, "get_or_create_user")
     def test_카카오_서버_오류_503(self, mock_get_or_create: MagicMock) -> None:
@@ -178,12 +164,13 @@ class KakaoLoginViewTest(TestCase):
 
         res = self.client.post(self.url, {"code": "fake_code"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        self.assertIn("error_detail", res.data)
+        assert res.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "error_detail" in res.data
 
 
-class LogoutViewTest(TestCase):
-    def setUp(self) -> None:
+@pytest.mark.django_db
+class TestLogoutView:
+    def setup_method(self) -> None:
         self.client = APIClient()
         self.url = reverse("logout")
         self.user = make_user()
@@ -200,17 +187,18 @@ class LogoutViewTest(TestCase):
 
         res = self.client.post(self.url)
 
-        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        assert res.status_code == status.HTTP_204_NO_CONTENT
 
     def test_인증_없이_로그아웃_401(self) -> None:
         """인증 없이 로그아웃 요청 시 401을 반환한다."""
         res = self.client.post(self.url)
 
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        assert res.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-class TokenRefreshViewTest(TestCase):
-    def setUp(self) -> None:
+@pytest.mark.django_db
+class TestTokenRefreshView:
+    def setup_method(self) -> None:
         self.client = APIClient()
         self.url = reverse("token-refresh")
         self.user = make_user()
@@ -222,14 +210,14 @@ class TokenRefreshViewTest(TestCase):
 
         res = self.client.post(self.url)
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertIn("access_token", res.data)
+        assert res.status_code == status.HTTP_200_OK
+        assert "access_token" in res.data
 
     def test_쿠키_없으면_403(self) -> None:
         """refresh token 쿠키가 없으면 403을 반환한다."""
         res = self.client.post(self.url)
 
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        assert res.status_code == status.HTTP_403_FORBIDDEN
 
     def test_블랙리스트_토큰_403(self) -> None:
         """블랙리스트에 등록된 refresh token은 403을 반환한다."""
@@ -239,7 +227,7 @@ class TokenRefreshViewTest(TestCase):
 
         res = self.client.post(self.url)
 
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        assert res.status_code == status.HTTP_403_FORBIDDEN
 
     def test_유효하지_않은_토큰_403(self) -> None:
         """유효하지 않은 토큰 문자열은 403을 반환한다."""
@@ -247,14 +235,12 @@ class TokenRefreshViewTest(TestCase):
 
         res = self.client.post(self.url)
 
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        assert res.status_code == status.HTTP_403_FORBIDDEN
 
 
-# ── 회원 탈퇴 테스트 ──────────────────────────────────────────────────────────
-
-
-class WithdrawServiceTest(TestCase):
-    def setUp(self) -> None:
+@pytest.mark.django_db
+class TestWithdrawService:
+    def setup_method(self) -> None:
         self.user = make_user()
 
     def test_탈퇴_성공(self) -> None:
@@ -262,14 +248,14 @@ class WithdrawServiceTest(TestCase):
         KakaoAuthService.withdraw_user(self.user, "서비스 불만족")
 
         self.user.refresh_from_db()
-        self.assertFalse(self.user.is_active)
-        self.assertIsNotNone(self.user.deleted_at)
+        assert self.user.is_active is False
+        assert self.user.deleted_at is not None
 
     def test_잘못된_탈퇴_사유_400(self) -> None:
         """유효하지 않은 탈퇴 사유는 InvalidWithdrawReasonError를 발생시킨다."""
         from apps.user.utils.auth_exceptions import InvalidWithdrawReasonError
 
-        with self.assertRaises(InvalidWithdrawReasonError):
+        with pytest.raises(InvalidWithdrawReasonError):
             KakaoAuthService.withdraw_user(self.user, "잘못된사유")
 
     def test_이미_탈퇴한_계정_409(self) -> None:
@@ -279,12 +265,13 @@ class WithdrawServiceTest(TestCase):
         KakaoAuthService.withdraw_user(self.user, "기타")
         self.user.refresh_from_db()
 
-        with self.assertRaises(AlreadyWithdrawnError):
+        with pytest.raises(AlreadyWithdrawnError):
             KakaoAuthService.withdraw_user(self.user, "기타")
 
 
-class WithdrawViewTest(TestCase):
-    def setUp(self) -> None:
+@pytest.mark.django_db
+class TestWithdrawView:
+    def setup_method(self) -> None:
         self.client = APIClient()
         self.url = reverse("withdraw")
         self.user = make_user()
@@ -297,31 +284,28 @@ class WithdrawViewTest(TestCase):
 
         res = self.client.delete(self.url, {"reason": "서비스 불만족"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        assert res.status_code == status.HTTP_204_NO_CONTENT
         self.user.refresh_from_db()
-        self.assertFalse(self.user.is_active)
-        self.assertIsNotNone(self.user.deleted_at)
+        assert self.user.is_active is False
+        assert self.user.deleted_at is not None
 
     def test_잘못된_사유_400(self) -> None:
         """유효하지 않은 탈퇴 사유는 400을 반환한다."""
         res = self.client.delete(self.url, {"reason": "잘못된사유"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        assert res.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_인증_없이_탈퇴_401(self) -> None:
         """인증 없이 탈퇴 요청 시 401을 반환한다."""
         self.client.credentials()
         res = self.client.delete(self.url, {"reason": "기타"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        assert res.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-# ── 탈퇴 계정 복구 테스트 ─────────────────────────────────────────────────────
-
-
-class RecoverServiceTest(TestCase):
+@pytest.mark.django_db
+class TestRecoverService:
     def _make_withdrawn_user(self, days_ago: int = 0) -> tuple[User, SocialUser]:
-        """탈퇴 상태의 유저 생성. days_ago=0이면 방금 탈퇴."""
         from datetime import timedelta
 
         from django.utils import timezone
@@ -347,10 +331,10 @@ class RecoverServiceTest(TestCase):
 
         recovered = KakaoAuthService.recover_user("fake_code")
 
-        self.assertEqual(recovered.pk, user.pk)
+        assert recovered.pk == user.pk
         recovered.refresh_from_db()
-        self.assertTrue(recovered.is_active)
-        self.assertIsNone(recovered.deleted_at)
+        assert recovered.is_active is True
+        assert recovered.deleted_at is None
 
     @patch.object(KakaoAuthService, "get_user_info")
     @patch.object(KakaoAuthService, "get_access_token")
@@ -362,7 +346,7 @@ class RecoverServiceTest(TestCase):
         mock_token.return_value = "fake_token"
         mock_info.return_value = make_kakao_user_info(provider_id="kakao_99999", email=user.email)
 
-        with self.assertRaises(RecoveryAccountNotFoundError):
+        with pytest.raises(RecoveryAccountNotFoundError):
             KakaoAuthService.recover_user("fake_code")
 
     @patch.object(KakaoAuthService, "get_user_info")
@@ -376,12 +360,13 @@ class RecoverServiceTest(TestCase):
         mock_token.return_value = "fake_token"
         mock_info.return_value = make_kakao_user_info(provider_id="kakao_99999", email=user.email)
 
-        with self.assertRaises(RecoveryAccountNotFoundError):
+        with pytest.raises(RecoveryAccountNotFoundError):
             KakaoAuthService.recover_user("fake_code")
 
 
-class RecoveryViewTest(TestCase):
-    def setUp(self) -> None:
+@pytest.mark.django_db
+class TestRecoveryView:
+    def setup_method(self) -> None:
         self.client = APIClient()
         self.url = reverse("recovery")
 
@@ -393,10 +378,10 @@ class RecoveryViewTest(TestCase):
 
         res = self.client.post(self.url, {"code": "fake_code"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertIn("access_token", res.data)
-        self.assertEqual(res.data["message"], "계정이 복구되었습니다.")
-        self.assertIn("refresh_token", res.cookies)
+        assert res.status_code == status.HTTP_200_OK
+        assert "access_token" in res.data
+        assert res.data["message"] == "계정이 복구되었습니다."
+        assert "refresh_token" in res.cookies
 
     @patch.object(KakaoAuthService, "recover_user")
     def test_복구_대상_없음_404(self, mock_recover: MagicMock) -> None:
@@ -407,11 +392,11 @@ class RecoveryViewTest(TestCase):
 
         res = self.client.post(self.url, {"code": "fake_code"}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertIn("error_detail", res.data)
+        assert res.status_code == status.HTTP_404_NOT_FOUND
+        assert "error_detail" in res.data
 
     def test_code_누락_400(self) -> None:
         """code 없이 복구 요청 시 400을 반환한다."""
         res = self.client.post(self.url, {}, format="json")
 
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        assert res.status_code == status.HTTP_400_BAD_REQUEST
