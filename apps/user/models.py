@@ -40,6 +40,7 @@ class CustomUserManager(BaseUserManager["User"]):
     ) -> User:
         extra_fields["role"] = "ADMIN"
         extra_fields["is_active"] = True
+        extra_fields["is_staff"] = True
         return self.create_user(email, nickname, **extra_fields)
 
 
@@ -58,13 +59,23 @@ class User(AbstractBaseUser, TimeStampModel):
     gender = models.CharField(choices=Gender.choices, max_length=6, null=True)
     birthday = models.DateField(null=False)
     profile_img_url = models.CharField(max_length=255, blank=True, null=False)
+    # 마이페이지 관심태그
+    tags = models.ManyToManyField("place.Tag", blank=True, related_name="users")
     is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
     role = models.CharField(choices=Role.choices, default=Role.USER)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD: ClassVar[str] = "email"
     REQUIRED_FIELDS: ClassVar[list[str]] = ["nickname", "gender", "birthday"]
 
     objects: ClassVar[CustomUserManager] = CustomUserManager()  # type: ignore[misc]
+
+    def has_perm(self, perm: str, obj: object = None) -> bool:  # type: ignore[override]
+        return self.role == self.Role.ADMIN
+
+    def has_module_perms(self, app_label: str) -> bool:
+        return self.role == self.Role.ADMIN
 
     class Meta:
         db_table = "user"

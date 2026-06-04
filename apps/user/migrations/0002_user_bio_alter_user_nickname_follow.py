@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="user",
             name="nickname",
-            field=models.CharField(max_length=13, unique=True),
+            field=models.CharField(max_length=14, unique=True),
         ),
         migrations.CreateModel(
             name="Follow",

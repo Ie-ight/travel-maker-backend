@@ -4,7 +4,9 @@ from apps.user.serializers.auth_serializer import (
     ErrorDetailSerializer,
     KakaoLoginResponseSerializer,
     KakaoLoginSerializer,
+    RecoveryResponseSerializer,
     TokenRefreshResponseSerializer,
+    WithdrawSerializer,
 )
 
 kakao_login_schema = extend_schema(
@@ -113,6 +115,55 @@ token_refresh_schema = extend_schema(
                     value={"error_detail": "로그인 세션이 만료되었습니다."},
                 )
             ],
+        ),
+    },
+)
+
+withdraw_schema = extend_schema(
+    tags=["auth"],
+    summary="회원 탈퇴",
+    description="소프트 딜리트 처리 (is_active=False, deleted_at=탈퇴일시). 탈퇴 후 14일 이내 복구 가능.",
+    request=WithdrawSerializer,
+    responses={
+        204: OpenApiResponse(description="탈퇴 성공 (No Content)"),
+        400: OpenApiResponse(
+            response=ErrorDetailSerializer,
+            description="잘못된 탈퇴 사유",
+            examples=[OpenApiExample("400", value={"error_detail": "잘못된 탈퇴 사유입니다."})],
+        ),
+        401: OpenApiResponse(
+            response=ErrorDetailSerializer,
+            description="인증 실패",
+            examples=[OpenApiExample("401", value={"error_detail": "자격 인증 데이터가 제공되지 않았습니다."})],
+        ),
+        409: OpenApiResponse(
+            response=ErrorDetailSerializer,
+            description="이미 탈퇴한 계정",
+            examples=[OpenApiExample("409", value={"error_detail": "이미 탈퇴한 계정입니다."})],
+        ),
+    },
+)
+
+recovery_schema = extend_schema(
+    tags=["auth"],
+    summary="탈퇴 계정 복구",
+    description="탈퇴 후 14일 이내 카카오 인가코드로 계정 복구. 복구 시 Access/Refresh 토큰 발급.",
+    request=KakaoLoginSerializer,
+    responses={
+        200: OpenApiResponse(
+            response=RecoveryResponseSerializer,
+            description="복구 성공",
+            examples=[
+                OpenApiExample(
+                    "200",
+                    value={"access_token": "eyJhbG...", "message": "계정이 복구되었습니다."},
+                )
+            ],
+        ),
+        404: OpenApiResponse(
+            response=ErrorDetailSerializer,
+            description="복구 불가 (탈퇴 계정 없음 또는 14일 초과)",
+            examples=[OpenApiExample("404", value={"error_detail": "복구할 계정을 찾지 못했습니다."})],
         ),
     },
 )
