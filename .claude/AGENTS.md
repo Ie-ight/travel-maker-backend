@@ -202,6 +202,75 @@ def process_review_image(self, review_id: int) -> None:
 
 ---
 
+## Pull Request Rules
+
+**MANDATORY. Every PR must follow these rules without exception.**
+
+### Branch strategy
+
+| Source | Target | Description |
+|---|---|---|
+| `feat/*`, `fix/*`, `chore/*` | `dev` | All feature/fix work merges into dev first |
+| `dev` | `main` | Only after QA sign-off |
+
+Never open a PR directly from a feature branch to `main`.
+
+### PR title
+
+Use conventional commit format: `type: short description` (under 70 characters).
+
+```
+feat: 카카오 로그인 API 추가
+fix: refresh 토큰 블랙리스트 누락 수정
+chore: pre-commit 훅 설정
+```
+
+### PR body — required sections
+
+Every PR body must include all of the following sections, matching `.github/PULL_REQUEST_TEMPLATE.md`:
+
+```markdown
+## 📝 변경 사항
+<!-- 무엇을 왜 변경했는지 -->
+
+## 🎯 작업 내용
+- [ ] 작업 항목
+
+## 🔗 관련 이슈
+Closes #이슈번호
+
+## ✅ 체크리스트
+- [ ] 코드가 프로젝트 코딩 스타일을 따르고 있습니다
+- [ ] 테스트를 작성하거나 업데이트했습니다
+- [ ] 모든 테스트가 통과합니다
+- [ ] 문서를 업데이트했습니다 (필요한 경우)
+- [ ] ruff, mypy 검사를 통과했습니다
+
+## 🧪 테스트 방법
+1.
+2.
+```
+
+### Size limit
+
+- **500 lines changed** max per PR. If a feature exceeds this, split by layer (e.g., models+migrations / services / views+serializers).
+- Migration-only PRs are allowed and encouraged when schema changes are large.
+
+### Review requirements
+
+- At least **1 approval** before merge.
+- All checklist items must be checked before requesting review.
+- Do not merge your own PR without a review unless explicitly allowed by the team.
+
+### What NOT to do
+
+- ❌ Do not open a PR with failing CI (ruff / mypy / pytest).
+- ❌ Do not mix unrelated changes in one PR (e.g., refactor + new feature).
+- ❌ Do not force-push to `dev` or `main`.
+- ❌ Do not merge without resolving all review comments.
+
+---
+
 ## Commit Conventions
 
 - **Behavior change and structural change must be separate commits.** Never mix refactoring with feature work.
