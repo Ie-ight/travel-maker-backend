@@ -263,3 +263,9 @@ KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI")
 
 # Frontend URL
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# AWS 설정
+AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID", default="")
+AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY", default="")
+AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME", default="")
+AWS_S3_REGION_NAME = config("AWS_S3_REGION_NAME", default="ap-northeast-2")
