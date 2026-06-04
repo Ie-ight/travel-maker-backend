@@ -112,8 +112,8 @@ class Command(BaseCommand):
         if provider == "gemini" and not settings.GEMINI_API_KEY:
             raise CommandError("GEMINI_API_KEY가 설정되지 않았습니다. envs/.env.local에 추가하세요.")
 
-        # overview(description)가 있는 장소만 — 없으면 분석 보류라 호출 자체를 아낀다
-        queryset = Place.objects.exclude(description__isnull=True).exclude(description="")
+        # overview(description)가 있고 활성(소프트삭제 아님)인 장소만 — 분석 보류·삭제 장소 호출을 아낀다
+        queryset = Place.objects.filter(is_active=True).exclude(description__isnull=True).exclude(description="")
         if options["golden"]:
             # 골든 샘플은 고정 세트 — 타입·only-missing·limit 필터를 무시하고 전량 태깅
             queryset = queryset.filter(content_id__in=_load_golden_ids()).order_by("id")

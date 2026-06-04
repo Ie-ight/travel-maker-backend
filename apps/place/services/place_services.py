@@ -11,9 +11,14 @@ def get_place_list(
     order: str = "desc",
     tags: list[int] | None = None,
 ) -> QuerySet[Place]:
-    queryset = Place.objects.prefetch_related("images", "tags").annotate(
-        bookmark_count=Count("bookmarks", distinct=True),
-        review_count=Count("reviews", distinct=True),
+    # is_active=False는 증분 동기화(단계 7)에서 소프트삭제된 장소 → 목록에서 제외
+    queryset = (
+        Place.objects.filter(is_active=True)
+        .prefetch_related("images", "tags")
+        .annotate(
+            bookmark_count=Count("bookmarks", distinct=True),
+            review_count=Count("reviews", distinct=True),
+        )
     )
     if keyword:
         queryset = queryset.filter(place_name__icontains=keyword)
@@ -38,7 +43,7 @@ def get_place_detail(place_id: int) -> Place | None:
             bookmark_count=Count("bookmarks", distinct=True),
             review_count=Count("reviews", distinct=True),
         )
-        .filter(id=place_id)
+        .filter(id=place_id, is_active=True)  # 소프트삭제 장소는 상세도 미노출(뷰에서 404)
         .first()
     )
 
