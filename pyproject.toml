@@ -8,6 +8,10 @@ dependencies = [
     "djangorestframework>=3.14.0",
     "djangorestframework-simplejwt>=5.3.0",
     "psycopg[binary]>=3.1.0",
+    "pgvector>=0.3.0",
+    "requests>=2.31.0",
+    "google-genai>=1.0.0",
+    "ollama>=0.3.0",
     "python-decouple>=3.8",
     "django-cors-headers>=4.3.0",
     "pillow>=10.0.0",
@@ -34,6 +38,7 @@ dev = [
     "django-stubs==5.1.1",
     "djangorestframework-stubs>=3.14.0",
     "django-stubs-ext>=4.2.7",
+    "types-requests>=2.31.0",
 ]
 
 [build-system]
@@ -129,9 +134,15 @@ exclude_lines = [
 ]
 
 [dependency-groups]
+# uv가 기본 설치하는 dev 그룹. 품질 도구(ruff 등)를 여기 둬야 컨테이너 재생성/`uv run` 자동 sync
+# 이후에도 항상 설치된다(과거엔 optional `dev` extra에만 있어 재생성 후 사라졌음).
 dev = [
     "mypy>=1.13.0",
     "pre-commit>=4.6.0",
     "pytest-cov>=7.1.0",
     "pytest-django>=4.12.0",
+    "ruff>=0.1.0",
+    "pytest-xdist>=3.3.0",
+    "django-stubs-ext>=4.2.7",
+    "types-requests>=2.31.0",
 ]
