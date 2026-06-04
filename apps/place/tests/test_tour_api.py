@@ -47,7 +47,7 @@ def _fake_response(
 def _client_returning(resp: MagicMock) -> tuple[TourApiClient, MagicMock]:
     session = MagicMock(spec=requests.Session)
     session.get.return_value = resp
-    client = TourApiClient(service_key="test-key", session=session)
+    client = TourApiClient(service_key="test-key", session=session, backoff_base=0)  # 재시도 sleep 생략
     return client, session
 
 
@@ -149,3 +149,54 @@ class TestTourApiClient:
         client, _ = _client_returning(_fake_response(bad_json=True))
         with pytest.raises(TourApiError):
             client.area_based_list(14)
+
+
+class TestRetry:
+    """재시도/백오프(단계 6). backoff_base=0으로 sleep 없이 검증한다."""
+
+    @staticmethod
+    def _session(*responses: MagicMock) -> MagicMock:
+        session = MagicMock(spec=requests.Session)
+        if len(responses) == 1:
+            session.get.return_value = responses[0]
+        else:
+            session.get.side_effect = list(responses)
+        return session
+
+    def test_재시도가능_오류_후_성공(self) -> None:
+        # 첫 호출 HTTP 오류(일시) → 재시도 → 성공
+        ok = _fake_response(_envelope({"item": [{"contentid": "1"}]}))
+        session = self._session(_fake_response(raise_http=True), ok)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0)
+        assert client.area_based_list(14)[0]["contentid"] == "1"
+        assert session.get.call_count == 2
+
+    def test_재시도_소진_후_실패(self) -> None:
+        session = self._session(_fake_response(raise_http=True))
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, max_retries=2)
+        with pytest.raises(TourApiError):
+            client.area_based_list(14)
+        assert session.get.call_count == 3  # 최초 1 + 재시도 2
+
+    def test_트래픽초과_22는_재시도(self) -> None:
+        ok = _fake_response(_envelope({"item": [{"contentid": "9"}]}))
+        session = self._session(_fake_response(_envelope("", result_code="22")), ok)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0)
+        assert client.area_based_list(14)[0]["contentid"] == "9"
+        assert session.get.call_count == 2
+
+    def test_치명_resultCode는_재시도_안함(self) -> None:
+        # 30(키 만료)은 치명 → 즉시 실패
+        session = self._session(_fake_response(_envelope("", result_code="30")))
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, max_retries=3)
+        with pytest.raises(TourApiError):
+            client.area_based_list(14)
+        assert session.get.call_count == 1
+
+    def test_비JSON_응답은_재시도_안함(self) -> None:
+        # 인증/키 문제로 보이는 비-JSON은 치명 → 즉시 실패
+        session = self._session(_fake_response(bad_json=True))
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, max_retries=3)
+        with pytest.raises(TourApiError):
+            client.area_based_list(14)
+        assert session.get.call_count == 1

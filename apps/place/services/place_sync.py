@@ -1,12 +1,15 @@
-"""Tour API 소량 수집 오케스트레이션 (단계 2).
+"""Tour API 수집 오케스트레이션 (단계 2 소량 + 단계 6 대량).
 
-areaBasedList2 → detailCommon2 → detailImage2 파이프라인으로 Place·PlaceImage를 적재한다.
+areaBasedList2 → detailCommon2 → detailImage2 (+ detailIntro2)로 Place·PlaceImage·PlaceInfo를 적재한다.
 값 정규화(§3-4,5)·필드 매핑(§4)·수집 정책(§7)을 여기서 처리한다.
-대량 적재·재시도·로깅은 단계 6 범위.
+- sync_area: 한 타입·소량(단계 2 검증).
+- sync_all: 전체 타입 전국 페이지네이션 대량 적재 + 로깅·재개(단계 6). 재시도/백오프는 TourApiClient가 담당.
 """
 
+import logging
 import re
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, fields
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -20,6 +23,11 @@ from apps.place.services.place_info_mapping import (
 )
 from apps.place.services.tagging import assign_deterministic_tags
 from apps.place.services.tour_api import TourApiClient, TourApiError
+
+logger = logging.getLogger("place.sync")
+
+#: 대량 적재 대상 타입(§2). 25 여행코스는 PlaceInfo 스키마와 안 맞고 사용 안 해 제외.
+DEFAULT_CONTENT_TYPE_IDS: tuple[int, ...] = (12, 14, 15, 28, 32, 38, 39)
 
 _HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.IGNORECASE)
 
@@ -148,10 +156,16 @@ def save_images(
 class SyncSummary:
     fetched: int = 0
     skipped_no_image: int = 0
+    skipped_existing: int = 0
     created: int = 0
     updated: int = 0
     images_saved: int = 0
     info_saved: int = 0
+
+    def add(self, other: "SyncSummary") -> None:
+        """다른 요약을 누적한다(타입별 → 전체 합산)."""
+        for field in fields(self):
+            setattr(self, field.name, getattr(self, field.name) + getattr(other, field.name))
 
 
 def sync_area(
@@ -163,65 +177,153 @@ def sync_area(
     dry_run: bool = False,
     client: TourApiClient | None = None,
 ) -> SyncSummary:
-    """한 타입·(선택)한 지역으로 소량 수집한다.
+    """한 타입·(선택)한 지역으로 소량 수집한다(단계 2 검증).
 
     dry_run이면 목록만 조회하고 상세 호출·DB 저장은 하지 않는다(수집 대상 미리보기).
     """
     api = client or TourApiClient()
     summary = SyncSummary()
-
     for page in range(1, pages + 1):
         list_items = api.area_based_list(
-            content_type_id,
-            ldong_regn_cd=ldong_regn_cd,
-            num_of_rows=num_of_rows,
-            page_no=page,
+            content_type_id, ldong_regn_cd=ldong_regn_cd, num_of_rows=num_of_rows, page_no=page
         )
         if not list_items:
             break
-
         for list_item in list_items:
-            summary.fetched += 1
-            firstimage = _blank_to_none(list_item.get("firstimage"))
-            if firstimage is None:  # firstimage 없으면 저장·detailImage 호출 안 함(§7-2)
-                summary.skipped_no_image += 1
-                continue
-            if dry_run:
-                continue
-
-            content_id = int(list_item["contentid"])
-            common = _safe_detail_common(api, content_id)
-            place, created = Place.objects.update_or_create(
-                content_id=content_id,
-                defaults=build_place_defaults(list_item, common),
-            )
-            if created:
-                summary.created += 1
-            else:
-                summary.updated += 1
-
-            images = _safe_detail_image(api, content_id)
-            summary.images_saved += save_images(
-                place,
-                images,
-                firstimage=firstimage,
-                firstimage2=list_item.get("firstimage2"),
-            )
-
-            # 운영 정보(PlaceInfo)는 매핑이 있는 타입만 detailIntro2 호출(불필요 호출 회피, §3)
-            if content_type_id in PLACE_INFO_FIELD_MAP:
-                intro = _safe_detail_intro(api, content_id, content_type_id)
-                if intro is not None:
-                    PlaceInfo.objects.update_or_create(
-                        place=place,
-                        defaults=build_place_info_defaults(content_type_id, intro),
-                    )
-                    summary.info_saved += 1
-
-            # 결정론 태그(지역·편의성) 부여 — PlaceInfo 저장 이후 (§8, 4단계)
-            assign_deterministic_tags(place)
-
+            _process_list_item(api, content_type_id, list_item, dry_run=dry_run, summary=summary)
     return summary
+
+
+def sync_all(
+    content_type_ids: Sequence[int] = DEFAULT_CONTENT_TYPE_IDS,
+    *,
+    num_of_rows: int = 1000,
+    max_pages: int | None = None,
+    skip_existing: bool = False,
+    dry_run: bool = False,
+    client: TourApiClient | None = None,
+) -> SyncSummary:
+    """전체 타입을 전국 페이지네이션으로 대량 적재한다(단계 6).
+
+    각 타입을 빈 페이지/마지막 페이지까지 순회한다(max_pages로 상한). 목록 호출이 끝내 실패하면
+    그 타입만 중단하고 다음 타입으로 넘어간다(전체 abort 방지). skip_existing이면 이미 저장된
+    content_id의 상세 호출·저장을 건너뛴다(재개·증분 비용 절감). 재시도/백오프는 TourApiClient 담당.
+    """
+    api = client or TourApiClient()
+    total = SyncSummary()
+    for content_type_id in content_type_ids:
+        existing_ids: set[int] | None = None
+        if skip_existing:
+            existing_ids = set(
+                Place.objects.filter(content_type_id=content_type_id).values_list("content_id", flat=True)
+            )
+        sub = SyncSummary()
+        logger.info(
+            "타입 %s 수집 시작 (skip_existing=%s, 기존 %s건)",
+            content_type_id,
+            skip_existing,
+            len(existing_ids) if existing_ids is not None else "-",
+        )
+        page = 1
+        while max_pages is None or page <= max_pages:
+            list_items = _safe_area_based_list(api, content_type_id, num_of_rows=num_of_rows, page_no=page)
+            if not list_items:
+                break
+            for list_item in list_items:
+                _process_list_item(
+                    api,
+                    content_type_id,
+                    list_item,
+                    dry_run=dry_run,
+                    summary=sub,
+                    skip_existing=skip_existing,
+                    existing_ids=existing_ids,
+                )
+            logger.info("타입 %s page %d 처리 (%d건)", content_type_id, page, len(list_items))
+            if len(list_items) < num_of_rows:  # 마지막 페이지
+                break
+            page += 1
+        logger.info(
+            "타입 %s 완료: 생성 %d·갱신 %d·이미지없음 %d·기존스킵 %d",
+            content_type_id,
+            sub.created,
+            sub.updated,
+            sub.skipped_no_image,
+            sub.skipped_existing,
+        )
+        total.add(sub)
+    logger.info(
+        "전체 수집 완료: 조회 %d·생성 %d·갱신 %d·이미지 %d·운영정보 %d·이미지없음 %d·기존스킵 %d",
+        total.fetched,
+        total.created,
+        total.updated,
+        total.images_saved,
+        total.info_saved,
+        total.skipped_no_image,
+        total.skipped_existing,
+    )
+    return total
+
+
+def _process_list_item(
+    api: TourApiClient,
+    content_type_id: int,
+    list_item: dict[str, Any],
+    *,
+    dry_run: bool,
+    summary: SyncSummary,
+    skip_existing: bool = False,
+    existing_ids: set[int] | None = None,
+) -> None:
+    """목록 항목 1건 처리: firstimage 필터 → Place·이미지·PlaceInfo·결정론 태그(§4,§7,§8).
+
+    sync_area·sync_all 공용. skip_existing이면 이미 저장된 content_id의 상세 호출·저장을 건너뛴다.
+    """
+    summary.fetched += 1
+    firstimage = _blank_to_none(list_item.get("firstimage"))
+    if firstimage is None:  # firstimage 없으면 저장·detailImage 호출 안 함(§7-2)
+        summary.skipped_no_image += 1
+        return
+
+    content_id = int(list_item["contentid"])
+    if skip_existing and existing_ids is not None and content_id in existing_ids:
+        summary.skipped_existing += 1
+        return
+    if dry_run:
+        return
+
+    common = _safe_detail_common(api, content_id)
+    place, created = Place.objects.update_or_create(
+        content_id=content_id, defaults=build_place_defaults(list_item, common)
+    )
+    if created:
+        summary.created += 1
+    else:
+        summary.updated += 1
+
+    images = _safe_detail_image(api, content_id)
+    summary.images_saved += save_images(place, images, firstimage=firstimage, firstimage2=list_item.get("firstimage2"))
+
+    # 운영 정보(PlaceInfo)는 매핑이 있는 타입만 detailIntro2 호출(불필요 호출 회피, §3)
+    if content_type_id in PLACE_INFO_FIELD_MAP:
+        intro = _safe_detail_intro(api, content_id, content_type_id)
+        if intro is not None:
+            PlaceInfo.objects.update_or_create(place=place, defaults=build_place_info_defaults(content_type_id, intro))
+            summary.info_saved += 1
+
+    # 결정론 태그(지역·편의성) 부여 — PlaceInfo 저장 이후 (§8, 4단계)
+    assign_deterministic_tags(place)
+
+
+def _safe_area_based_list(
+    api: TourApiClient, content_type_id: int, *, num_of_rows: int, page_no: int
+) -> list[dict[str, Any]]:
+    """목록 호출 실패(재시도 소진 포함) 시 로그 후 빈 리스트 → 해당 타입 종료(전체 abort 방지)."""
+    try:
+        return api.area_based_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no)
+    except TourApiError as exc:
+        logger.error("타입 %s page %d 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
+        return []
 
 
 def _safe_detail_common(api: TourApiClient, content_id: int) -> dict[str, Any] | None:

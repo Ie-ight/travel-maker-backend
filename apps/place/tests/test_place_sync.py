@@ -19,6 +19,7 @@ from apps.place.services.place_sync import (
     build_place_defaults,
     build_place_info_defaults,
     save_images,
+    sync_all,
     sync_area,
 )
 
@@ -109,6 +110,40 @@ class FakeClient:
         page_no: int = 1,
     ) -> list[dict[str, Any]]:
         return self._list_items if page_no == 1 else []
+
+    def detail_common(self, content_id: int) -> dict[str, Any] | None:
+        return self._common.get(content_id)
+
+    def detail_image(self, content_id: int, *, image_yn: str = "Y") -> list[dict[str, Any]]:
+        return self._images.get(content_id, [])
+
+    def detail_intro(self, content_id: int, content_type_id: int) -> dict[str, Any] | None:
+        return self._intro.get(content_id)
+
+
+class FakePagedClient:
+    """타입·페이지별 목록을 돌려주는 가짜 클라이언트(sync_all 테스트용)."""
+
+    def __init__(
+        self,
+        pages_by_type: dict[int, list[list[dict[str, Any]]]],
+        *,
+        common_by_id: dict[int, dict[str, Any]] | None = None,
+        images_by_id: dict[int, list[dict[str, Any]]] | None = None,
+        intro_by_id: dict[int, dict[str, Any]] | None = None,
+    ) -> None:
+        self._pages = pages_by_type
+        self._common = common_by_id or {}
+        self._images = images_by_id or {}
+        self._intro = intro_by_id or {}
+        self.list_calls: list[tuple[int, int]] = []
+
+    def area_based_list(
+        self, content_type_id: int, *, ldong_regn_cd: str | None = None, num_of_rows: int = 10, page_no: int = 1
+    ) -> list[dict[str, Any]]:
+        self.list_calls.append((content_type_id, page_no))
+        pages = self._pages.get(content_type_id, [])
+        return pages[page_no - 1] if 1 <= page_no <= len(pages) else []
 
     def detail_common(self, content_id: int) -> dict[str, Any] | None:
         return self._common.get(content_id)
@@ -332,4 +367,48 @@ class TestSyncArea:
         assert PlaceInfo.objects.filter(place__content_id=2750143).count() == 1
 
     def test_summary_기본값(self) -> None:
-        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0)
+        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0, 0)
+
+
+@pytest.mark.django_db
+class TestSyncAll:
+    """대량 적재 오케스트레이션(단계 6): 다중 타입·끝까지 페이지네이션·재개·상한."""
+
+    def test_여러_타입_순회_누적(self) -> None:
+        item12 = {**LIST_ITEM, "contentid": "111", "contenttypeid": "12"}
+        item14 = {**LIST_ITEM, "contentid": "222", "contenttypeid": "14"}
+        client = FakePagedClient(
+            {12: [[item12]], 14: [[item14]]},
+            common_by_id={111: COMMON_ITEM, 222: COMMON_ITEM},
+        )
+        summary = sync_all([12, 14], num_of_rows=1, client=client)
+        assert summary.created == 2
+        assert Place.objects.filter(content_id__in=[111, 222]).count() == 2
+
+    def test_끝까지_페이지네이션(self) -> None:
+        a = {**LIST_ITEM, "contentid": "1"}
+        b = {**LIST_ITEM, "contentid": "2"}
+        c = {**LIST_ITEM, "contentid": "3"}
+        # page1 가득(2건)·page2 미만(1건)=마지막 → page3 호출 안 함
+        client = FakePagedClient({14: [[a, b], [c]]}, common_by_id={1: COMMON_ITEM, 2: COMMON_ITEM, 3: COMMON_ITEM})
+        summary = sync_all([14], num_of_rows=2, client=client)
+        assert summary.created == 3
+        assert client.list_calls == [(14, 1), (14, 2)]
+
+    def test_skip_existing은_기존_스킵(self) -> None:
+        Place.objects.create(content_id=555, content_type_id=14, place_name="기존")
+        existing = {**LIST_ITEM, "contentid": "555"}
+        new = {**LIST_ITEM, "contentid": "666"}
+        client = FakePagedClient({14: [[existing, new]]}, common_by_id={666: COMMON_ITEM})
+        summary = sync_all([14], num_of_rows=2, skip_existing=True, client=client)
+        assert summary.skipped_existing == 1
+        assert summary.created == 1
+        assert Place.objects.filter(content_id=666).exists()
+
+    def test_max_pages_상한(self) -> None:
+        a = {**LIST_ITEM, "contentid": "1"}
+        b = {**LIST_ITEM, "contentid": "2"}
+        client = FakePagedClient({14: [[a], [b]]}, common_by_id={1: COMMON_ITEM, 2: COMMON_ITEM})
+        summary = sync_all([14], num_of_rows=1, max_pages=1, client=client)
+        assert client.list_calls == [(14, 1)]  # 1페이지에서 멈춤
+        assert summary.created == 1
