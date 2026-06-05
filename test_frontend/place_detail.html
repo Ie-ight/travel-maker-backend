@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>장소 상세 지도 테스트</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: sans-serif; display: flex; height: 100vh; background: #f5f5f5; }
+
+        /* 왼쪽 목록 */
+        #sidebar {
+            width: 280px;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+        #sidebar h2 {
+            padding: 16px;
+            font-size: 15px;
+            border-bottom: 1px solid #eee;
+            background: #333;
+            color: white;
+        }
+        #place-list { overflow-y: auto; flex: 1; }
+        .place-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .place-item:hover { background: #f0f4ff; }
+        .place-item.active { background: #e8f0fe; border-left: 3px solid #4A90E2; }
+        .place-item .name { font-weight: bold; margin-bottom: 4px; }
+        .place-item .rating { color: #f5a623; font-size: 12px; }
+
+        /* 오른쪽 상세 */
+        #detail {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        #detail-header {
+            padding: 16px 20px;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        #detail-name { font-size: 18px; font-weight: bold; }
+        #detail-rating { color: #f5a623; font-size: 14px; }
+        #detail-coords { font-size: 12px; color: #888; margin-left: auto; }
+
+        #map { flex: 1; }
+
+        #status {
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #666;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+
+        #empty-state {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #aaa;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>📍 장소 목록 (9개)</h2>
+    <div id="place-list"><p style="padding:16px;color:#aaa;font-size:13px;">불러오는 중...</p></div>
+</div>
+
+<div id="detail">
+    <div id="detail-header" style="display:none">
+        <span id="detail-name"></span>
+        <span id="detail-rating"></span>
+        <span id="detail-coords"></span>
+    </div>
+    <div id="map" style="display:none"></div>
+    <div id="empty-state">← 왼쪽에서 장소를 선택하세요</div>
+    <div id="status">장소를 선택하면 지도에 마커가 표시됩니다.</div>
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:8000/api/v1';
+    let map = null;
+    let marker = null;
+    let kakaoLoaded = false;
+
+    // ── 카카오 JS 키 fetch → SDK 로드 ─────────────────────
+    async function loadKakaoSDK() {
+        const res = await fetch(`${API_BASE}/places/config/kakao`);
+        const { js_key } = await res.json();
+        if (!js_key) { setStatus('❌ KAKAO_JS_KEY가 없습니다.'); return; }
+
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${js_key}&autoload=false`;
+            script.onload = () => kakao.maps.load(resolve);
+            document.head.appendChild(script);
+        });
+    }
+
+    // ── 장소 목록 로드 ────────────────────────────────────
+    async function loadPlaceList() {
+        try {
+            const res = await fetch(`${API_BASE}/places/?page_size=100`);
+            const data = await res.json();
+            renderList(data.results);
+        } catch (e) {
+            setStatus(`❌ 목록 로드 실패: ${e.message}`);
+        }
+    }
+
+    function renderList(places) {
+        const list = document.getElementById('place-list');
+        if (!places.length) {
+            list.innerHTML = '<p style="padding:16px;color:#aaa;font-size:13px;">장소가 없습니다.</p>';
+            return;
+        }
+        list.innerHTML = places.map(p => `
+            <div class="place-item" onclick="selectPlace(${p.id})" id="item-${p.id}">
+                <div class="name">${p.place_name}</div>
+                <div class="rating">${p.rating_avg > 0 ? '★ ' + p.rating_avg.toFixed(1) : '평가 없음'}</div>
+            </div>
+        `).join('');
+    }
+
+    // ── 장소 선택 → 상세 API → 마커 ─────────────────────
+    async function selectPlace(placeId) {
+        // 활성 항목 표시
+        document.querySelectorAll('.place-item').forEach(el => el.classList.remove('active'));
+        document.getElementById(`item-${placeId}`)?.classList.add('active');
+
+        setStatus('장소 상세 정보 로딩 중...');
+
+        try {
+            const res = await fetch(`${API_BASE}/places/${placeId}`);
+            const place = await res.json();
+
+            if (!place.latitude || !place.longitude) {
+                setStatus('❌ 이 장소는 좌표 정보가 없습니다.');
+                return;
+            }
+
+            showDetail(place);
+            showMarker(place);
+        } catch (e) {
+            setStatus(`❌ 상세 로드 실패: ${e.message}`);
+        }
+    }
+
+    function showDetail(place) {
+        document.getElementById('detail-header').style.display = 'flex';
+        document.getElementById('detail-name').textContent = place.place_name;
+        document.getElementById('detail-rating').textContent =
+            place.rating_avg > 0 ? `★ ${place.rating_avg.toFixed(1)}` : '';
+        document.getElementById('detail-coords').textContent =
+            `위도 ${place.latitude} / 경도 ${place.longitude}`;
+        document.getElementById('empty-state').style.display = 'none';
+        document.getElementById('map').style.display = 'block';
+    }
+
+    function showMarker(place) {
+        const lat = parseFloat(place.latitude);
+        const lng = parseFloat(place.longitude);
+        const pos = new kakao.maps.LatLng(lat, lng);
+
+        if (!map) {
+            const container = document.getElementById('map');
+            map = new kakao.maps.Map(container, { center: pos, level: 5 });
+        } else {
+            map.setCenter(pos);
+            map.setLevel(5);
+        }
+
+        // 기존 마커 제거
+        if (marker) marker.setMap(null);
+
+        marker = new kakao.maps.Marker({ position: pos, map });
+
+        // 장소명 인포윈도우
+        const infowindow = new kakao.maps.InfoWindow({
+            content: `<div style="padding:6px 10px;font-size:13px;font-weight:bold;">${place.place_name}</div>`,
+        });
+        infowindow.open(map, marker);
+
+        setStatus(`✅ "${place.place_name}" 마커 표시 완료 — 위도 ${lat}, 경도 ${lng}`);
+    }
+
+    function setStatus(msg) {
+        document.getElementById('status').textContent = msg;
+    }
+
+    // ── 초기화 ───────────────────────────────────────────
+    (async () => {
+        setStatus('카카오 지도 SDK 로딩 중...');
+        await loadKakaoSDK();
+        kakaoLoaded = true;
+        setStatus('✅ SDK 로드 완료. 왼쪽에서 장소를 선택하세요.');
+        await loadPlaceList();
+    })();
+</script>
+</body>
+</html>
