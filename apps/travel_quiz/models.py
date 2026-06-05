@@ -19,14 +19,13 @@ class TravelType(models.Model):
 
 class UserTestResult(models.Model):
     id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     travel_type = models.ForeignKey(TravelType, on_delete=models.CASCADE)
     result_vector = VectorField(dimensions=6)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "user_quiz_results"
-        unique_together = [("user",)]
         verbose_name = "유저 여행 성향 테스트 결과"
         verbose_name_plural = "유저 여행 성향 테스트 결과"
 
