@@ -23,6 +23,7 @@ from apps.place.services.place_sync import (
     sync_area,
     sync_incremental,
 )
+from apps.place.services.tour_api import TourApiError
 
 LIST_ITEM = {
     "contentid": "2750143",
@@ -109,6 +110,7 @@ class FakeClient:
         ldong_regn_cd: str | None = None,
         num_of_rows: int = 10,
         page_no: int = 1,
+        arrange: str | None = None,
     ) -> list[dict[str, Any]]:
         return self._list_items if page_no == 1 else []
 
@@ -138,11 +140,19 @@ class FakePagedClient:
         self._images = images_by_id or {}
         self._intro = intro_by_id or {}
         self.list_calls: list[tuple[int, int]] = []
+        self.arrange_seen: list[str | None] = []
 
     def area_based_list(
-        self, content_type_id: int, *, ldong_regn_cd: str | None = None, num_of_rows: int = 10, page_no: int = 1
+        self,
+        content_type_id: int,
+        *,
+        ldong_regn_cd: str | None = None,
+        num_of_rows: int = 10,
+        page_no: int = 1,
+        arrange: str | None = None,
     ) -> list[dict[str, Any]]:
         self.list_calls.append((content_type_id, page_no))
+        self.arrange_seen.append(arrange)
         pages = self._pages.get(content_type_id, [])
         return pages[page_no - 1] if 1 <= page_no <= len(pages) else []
 
@@ -184,6 +194,20 @@ class TestNormalizers:
 
     def test_homepage_빈값은_None(self) -> None:
         assert _clean_homepage("") is None
+
+    def test_homepage_평문_복수URL_첫번째만(self) -> None:
+        raw = "공식 홈페이지 https://a.com 공식 인스타그램 https://www.instagram.com/abc"
+        assert _clean_homepage(raw) == "https://a.com"
+
+    def test_homepage_공백없이_붙은_한글_제거(self) -> None:
+        raw = "공식 홈페이지 https://a.com공식 인스타그램 https://www.instagram.com/abc"
+        assert _clean_homepage(raw) == "https://a.com"
+
+    def test_homepage_한글IDN_도메인_보존(self) -> None:
+        assert _clean_homepage("https://홈페이지.kr") == "https://홈페이지.kr"
+
+    def test_homepage_URL없는_원문은_None(self) -> None:
+        assert _clean_homepage("홈페이지 없음") is None
 
 
 class TestBuildPlaceDefaults:
@@ -378,8 +402,36 @@ class TestSyncArea:
         sync_area(14, client=client)
         assert PlaceInfo.objects.filter(place__content_id=2750143).count() == 1
 
+    def test_상세호출_실패시_저장안함(self) -> None:
+        # detail 호출이 실패(429 등)하면 degraded 레코드를 만들지 않고 건너뛴다(다음 run 재시도).
+        class _RaisingClient(FakeClient):
+            def detail_common(self, content_id: int) -> dict[str, Any] | None:
+                raise TourApiError("429 Too Many Requests", code="429", retryable=True)
+
+        client = _RaisingClient([LIST_ITEM])
+        summary = sync_area(14, client=client)
+        assert summary.skipped_detail_failed == 1
+        assert summary.created == 0
+        assert Place.objects.count() == 0  # 미완성 레코드 저장 안 됨
+
+    def test_DB저장_실패시_롤백하고_건너뜀(self, monkeypatch: Any) -> None:
+        # 한 레코드의 DB 오류가 전체 run을 중단시키지 않고, 부분 저장 없이 스킵된다.
+        from django.db import DatabaseError
+
+        from apps.place.services import place_sync
+
+        def _boom(*args: Any, **kwargs: Any) -> None:
+            raise DatabaseError("value too long")
+
+        monkeypatch.setattr(place_sync.PlaceInfo.objects, "update_or_create", _boom)
+        client = FakeClient([LIST_ITEM], common_by_id={2750143: COMMON_ITEM}, intro_by_id={2750143: INTRO_ITEM_14})
+        summary = sync_area(14, client=client)
+        assert summary.skipped_save_failed == 1
+        assert summary.created == 0
+        assert Place.objects.count() == 0  # 트랜잭션 롤백 → 부분 저장 없음
+
     def test_summary_기본값(self) -> None:
-        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 
 @pytest.mark.django_db
@@ -424,6 +476,13 @@ class TestSyncAll:
         summary = sync_all([14], num_of_rows=1, max_pages=1, client=client)
         assert client.list_calls == [(14, 1)]  # 1페이지에서 멈춤
         assert summary.created == 1
+
+    def test_arrange_목록호출에_전달(self) -> None:
+        # arrange="C"(수정일순)가 area_based_list까지 전달되는지
+        item = {**LIST_ITEM, "contentid": "1"}
+        client = FakePagedClient({14: [[item]]}, common_by_id={1: COMMON_ITEM})
+        sync_all([14], num_of_rows=1, max_pages=1, arrange="C", client=client)
+        assert client.arrange_seen == ["C"]
 
 
 @pytest.mark.django_db

@@ -38,6 +38,12 @@ class Command(BaseCommand):
             "--refresh", action="store_true", help="--all 시 기존 장소도 다시 수집(기본은 skip-existing으로 건너뜀)"
         )
         parser.add_argument("--dry-run", action="store_true", help="목록만 조회하고 DB 저장은 하지 않음")
+        parser.add_argument(
+            "--arrange",
+            type=str,
+            default=None,
+            help="목록 정렬: A=제목순(기본), C=수정일순, D=생성일순, O/Q/R=대표이미지 보유분. --all/소량 모드 적용",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         is_all = options["all"]
@@ -58,6 +64,7 @@ class Command(BaseCommand):
                     max_pages=options["max_pages"],
                     skip_existing=not options["refresh"],
                     dry_run=options["dry_run"],
+                    arrange=options["arrange"],
                 )
             else:
                 summary = sync_area(
@@ -66,6 +73,7 @@ class Command(BaseCommand):
                     num_of_rows=num_rows,
                     pages=options["pages"],
                     dry_run=options["dry_run"],
+                    arrange=options["arrange"],
                 )
         except TourApiError as exc:
             raise CommandError(str(exc)) from exc
@@ -76,6 +84,8 @@ class Command(BaseCommand):
         self.stdout.write(f"  조회: {summary.fetched}")
         self.stdout.write(f"  이미지 없어 스킵: {summary.skipped_no_image}")
         self.stdout.write(f"  기존이라 스킵: {summary.skipped_existing}")
+        self.stdout.write(f"  상세 호출 실패로 스킵(다음 run 재시도): {summary.skipped_detail_failed}")
+        self.stdout.write(f"  DB 저장 실패로 스킵(다음 run 재시도): {summary.skipped_save_failed}")
         self.stdout.write(f"  미변경 스킵: {summary.skipped_unchanged}")
         self.stdout.write(f"  생성: {summary.created}")
         self.stdout.write(f"  갱신: {summary.updated}")

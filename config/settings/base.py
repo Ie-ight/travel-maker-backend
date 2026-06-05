@@ -212,7 +212,13 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@travel-maker.
 
 # 한국관광공사 Tour API (KorService2)
 TOUR_API_CODE = config("TOUR_API_CODE", default="")
+# 대량 수집용 추가 키(키당 일 1000건 한도 → 소진 시 순차 전환). 존재하는 것만 순서대로 모은다.
+TOUR_API_CODES = [
+    key for key in (TOUR_API_CODE, *(config(f"TOUR_API_CODE{i}", default="") for i in range(2, 21))) if key
+]
 TOUR_API_BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
+# 호출 간 최소 간격(초). 버스트 방지용 얇은 마진(429는 속도가 아닌 키 누적 한도라 큰 딜레이 불필요). 0이면 끔.
+TOUR_API_MIN_INTERVAL = config("TOUR_API_MIN_INTERVAL", default=0.05, cast=float)
 
 # AI 태깅 (provider 토글: gemini | ollama)
 AI_TAGGING_PROVIDER = config("AI_TAGGING_PROVIDER", default="gemini")

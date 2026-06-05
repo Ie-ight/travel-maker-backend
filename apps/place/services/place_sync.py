@@ -13,6 +13,8 @@ from dataclasses import dataclass, fields
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from django.db import DatabaseError, transaction
+
 from apps.place.models import Place, PlaceImage, PlaceInfo
 from apps.place.services.place_info_mapping import (
     BOOLEAN_FIELDS,
@@ -30,6 +32,8 @@ logger = logging.getLogger("place.sync")
 DEFAULT_CONTENT_TYPE_IDS: tuple[int, ...] = (12, 14, 15, 28, 32, 38, 39)
 
 _HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.IGNORECASE)
+_URL_RE = re.compile(r"https?://\S+")
+_HANGUL_TRAIL_RE = re.compile(r"[가-힣]+$")
 
 
 def _blank_to_none(value: Any) -> str | None:
@@ -52,12 +56,17 @@ def _to_decimal(value: Any) -> Decimal | None:
 
 
 def _clean_homepage(value: Any) -> str | None:
-    """homepage 원문(`<a href=...>`)에서 URL만 추출한다. 앵커가 없으면 원문 유지."""
+    """homepage 원문에서 첫 번째 URL만 추출한다. href 앵커 → 평문 URL 순으로 시도."""
     text = _blank_to_none(value)
     if text is None:
         return None
     match = _HREF_RE.search(text)
-    return match.group(1) if match else text
+    if match:
+        return match.group(1)
+    match = _URL_RE.search(text)
+    if match:
+        return _HANGUL_TRAIL_RE.sub("", match.group(0)) or None
+    return None
 
 
 def _to_bool(value: Any) -> bool | None:
@@ -165,6 +174,8 @@ class SyncSummary:
     info_saved: int = 0
     deactivated: int = 0  # 소프트삭제(showflag=0, 단계 7)
     skipped_unchanged: int = 0  # modifiedtime 미변경 스킵(단계 7)
+    skipped_detail_failed: int = 0  # 상세 호출 실패로 저장 건너뜀(429 등) → 다음 run에서 재시도
+    skipped_save_failed: int = 0  # DB 저장 실패로 건너뜀(데이터 형식 등) → 한 레코드 때문에 전체 중단 방지
 
     def add(self, other: "SyncSummary") -> None:
         """다른 요약을 누적한다(타입별 → 전체 합산)."""
@@ -179,17 +190,18 @@ def sync_area(
     num_of_rows: int = 10,
     pages: int = 1,
     dry_run: bool = False,
+    arrange: str | None = None,
     client: TourApiClient | None = None,
 ) -> SyncSummary:
     """한 타입·(선택)한 지역으로 소량 수집한다(단계 2 검증).
 
-    dry_run이면 목록만 조회하고 상세 호출·DB 저장은 하지 않는다(수집 대상 미리보기).
+    arrange로 정렬을 지정할 수 있다(C=수정일순 등). dry_run이면 목록만 조회하고 저장은 하지 않는다.
     """
     api = client or TourApiClient()
     summary = SyncSummary()
     for page in range(1, pages + 1):
         list_items = api.area_based_list(
-            content_type_id, ldong_regn_cd=ldong_regn_cd, num_of_rows=num_of_rows, page_no=page
+            content_type_id, ldong_regn_cd=ldong_regn_cd, num_of_rows=num_of_rows, page_no=page, arrange=arrange
         )
         if not list_items:
             break
@@ -205,13 +217,14 @@ def sync_all(
     max_pages: int | None = None,
     skip_existing: bool = False,
     dry_run: bool = False,
+    arrange: str | None = None,
     client: TourApiClient | None = None,
 ) -> SyncSummary:
     """전체 타입을 전국 페이지네이션으로 대량 적재한다(단계 6).
 
-    각 타입을 빈 페이지/마지막 페이지까지 순회한다(max_pages로 상한). 목록 호출이 끝내 실패하면
-    그 타입만 중단하고 다음 타입으로 넘어간다(전체 abort 방지). skip_existing이면 이미 저장된
-    content_id의 상세 호출·저장을 건너뛴다(재개·증분 비용 절감). 재시도/백오프는 TourApiClient 담당.
+    각 타입을 빈 페이지/마지막 페이지까지 순회한다(max_pages로 상한). arrange로 정렬을 지정할 수 있다
+    (C=수정일순 → 최근 수정분 우선). 목록 호출이 끝내 실패하면 그 타입만 중단하고 다음 타입으로 넘어간다
+    (전체 abort 방지). skip_existing이면 이미 저장된 content_id의 상세 호출·저장을 건너뛴다(재개·증분 비용 절감).
     """
     api = client or TourApiClient()
     total = SyncSummary()
@@ -230,7 +243,9 @@ def sync_all(
         )
         page = 1
         while max_pages is None or page <= max_pages:
-            list_items = _safe_area_based_list(api, content_type_id, num_of_rows=num_of_rows, page_no=page)
+            list_items = _safe_area_based_list(
+                api, content_type_id, num_of_rows=num_of_rows, page_no=page, arrange=arrange
+            )
             if not list_items:
                 break
             for list_item in list_items:
@@ -248,16 +263,18 @@ def sync_all(
                 break
             page += 1
         logger.info(
-            "타입 %s 완료: 생성 %d·갱신 %d·이미지없음 %d·기존스킵 %d",
+            "타입 %s 완료: 생성 %d·갱신 %d·이미지없음 %d·기존스킵 %d·상세실패스킵 %d·저장실패스킵 %d",
             content_type_id,
             sub.created,
             sub.updated,
             sub.skipped_no_image,
             sub.skipped_existing,
+            sub.skipped_detail_failed,
+            sub.skipped_save_failed,
         )
         total.add(sub)
     logger.info(
-        "전체 수집 완료: 조회 %d·생성 %d·갱신 %d·이미지 %d·운영정보 %d·이미지없음 %d·기존스킵 %d",
+        "전체 수집 완료: 조회 %d·생성 %d·갱신 %d·이미지 %d·운영정보 %d·이미지없음 %d·기존스킵 %d·상세실패스킵 %d·저장실패스킵 %d",
         total.fetched,
         total.created,
         total.updated,
@@ -265,6 +282,8 @@ def sync_all(
         total.info_saved,
         total.skipped_no_image,
         total.skipped_existing,
+        total.skipped_detail_failed,
+        total.skipped_save_failed,
     )
     return total
 
@@ -296,35 +315,53 @@ def _process_list_item(
     if dry_run:
         return
 
-    common = _safe_detail_common(api, content_id)
-    place, created = Place.objects.update_or_create(
-        content_id=content_id, defaults=build_place_defaults(list_item, common)
-    )
+    # 상세 보강을 먼저 모두 조회한다. 하나라도 호출 실패(429·타임아웃 등)면 이 장소를 저장하지 않고
+    # 건너뛴다 → degraded 레코드(설명·이미지 누락) 방지. 다음 run에서 skip_existing이 전체 재시도한다.
+    # 운영 정보(PlaceInfo)는 매핑이 있는 타입만 detailIntro2 호출(불필요 호출 회피, §3).
+    try:
+        common = api.detail_common(content_id)
+        images = api.detail_image(content_id)
+        intro = api.detail_intro(content_id, content_type_id) if content_type_id in PLACE_INFO_FIELD_MAP else None
+    except TourApiError as exc:
+        logger.warning("상세 호출 실패로 건너뜀(다음 수집에서 재시도) content_id=%s: %s", content_id, exc)
+        summary.skipped_detail_failed += 1
+        return
+
+    # 한 레코드의 DB 오류(데이터 형식 등)가 전체 run을 중단시키지 않도록 트랜잭션으로 묶고,
+    # 실패 시 통째로 롤백·스킵한다(부분 저장 방지). 다음 run에서 skip_existing이 재시도.
+    try:
+        with transaction.atomic():
+            place, created = Place.objects.update_or_create(
+                content_id=content_id, defaults=build_place_defaults(list_item, common)
+            )
+            images_saved = save_images(place, images, firstimage=firstimage, firstimage2=list_item.get("firstimage2"))
+            info_saved = 0
+            if intro is not None:
+                PlaceInfo.objects.update_or_create(
+                    place=place, defaults=build_place_info_defaults(content_type_id, intro)
+                )
+                info_saved = 1
+            # 결정론 태그(지역·편의성) 부여 — PlaceInfo 저장 이후 (§8, 4단계)
+            assign_deterministic_tags(place)
+    except DatabaseError as exc:
+        logger.warning("DB 저장 실패로 건너뜀(데이터 형식 등) content_id=%s: %s", content_id, exc)
+        summary.skipped_save_failed += 1
+        return
+
     if created:
         summary.created += 1
     else:
         summary.updated += 1
-
-    images = _safe_detail_image(api, content_id)
-    summary.images_saved += save_images(place, images, firstimage=firstimage, firstimage2=list_item.get("firstimage2"))
-
-    # 운영 정보(PlaceInfo)는 매핑이 있는 타입만 detailIntro2 호출(불필요 호출 회피, §3)
-    if content_type_id in PLACE_INFO_FIELD_MAP:
-        intro = _safe_detail_intro(api, content_id, content_type_id)
-        if intro is not None:
-            PlaceInfo.objects.update_or_create(place=place, defaults=build_place_info_defaults(content_type_id, intro))
-            summary.info_saved += 1
-
-    # 결정론 태그(지역·편의성) 부여 — PlaceInfo 저장 이후 (§8, 4단계)
-    assign_deterministic_tags(place)
+    summary.images_saved += images_saved
+    summary.info_saved += info_saved
 
 
 def _safe_area_based_list(
-    api: TourApiClient, content_type_id: int, *, num_of_rows: int, page_no: int
+    api: TourApiClient, content_type_id: int, *, num_of_rows: int, page_no: int, arrange: str | None = None
 ) -> list[dict[str, Any]]:
     """목록 호출 실패(재시도 소진 포함) 시 로그 후 빈 리스트 → 해당 타입 종료(전체 abort 방지)."""
     try:
-        return api.area_based_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no)
+        return api.area_based_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no, arrange=arrange)
     except TourApiError as exc:
         logger.error("타입 %s page %d 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
         return []
@@ -423,27 +460,3 @@ def _safe_area_based_sync_list(
     except TourApiError as exc:
         logger.error("타입 %s page %d 증분 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
         return []
-
-
-def _safe_detail_common(api: TourApiClient, content_id: int) -> dict[str, Any] | None:
-    """detailCommon2는 보강용이라 실패해도 Place 저장을 막지 않는다."""
-    try:
-        return api.detail_common(content_id)
-    except TourApiError:
-        return None
-
-
-def _safe_detail_image(api: TourApiClient, content_id: int) -> list[dict[str, Any]]:
-    """detailImage2 실패 시 빈 리스트 → firstimage 폴백."""
-    try:
-        return api.detail_image(content_id)
-    except TourApiError:
-        return []
-
-
-def _safe_detail_intro(api: TourApiClient, content_id: int, content_type_id: int) -> dict[str, Any] | None:
-    """detailIntro2는 보강용이라 실패해도 Place 저장을 막지 않는다."""
-    try:
-        return api.detail_intro(content_id, content_type_id)
-    except TourApiError:
-        return None
