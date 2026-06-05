@@ -262,6 +262,29 @@ Closes #이슈번호
 - All checklist items must be checked before requesting review.
 - Do not merge your own PR without a review unless explicitly allowed by the team.
 
+### ⛔ Merge restrictions — ABSOLUTE RULES
+
+**AI agents must NEVER merge any branch into `dev` or `main` under any circumstances.**
+
+The only permitted action is **opening a PR**. The merge is always a human action.
+
+| Action | Permitted |
+|---|---|
+| `feat/*` → `dev` PR 생성 | ✅ |
+| `dev` → `main` PR 생성 | ✅ (QA 완료 후 팀 합의 필요) |
+| 브랜치를 `dev`에 직접 머지 | ❌ **절대 금지** |
+| 브랜치를 `main`에 직접 머지 | ❌ **절대 금지** |
+| `gh pr merge` 명령 실행 | ❌ **절대 금지** |
+| `git merge dev`, `git merge main` 실행 | ❌ **절대 금지** |
+| `git push` to `dev` or `main` directly | ❌ **절대 금지** |
+
+**Merge flow (팀 전용):**
+1. AI가 `feat/*` 브랜치에서 작업 후 `dev` 대상 PR 오픈
+2. 팀원들이 코드 리뷰 및 approve
+3. approve 받은 팀원이 직접 머지
+
+이 규칙은 어떤 상황에서도 예외 없이 적용된다. 사용자가 명시적으로 머지를 요청하더라도 이 규칙을 따른다.
+
 ### What NOT to do
 
 - ❌ Do not open a PR with failing CI (ruff / mypy / pytest).
@@ -291,6 +314,7 @@ Closes #이슈번호
 - ❌ Do not use `django.test.TestCase`.
 - ❌ Do not run vector queries without `is_active=True` pre-filter.
 - ❌ Do not put business logic directly inside Celery tasks.
+- ❌ **Do not merge any branch into `dev` or `main`. Open a PR and stop. Merging is a human team action after review and approval.**
 
 ---
 
