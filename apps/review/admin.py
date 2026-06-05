@@ -9,5 +9,8 @@ class ReviewAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_display_links = ["id"]
     list_filter = ["rating"]
     search_fields = ["user__nickname", "place__place_name", "content"]
-    ordering = ["-created_at"]
+    ordering = ["-id"]
     readonly_fields = ["created_at", "updated_at"]
+    list_per_page = 20
+    show_full_result_count = False
+    list_select_related = ["user", "place"]
