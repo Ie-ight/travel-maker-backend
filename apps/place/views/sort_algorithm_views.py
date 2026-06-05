@@ -1,4 +1,4 @@
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,7 +11,7 @@ from apps.travel_quiz.models import UserTestResult
 
 
 class PlaceRecommendView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]
 
     @place_recommend_schema
     def get(self, request: Request) -> Response:
@@ -32,17 +32,18 @@ class PlaceRecommendView(APIView):
         if request.user.is_authenticated:
             try:
                 result = UserTestResult.objects.get(user=request.user)
-                user_vector = list(result.result_vector)
-                places = get_places_sorted_by_vector(
-                    user_vector,
-                    tag_ids=tag_ids,
-                    region_tag_id=region_tag_id,
-                    limit=limit,
-                )
+                user_vector = list(result.result_vector) if result.result_vector else None
+                if user_vector and len(user_vector) == 6:
+                    places = get_places_sorted_by_vector(
+                        user_vector,
+                        tag_ids=tag_ids,
+                        region_tag_id=region_tag_id,
+                        limit=limit,
+                    )
             except UserTestResult.DoesNotExist:
                 pass
 
-        if places is None:
+        if not places:
             places = get_popular_places(
                 tag_ids=tag_ids,
                 region_tag_id=region_tag_id,
