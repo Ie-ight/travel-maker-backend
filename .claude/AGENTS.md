@@ -63,6 +63,7 @@ Every app under `apps/` follows this structure. **Violations are not allowed.**
 
 ## Code Quality
 
+- **Follow PEP 8** for all Python code: naming conventions, indentation, line length, blank lines, and import ordering. ruff enforces this automatically — all ruff checks must pass before committing.
 - **No duplicate logic.** If similar code appears twice, extract it.
 - **No unused imports, variables, or dead code.**
 - **Type annotations required** on every function signature (parameters and return type).

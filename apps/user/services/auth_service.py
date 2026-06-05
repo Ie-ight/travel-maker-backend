@@ -46,8 +46,6 @@ class KakaoAuthService:
     REFRESH_TOKEN_COOKIE = "refresh_token"
     REFRESH_TOKEN_TTL = 60 * 60 * 24 * 7  # 7일
 
-    # ── 카카오 API 통신 ──────────────────────────────────────────────────────
-
     @staticmethod
     def get_access_token(code: str) -> str:
         """인가코드로 카카오 액세스 토큰 발급"""
@@ -112,8 +110,6 @@ class KakaoAuthService:
             gender=gender,
             birthday=birthday,
         )
-
-    # ── 유저 조회 / 생성 ─────────────────────────────────────────────────────
 
     @classmethod
     def get_or_create_user(cls, code: str) -> tuple[User, bool]:
@@ -217,8 +213,6 @@ class KakaoAuthService:
         user.save(update_fields=["is_active", "deleted_at"])
         return user
 
-    # ── JWT 토큰 ─────────────────────────────────────────────────────────────
-
     @staticmethod
     def generate_token_pair(user: User) -> tuple[str, str]:
         """JWT Access / Refresh 토큰 쌍 발급. Returns: (access_token, refresh_token)"""
@@ -226,8 +220,6 @@ class KakaoAuthService:
 
         refresh = RefreshToken.for_user(user)
         return str(refresh.access_token), str(refresh)
-
-    # ── 토큰 블랙리스트 ──────────────────────────────────────────────────────
 
     @staticmethod
     def blacklist_token(refresh_token_str: str) -> None:
