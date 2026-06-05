@@ -1,12 +1,6 @@
 from rest_framework import serializers
 
 
-class SortAlgorithmRequestSerializer(serializers.Serializer):  # type: ignore[type-arg]
-    # TODO: define fields after receiving place data spec from team
-    # expected: user_vector (list[float]), tag_ids (list[int], optional), region_tag_id (int, optional)
-    pass
-
-
-class SortAlgorithmResponseSerializer(serializers.Serializer):  # type: ignore[type-arg]
-    # TODO: define output fields
-    pass
+class RecommendQuerySerializer(serializers.Serializer):  # type: ignore[type-arg]
+    region_tag_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+    limit = serializers.IntegerField(required=False, default=20, min_value=1, max_value=100)
