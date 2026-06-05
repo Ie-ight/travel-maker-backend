@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
 
+from apps.core.cache import blacklist_key
 from apps.user.models import SocialUser, User, generate_nickname
 from apps.user.utils.auth_exceptions import (
     AlreadyWithdrawnError,
@@ -233,7 +234,7 @@ class KakaoAuthService:
             exp: int = token.payload.get("exp", 0)
             ttl = exp - int(time.time())
             if ttl > 0 and jti:
-                cache.set(f"blacklist_{jti}", "true", ttl)
+                cache.set(blacklist_key(jti), "true", ttl)
         except TokenError:
             pass  # 이미 만료된 토큰
         except Exception:
@@ -243,7 +244,7 @@ class KakaoAuthService:
     def is_jti_blacklisted(jti: str) -> bool:
         """jti로 블랙리스트 여부 확인. 캐시 장애 시 False(fail-open) 반환."""
         try:
-            return bool(cache.get(f"blacklist_{jti}"))
+            return bool(cache.get(blacklist_key(jti)))
         except Exception:
             logger.error("블랙리스트 조회 실패 (캐시 장애), fail-open 처리", exc_info=True)
             return False
