@@ -130,6 +130,18 @@ withdraw_schema = extend_schema(
     },
 )
 
+kakao_callback_schema = extend_schema(
+    tags=["auth"],
+    summary="카카오 OAuth 콜백 (백엔드 전용)",
+    description=(
+        "카카오 서버가 리다이렉트하는 콜백 엔드포인트.\n"
+        "성공 시 프론트엔드로 302 리다이렉트. Refresh Token은 HttpOnly Cookie로 내려감."
+    ),
+    responses={
+        302: OpenApiResponse(description="프론트엔드로 리다이렉트"),
+    },
+)
+
 recovery_schema = extend_schema(
     tags=["auth"],
     summary="탈퇴 계정 복구",

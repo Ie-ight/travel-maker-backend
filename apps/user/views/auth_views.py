@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 from django.conf import settings
-from django.http import HttpResponseBase
+from django.http import HttpResponseBase, HttpResponseRedirect
+from django.shortcuts import redirect
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -11,6 +14,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.user.schemas.auth_schemas import (
+    kakao_callback_schema,
     kakao_login_schema,
     logout_schema,
     recovery_schema,
@@ -28,6 +32,7 @@ from apps.user.utils.auth_exceptions import (
 
 REFRESH_COOKIE = KakaoAuthService.REFRESH_TOKEN_COOKIE
 REFRESH_TTL = KakaoAuthService.REFRESH_TOKEN_TTL
+logger = logging.getLogger(__name__)
 
 
 def _set_refresh_cookie(response: HttpResponseBase, refresh_token: str) -> None:
@@ -44,6 +49,38 @@ def _set_refresh_cookie(response: HttpResponseBase, refresh_token: str) -> None:
 
 def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=REFRESH_COOKIE, path="/")
+
+
+class KakaoCallbackView(APIView):
+    """
+    GET /api/v1/auth/kakao/callback
+
+    카카오 서버가 리다이렉트하는 콜백 엔드포인트 (백엔드 전용).
+    성공 시 프론트엔드로 302 리다이렉트.
+    """
+
+    permission_classes = []
+
+    @kakao_callback_schema
+    def get(self, request: Request) -> HttpResponseRedirect:
+        frontend_url = getattr(settings, "FRONTEND_URL", "")
+        code = request.query_params.get("code")
+        error = request.query_params.get("error")
+
+        if error or not code:
+            return redirect(f"{frontend_url}/social-callback?provider=kakao&is_success=false")
+
+        try:
+            user, is_new_user = KakaoAuthService.get_or_create_user(code)
+        except Exception:
+            return redirect(f"{frontend_url}/social-callback?provider=kakao&is_success=false")
+
+        access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
+        response = redirect(
+            f"{frontend_url}/social-callback?provider=kakao&is_success=true&is_new_user={str(is_new_user).lower()}"
+        )
+        _set_refresh_cookie(response, refresh_token)
+        return response
 
 
 class KakaoLoginView(APIView):
@@ -68,10 +105,11 @@ class KakaoLoginView(APIView):
             )
 
         code: str = serializer.validated_data["code"]
-
+        logger.info(f"kakao_code{code}")
         try:
             user, is_new_user = KakaoAuthService.get_or_create_user(code)
         except AuthBaseException as e:
+            logger.error(f"kakao_error{e.detail}")
             return Response({"error_detail": e.detail}, status=e.status_code)
 
         access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
