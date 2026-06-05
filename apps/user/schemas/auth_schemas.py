@@ -62,20 +62,6 @@ kakao_login_schema = extend_schema(
     },
 )
 
-kakao_callback_schema = extend_schema(
-    tags=["auth"],
-    summary="카카오 OAuth 콜백 (백엔드 전용)",
-    description=(
-        "카카오 인증 서버가 인가코드를 query param으로 전달하는 콜백입니다.\n"
-        "성공: `{FRONTEND_URL}/social-callback?provider=kakao&is_success=true`\n"
-        "실패: `{FRONTEND_URL}/social-callback?provider=kakao&is_success=false`"
-    ),
-    responses={
-        302: OpenApiResponse(description="프론트엔드로 리다이렉트"),
-        400: OpenApiResponse(response=ErrorDetailSerializer, description="잘못된 요청"),
-    },
-)
-
 logout_schema = extend_schema(
     tags=["auth"],
     summary="로그아웃",
