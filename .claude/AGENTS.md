@@ -19,9 +19,22 @@ Your responsibility: write clean, working, type-safe code that preserves future 
 **Always follow this order. Never skip steps.**
 
 1. **Plan first** — for any change touching more than 2 files, identify: which files change, what the approach is, and what the trade-offs are. Write it in `plan.md` or as a comment before coding.
-2. **Write tests first** — Red → Green → Refactor. The test must exist and fail before you write implementation code.
+2. **TDD — write tests before writing implementation code. Mandatory.**
+   - Before starting any API feature, write the test file first.
+   - Test file naming: `apps/{app}/tests/test_{feature}.py` (e.g., `test_login.py`, `test_bookmark.py`)
+   - Follow Red → Green → Refactor strictly.
+   - The test must exist and fail before any implementation code is written. Writing implementation first is forbidden.
 3. **Implement** — follow the layer rules below strictly.
-4. **Verify** — all four checks must pass before you consider the task done.
+4. **Run tests — mandatory after implementation is complete.**
+   - Execute the feature's test file and confirm all tests pass.
+   - Never declare a task done without running tests.
+
+   ```bash
+   uv run pytest apps/{app}/tests/test_{feature}.py -v   # feature tests
+   uv run pytest                                          # full suite
+   ```
+
+5. **Verify** — all four checks must pass before you consider the task done.
 
 ```bash
 uv run ruff check .        # lint
@@ -60,6 +73,17 @@ Every app under `apps/` follows this structure. **Violations are not allowed.**
 ---
 
 ## Testing
+
+### TDD rules — mandatory
+
+- Writing tests before implementation is required, not optional.
+- Test files must follow: `apps/{app}/tests/test_{feature}.py`
+  - e.g., `apps/user/tests/test_login.py`, `apps/place/tests/test_recommendation.py`
+- After implementation, run the test file and confirm all tests pass before declaring the task done.
+
+```bash
+uv run pytest apps/{app}/tests/test_{feature}.py -v
+```
 
 ### Framework and conventions
 
@@ -220,26 +244,37 @@ Never open a PR directly from a feature branch to `main`.
 Use conventional commit format: `type: short description` (under 70 characters).
 
 ```
-feat: 카카오 로그인 API 추가
-fix: refresh 토큰 블랙리스트 누락 수정
-chore: pre-commit 훅 설정
+feat: add kakao login API
+fix: fix missing refresh token blacklist entry
+chore: configure pre-commit hooks
 ```
 
 ### PR body — required sections
 
-Every PR body must include all of the following sections, matching `.github/PULL_REQUEST_TEMPLATE.md`:
+**All PR descriptions must be written in Korean.** Use the template below exactly, matching `.github/PULL_REQUEST_TEMPLATE.md`. Add extra sections if needed, but never remove required ones.
 
 ```markdown
 ## 📝 변경 사항
-<!-- 무엇을 왜 변경했는지 -->
+
+<!-- 이 PR에서 무엇을 변경했는지 설명해주세요 -->
 
 ## 🎯 작업 내용
-- [ ] 작업 항목
+
+- [ ] 작업 항목 1
+- [ ] 작업 항목 2
+- [ ] 작업 항목 3
 
 ## 🔗 관련 이슈
+
+<!-- 관련된 이슈가 있다면 링크를 추가해주세요 -->
 Closes #이슈번호
 
+## 📸 스크린샷 (선택사항)
+
+<!-- UI 변경이 있다면 스크린샷을 추가해주세요 -->
+
 ## ✅ 체크리스트
+
 - [ ] 코드가 프로젝트 코딩 스타일을 따르고 있습니다
 - [ ] 테스트를 작성하거나 업데이트했습니다
 - [ ] 모든 테스트가 통과합니다
@@ -247,8 +282,12 @@ Closes #이슈번호
 - [ ] ruff, mypy 검사를 통과했습니다
 
 ## 🧪 테스트 방법
+
+<!-- 이 변경사항을 어떻게 테스트할 수 있는지 설명해주세요 -->
+
 1.
 2.
+3.
 ```
 
 ### Size limit
@@ -262,7 +301,7 @@ Closes #이슈번호
 - All checklist items must be checked before requesting review.
 - Do not merge your own PR without a review unless explicitly allowed by the team.
 
-### ⛔ Merge restrictions — ABSOLUTE RULES
+### Merge restrictions — ABSOLUTE RULES
 
 **AI agents must NEVER merge any branch into `dev` or `main` under any circumstances.**
 
@@ -270,20 +309,20 @@ The only permitted action is **opening a PR**. The merge is always a human actio
 
 | Action | Permitted |
 |---|---|
-| `feat/*` → `dev` PR 생성 | ✅ |
-| `dev` → `main` PR 생성 | ✅ (QA 완료 후 팀 합의 필요) |
-| 브랜치를 `dev`에 직접 머지 | ❌ **절대 금지** |
-| 브랜치를 `main`에 직접 머지 | ❌ **절대 금지** |
-| `gh pr merge` 명령 실행 | ❌ **절대 금지** |
-| `git merge dev`, `git merge main` 실행 | ❌ **절대 금지** |
-| `git push` to `dev` or `main` directly | ❌ **절대 금지** |
+| Open PR: `feat/*` → `dev` | ✅ |
+| Open PR: `dev` → `main` (after QA + team consensus) | ✅ |
+| Direct merge into `dev` | ❌ Forbidden |
+| Direct merge into `main` | ❌ Forbidden |
+| Run `gh pr merge` | ❌ Forbidden |
+| Run `git merge dev` or `git merge main` | ❌ Forbidden |
+| `git push` directly to `dev` or `main` | ❌ Forbidden |
 
-**Merge flow (팀 전용):**
-1. AI가 `feat/*` 브랜치에서 작업 후 `dev` 대상 PR 오픈
-2. 팀원들이 코드 리뷰 및 approve
-3. approve 받은 팀원이 직접 머지
+**Merge flow (team only):**
+1. AI opens a PR from `feat/*` targeting `dev`.
+2. Team members review and approve.
+3. An approving team member performs the merge.
 
-이 규칙은 어떤 상황에서도 예외 없이 적용된다. 사용자가 명시적으로 머지를 요청하더라도 이 규칙을 따른다.
+This rule applies without exception in any situation, even if the user explicitly requests a merge.
 
 ### What NOT to do
 
@@ -305,6 +344,8 @@ The only permitted action is **opening a PR**. The merge is always a human actio
 ## Do Not
 
 - ❌ Do not put business logic in views.
+- ❌ Do not write implementation code before writing tests. TDD order is mandatory.
+- ❌ Do not declare a task done without running the test file and confirming all tests pass.
 - ❌ Do not touch `pyproject.toml` without explicit instruction.
 - ❌ Do not append to an existing file when a new file is the right choice (e.g., new serializer → new file).
 - ❌ Do not generate repeated similar code — extract shared logic.
@@ -314,7 +355,7 @@ The only permitted action is **opening a PR**. The merge is always a human actio
 - ❌ Do not use `django.test.TestCase`.
 - ❌ Do not run vector queries without `is_active=True` pre-filter.
 - ❌ Do not put business logic directly inside Celery tasks.
-- ❌ **Do not merge any branch into `dev` or `main`. Open a PR and stop. Merging is a human team action after review and approval.**
+- ❌ Do not merge any branch into `dev` or `main`. Open a PR and stop. Merging is a human team action after review and approval.
 
 ---
 
@@ -322,6 +363,9 @@ The only permitted action is **opening a PR**. The merge is always a human actio
 
 Before finishing any task, answer these:
 
+- Did I write the test file before writing implementation code? → If not, go back and follow TDD order.
+- Did I create `apps/{app}/tests/test_{feature}.py` for this feature? → Create it if missing.
+- Did I run the feature's test file and confirm all tests pass? → Run it now if not done.
 - Am I generating similar code in multiple places? → Extract it.
 - Am I implementing something that was not requested? → Stop.
 - Am I deleting or weakening a test to make CI green? → Never.
