@@ -251,28 +251,43 @@ chore: configure pre-commit hooks
 
 ### PR body — required sections
 
-Every PR body must include all of the following sections, matching `.github/PULL_REQUEST_TEMPLATE.md`:
+**All PR descriptions must be written in Korean.** Use the template below exactly, matching `.github/PULL_REQUEST_TEMPLATE.md`. Add extra sections if needed, but never remove required ones.
 
 ```markdown
-## Changes
-<!-- What changed and why -->
+## 📝 변경 사항
 
-## Tasks
-- [ ] task item
+<!-- 이 PR에서 무엇을 변경했는지 설명해주세요 -->
 
-## Related issue
-Closes #<issue number>
+## 🎯 작업 내용
 
-## Checklist
-- [ ] Code follows project coding style
-- [ ] Tests written or updated
-- [ ] All tests pass
-- [ ] Docs updated if needed
-- [ ] ruff and mypy checks pass
+- [ ] 작업 항목 1
+- [ ] 작업 항목 2
+- [ ] 작업 항목 3
 
-## How to test
+## 🔗 관련 이슈
+
+<!-- 관련된 이슈가 있다면 링크를 추가해주세요 -->
+Closes #이슈번호
+
+## 📸 스크린샷 (선택사항)
+
+<!-- UI 변경이 있다면 스크린샷을 추가해주세요 -->
+
+## ✅ 체크리스트
+
+- [ ] 코드가 프로젝트 코딩 스타일을 따르고 있습니다
+- [ ] 테스트를 작성하거나 업데이트했습니다
+- [ ] 모든 테스트가 통과합니다
+- [ ] 문서를 업데이트했습니다 (필요한 경우)
+- [ ] ruff, mypy 검사를 통과했습니다
+
+## 🧪 테스트 방법
+
+<!-- 이 변경사항을 어떻게 테스트할 수 있는지 설명해주세요 -->
+
 1.
 2.
+3.
 ```
 
 ### Size limit
