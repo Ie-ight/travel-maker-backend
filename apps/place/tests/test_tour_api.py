@@ -33,9 +33,16 @@ def _fake_response(
     *,
     raise_http: bool = False,
     bad_json: bool = False,
+    http_status: int | None = None,
 ) -> MagicMock:
     resp = MagicMock(spec=requests.Response)
-    resp.raise_for_status.side_effect = requests.HTTPError("boom") if raise_http else None
+    if raise_http:
+        err = requests.HTTPError("boom")
+        if http_status is not None:  # 429 등 상태코드를 exc.response.status_code로 전달
+            err.response = MagicMock(status_code=http_status)
+        resp.raise_for_status.side_effect = err
+    else:
+        resp.raise_for_status.side_effect = None
     if bad_json:
         resp.json.side_effect = ValueError("not json")
         resp.text = "<OpenAPI_ServiceResponse>error</OpenAPI_ServiceResponse>"
@@ -47,7 +54,7 @@ def _fake_response(
 def _client_returning(resp: MagicMock) -> tuple[TourApiClient, MagicMock]:
     session = MagicMock(spec=requests.Session)
     session.get.return_value = resp
-    client = TourApiClient(service_key="test-key", session=session, backoff_base=0)  # 재시도 sleep 생략
+    client = TourApiClient(service_key="test-key", session=session, backoff_base=0, min_interval=0)  # 재시도 sleep 생략
     return client, session
 
 
@@ -161,7 +168,7 @@ class TestTourApiClient:
 
 
 class TestRetry:
-    """재시도/백오프(단계 6). backoff_base=0으로 sleep 없이 검증한다."""
+    """재시도/백오프(단계 6). backoff_base=0, min_interval=0으로 sleep 없이 검증한다."""
 
     @staticmethod
     def _session(*responses: MagicMock) -> MagicMock:
@@ -176,28 +183,80 @@ class TestRetry:
         # 첫 호출 HTTP 오류(일시) → 재시도 → 성공
         ok = _fake_response(_envelope({"item": [{"contentid": "1"}]}))
         session = self._session(_fake_response(raise_http=True), ok)
-        client = TourApiClient(service_key="k", session=session, backoff_base=0)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, min_interval=0)
         assert client.area_based_list(14)[0]["contentid"] == "1"
         assert session.get.call_count == 2
 
     def test_재시도_소진_후_실패(self) -> None:
         session = self._session(_fake_response(raise_http=True))
-        client = TourApiClient(service_key="k", session=session, backoff_base=0, max_retries=2)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, min_interval=0, max_retries=2)
         with pytest.raises(TourApiError):
             client.area_based_list(14)
         assert session.get.call_count == 3  # 최초 1 + 재시도 2
 
     def test_트래픽초과_22는_재시도(self) -> None:
+        # 단일키: "22"는 키 전환 불가 → 기존대로 백오프 재시도 (회귀 보존)
         ok = _fake_response(_envelope({"item": [{"contentid": "9"}]}))
         session = self._session(_fake_response(_envelope("", result_code="22")), ok)
-        client = TourApiClient(service_key="k", session=session, backoff_base=0)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, min_interval=0)
         assert client.area_based_list(14)[0]["contentid"] == "9"
         assert session.get.call_count == 2
+
+    def test_키_한도22_다음키로_전환(self) -> None:
+        # 다중키: 첫 키 "22" → 두 번째 키로 전환해 즉시 재시도 → 성공
+        ok = _fake_response(_envelope({"item": [{"contentid": "9"}]}))
+        session = self._session(_fake_response(_envelope("", result_code="22")), ok)
+        client = TourApiClient(service_keys=["k1", "k2"], session=session, backoff_base=0, min_interval=0)
+        assert client.area_based_list(14)[0]["contentid"] == "9"
+        assert session.get.call_count == 2
+        # 성공한 두 번째 호출은 전환된 키(k2)로 나갔는지 확인
+        assert session.get.call_args.kwargs["params"]["serviceKey"] == "k2"
+
+    def test_모든키_소진시_실패(self) -> None:
+        # 다중키: 모든 키가 "22" → 마지막 키 백오프 소진 후 실패
+        session = self._session(_fake_response(_envelope("", result_code="22")))
+        client = TourApiClient(
+            service_keys=["k1", "k2"], session=session, backoff_base=0, min_interval=0, max_retries=2
+        )
+        with pytest.raises(TourApiError):
+            client.area_based_list(14)
+        # k1 1회 → k2 전환 후 k2에서 최초1 + 백오프 재시도2 = 1 + 3
+        assert session.get.call_count == 4
+
+    def test_429_단일키는_백오프_재시도(self) -> None:
+        # 단일키: HTTP 429는 전환 불가 → 백오프 재시도 → 성공
+        ok = _fake_response(_envelope({"item": [{"contentid": "7"}]}))
+        err = _fake_response(raise_http=True, http_status=429)
+        session = self._session(err, ok)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, min_interval=0)
+        assert client.area_based_list(14)[0]["contentid"] == "7"
+        assert session.get.call_count == 2
+
+    def test_429_다중키는_다음키로_전환(self) -> None:
+        # 다중키: HTTP 429(키 한도)도 "22"처럼 다음 키로 전환 → 성공
+        ok = _fake_response(_envelope({"item": [{"contentid": "7"}]}))
+        err = _fake_response(raise_http=True, http_status=429)
+        session = self._session(err, ok)
+        client = TourApiClient(service_keys=["k1", "k2"], session=session, backoff_base=0, min_interval=0)
+        assert client.area_based_list(14)[0]["contentid"] == "7"
+        assert session.get.call_count == 2
+        assert session.get.call_args.kwargs["params"]["serviceKey"] == "k2"
+
+    def test_throttle_호출간격_확보(self, monkeypatch: Any) -> None:
+        # min_interval 설정 시 직전 호출과의 간격만큼 sleep 한다.
+        sleeps: list[float] = []
+        clock = iter([0.0, 0.0, 0.05, 0.05])  # _throttle당 monotonic 2회 호출
+        monkeypatch.setattr("apps.place.services.tour_api.time.monotonic", lambda: next(clock))
+        monkeypatch.setattr("apps.place.services.tour_api.time.sleep", lambda s: sleeps.append(s))
+        client = TourApiClient(service_key="k", min_interval=0.3)
+        client._throttle()  # wait = 0.3 - (0.0 - 0.0) = 0.3
+        client._throttle()  # wait = 0.3 - (0.05 - 0.0) = 0.25
+        assert sleeps == [pytest.approx(0.3), pytest.approx(0.25)]
 
     def test_치명_resultCode는_재시도_안함(self) -> None:
         # 30(키 만료)은 치명 → 즉시 실패
         session = self._session(_fake_response(_envelope("", result_code="30")))
-        client = TourApiClient(service_key="k", session=session, backoff_base=0, max_retries=3)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, min_interval=0, max_retries=3)
         with pytest.raises(TourApiError):
             client.area_based_list(14)
         assert session.get.call_count == 1
@@ -205,7 +264,7 @@ class TestRetry:
     def test_비JSON_응답은_재시도_안함(self) -> None:
         # 인증/키 문제로 보이는 비-JSON은 치명 → 즉시 실패
         session = self._session(_fake_response(bad_json=True))
-        client = TourApiClient(service_key="k", session=session, backoff_base=0, max_retries=3)
+        client = TourApiClient(service_key="k", session=session, backoff_base=0, min_interval=0, max_retries=3)
         with pytest.raises(TourApiError):
             client.area_based_list(14)
         assert session.get.call_count == 1
