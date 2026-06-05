@@ -39,7 +39,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile
     container_name: travel-maker-web
-    command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
+    command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --max-requests 1000 --max-requests-jitter 100
     volumes:
       - ../../:/app
       - web_venv_volume:/app/.venv  # 호스트 .venv와 격리 (컨테이너가 호스트 인터프리터를 덮어쓰지 않도록)
