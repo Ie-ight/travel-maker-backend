@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django.conf import settings
 from django.http import HttpResponseBase, HttpResponseRedirect
 from django.shortcuts import redirect
@@ -29,6 +31,7 @@ from apps.user.utils.auth_exceptions import (
 
 REFRESH_COOKIE = KakaoAuthService.REFRESH_TOKEN_COOKIE
 REFRESH_TTL = KakaoAuthService.REFRESH_TOKEN_TTL
+logger = logging.getLogger(__name__)
 
 
 def _set_refresh_cookie(response: HttpResponseBase, refresh_token: str) -> None:
@@ -72,6 +75,14 @@ class KakaoLoginView(APIView):
             )
 
         code: str = serializer.validated_data["code"]
+        logger.info(f"카카오 로그인 시도: code={code[:10]}...")
+
+        try:
+            user, is_new_user = KakaoAuthService.get_or_create_user(code)
+            logger.info(f"카카오 로그인 성공: user={user.email}, is_new_user={is_new_user}")
+        except AuthBaseException as e:
+            logger.error(f"카카오 로그인 실패: {e.detail}")
+            return Response({"error_detail": e.detail}, status=e.status_code)
 
         try:
             user, is_new_user = KakaoAuthService.get_or_create_user(code)
