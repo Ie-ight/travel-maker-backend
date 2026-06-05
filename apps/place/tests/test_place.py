@@ -8,7 +8,7 @@ from apps.place.services.place_services import get_place_detail
 from apps.place.tests.factories import PlaceFactory, PlaceImageFactory, TagFactory, UserFactory
 from apps.review.models import Review
 
-PLACE_LIST_URL = "/api/v1/places/"
+PLACE_LIST_URL = reverse("place_list")
 PLACE_SEARCH_URL = reverse("place_search")
 PLACE_FILTER_URL = reverse("place_filter")
 
