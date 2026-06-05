@@ -76,6 +76,9 @@ class User(AbstractBaseUser, TimeStampModel):
     def has_module_perms(self, app_label: str) -> bool:
         return self.role == self.Role.ADMIN
 
+    def __str__(self) -> str:
+        return f"{self.nickname} ({self.email})"
+
     class Meta:
         db_table = "user"
         verbose_name = "유저"
@@ -90,6 +93,9 @@ class SocialUser(TimeStampModel):
     provider = models.CharField(max_length=10, choices=Provider.choices, verbose_name="제공자")
     provider_id = models.CharField(max_length=255, verbose_name="제공자 ID")
 
+    def __str__(self) -> str:
+        return f"{self.user.nickname} - {self.provider}"
+
     class Meta:
         db_table = "social_users"
         verbose_name = "소셜 유저"
@@ -100,6 +106,9 @@ class Follow(models.Model):
     follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followers", verbose_name="팔로워")
     following = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followings", verbose_name="팔로잉")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="팔로우 일시")
+
+    def __str__(self) -> str:
+        return f"{self.follower.nickname} → {self.following.nickname}"
 
     class Meta:
         db_table = "follow"
