@@ -4,9 +4,11 @@ from pgvector.django import VectorField
 
 
 class TravelType(models.Model):
-    id = models.AutoField(primary_key=True)
     type_key = models.CharField(max_length=3, unique=True)
     name = models.CharField(max_length=50)
+    description = models.CharField(max_length=100, default="")
+    image_url = models.URLField(max_length=500, default="")
+    tags = models.ManyToManyField("place.Tag")
 
     class Meta:
         db_table = "travel_types"
@@ -18,7 +20,6 @@ class TravelType(models.Model):
 
 
 class UserTestResult(models.Model):
-    id = models.AutoField(primary_key=True)
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     travel_type = models.ForeignKey(TravelType, on_delete=models.CASCADE)
     result_vector = VectorField(dimensions=6)
