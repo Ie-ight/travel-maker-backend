@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from django.core.cache import cache
 from django.db import connection, transaction
 from django.db.models import Count
@@ -15,7 +17,7 @@ def get_places_sorted_by_vector(
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
     limit: int = 20,
-) -> list[Place]:
+) -> Sequence[Place]:
     with transaction.atomic():
         # iterative scan: tag 필터와 함께 HNSW 인덱스 사용 시 under-recall 방지
         with connection.cursor() as cursor:
@@ -58,12 +60,12 @@ def get_popular_places(
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
     limit: int = 20,
-) -> list[Place]:
+) -> Sequence[Place]:
     """퀴즈 미완료 또는 비로그인 시 인기순 폴백. 필터 없는 경우 Redis 캐싱(300s)."""
     if not tag_ids and not region_tag_id:
         cached = cache.get(popular_places_fallback_key(limit))
         if cached is not None:
-            return cached  # type: ignore[return-value]
+            return cached  # type: ignore[return-value, no-any-return]
 
     qs = (
         Place.objects.filter(is_active=True)
