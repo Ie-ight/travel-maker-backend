@@ -23,7 +23,7 @@ from apps.place.services.place_sync import (
     sync_area,
     sync_incremental,
 )
-from apps.place.services.tour_api import TourApiError
+from apps.place.services.tour_api import AllKeysExhaustedError, TourApiError
 
 LIST_ITEM = {
     "contentid": "2750143",
@@ -483,6 +483,20 @@ class TestSyncAll:
         client = FakePagedClient({14: [[item]]}, common_by_id={1: COMMON_ITEM})
         sync_all([14], num_of_rows=1, max_pages=1, arrange="C", client=client)
         assert client.arrange_seen == ["C"]
+
+    def test_모든키_소진시_run_전체_중단(self) -> None:
+        # 목록 호출이 AllKeysExhaustedError면 해당 타입만 스킵하지 않고 run 전체가 중단된다.
+        attempted: list[int] = []
+
+        class _ExhaustedClient(FakePagedClient):
+            def area_based_list(self, content_type_id: int, **kwargs: Any) -> list[dict[str, Any]]:
+                attempted.append(content_type_id)
+                raise AllKeysExhaustedError("모든 키 한도 소진", code="22")
+
+        client = _ExhaustedClient({12: [[LIST_ITEM]], 14: [[LIST_ITEM]]})
+        with pytest.raises(AllKeysExhaustedError):
+            sync_all([12, 14], num_of_rows=1, client=client)
+        assert attempted == [12]  # 첫 타입에서 중단 → 다음 타입(14)은 시도조차 안 함
 
 
 @pytest.mark.django_db
