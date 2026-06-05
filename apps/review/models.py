@@ -11,12 +11,17 @@ class Review(TimeStampModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="reviews",
+        verbose_name="작성자",
     )
-    place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name="reviews")
-    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
-    content = models.TextField(max_length=200)
-    image_url = models.URLField(max_length=512, null=True, blank=True)  # 모델과 시리얼라이저 타입 일치
+    place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name="reviews", verbose_name="장소")
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)], verbose_name="별점"
+    )
+    content = models.TextField(max_length=200, verbose_name="내용")
+    image_url = models.URLField(max_length=512, null=True, blank=True, verbose_name="이미지 URL")
 
     class Meta:
         unique_together = ("user", "place")
         ordering = ["-id"]
+        verbose_name = "리뷰"
+        verbose_name_plural = "리뷰 목록"
