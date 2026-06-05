@@ -67,9 +67,9 @@ class PlaceInfo(models.Model):
     closed_days = models.TextField(null=True, blank=True)  # 휴무일
     parking = models.BooleanField(null=True)  # 주차 가능 여부
     admission_fee = models.TextField(null=True, blank=True)  # 입장료 원문
-    spend_time = models.CharField(max_length=50, null=True, blank=True)  # 관람소요시간
+    spend_time = models.TextField(null=True, blank=True)  # 관람소요시간(자유 텍스트)
     discount_info = models.TextField(null=True, blank=True)  # 할인정보
-    accom_count = models.CharField(max_length=50, null=True, blank=True)  # 수용인원
+    accom_count = models.TextField(null=True, blank=True)  # 수용인원(자유 텍스트)
     pet = models.BooleanField(null=True)  # 반려동물 동반 가능
     baby_carriage = models.BooleanField(null=True)  # 유모차 동반 가능
     credit_card = models.BooleanField(null=True)  # 카드 결제 가능
