@@ -2,63 +2,22 @@ from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 
 from apps.user.serializers.auth_serializer import (
     ErrorDetailSerializer,
-    KakaoLoginResponseSerializer,
     KakaoLoginSerializer,
     RecoveryResponseSerializer,
     TokenRefreshResponseSerializer,
     WithdrawSerializer,
 )
 
-kakao_login_schema = extend_schema(
+kakao_callback_schema = extend_schema(
     tags=["auth"],
-    summary="카카오 소셜 로그인",
+    summary="카카오 OAuth 콜백 (백엔드 전용)",
     description=(
-        "카카오 인가코드(code)를 받아 Access/Refresh 토큰을 발급합니다.\n"
-        "- Access Token: 응답 body (`access_token`)\n"
-        "- Refresh Token: `Set-Cookie: refresh_token` (HttpOnly)"
+        "카카오 서버가 리다이렉트하는 콜백 엔드포인트.\n"
+        "성공 시 프론트엔드로 302 리다이렉트. Refresh Token은 HttpOnly Cookie로 내려감.\n"
+        "프론트엔드는 is_success=true 확인 후 POST /auth/token/refresh 로 access_token 수령."
     ),
-    request=KakaoLoginSerializer,
     responses={
-        200: OpenApiResponse(
-            response=KakaoLoginResponseSerializer,
-            description="기존 유저 로그인 성공",
-            examples=[
-                OpenApiExample(
-                    "기존 유저",
-                    value={"access_token": "eyJhbG...", "is_new_user": False},
-                )
-            ],
-        ),
-        201: OpenApiResponse(
-            response=KakaoLoginResponseSerializer,
-            description="신규 유저 가입 + 로그인 성공",
-            examples=[
-                OpenApiExample(
-                    "신규 유저",
-                    value={"access_token": "eyJhbG...", "is_new_user": True},
-                )
-            ],
-        ),
-        400: OpenApiResponse(
-            response=ErrorDetailSerializer,
-            description="인가코드 누락",
-            examples=[OpenApiExample("400", value={"error_detail": "code가 누락되었습니다."})],
-        ),
-        401: OpenApiResponse(
-            response=ErrorDetailSerializer,
-            description="카카오 토큰 검증 실패",
-            examples=[OpenApiExample("401", value={"error_detail": "카카오 토큰 검증 실패"})],
-        ),
-        503: OpenApiResponse(
-            response=ErrorDetailSerializer,
-            description="카카오 서버 오류",
-            examples=[
-                OpenApiExample(
-                    "503",
-                    value={"error_detail": "카카오 서버 불러오기에 실패했습니다."},
-                )
-            ],
-        ),
+        302: OpenApiResponse(description="프론트엔드로 리다이렉트 (?is_success=true&is_new_user=bool)"),
     },
 )
 
@@ -127,18 +86,6 @@ withdraw_schema = extend_schema(
             description="이미 탈퇴한 계정",
             examples=[OpenApiExample("409", value={"error_detail": "이미 탈퇴한 계정입니다."})],
         ),
-    },
-)
-
-kakao_callback_schema = extend_schema(
-    tags=["auth"],
-    summary="카카오 OAuth 콜백 (백엔드 전용)",
-    description=(
-        "카카오 서버가 리다이렉트하는 콜백 엔드포인트.\n"
-        "성공 시 프론트엔드로 302 리다이렉트. Refresh Token은 HttpOnly Cookie로 내려감."
-    ),
-    responses={
-        302: OpenApiResponse(description="프론트엔드로 리다이렉트"),
     },
 )
 

@@ -15,7 +15,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.user.schemas.auth_schemas import (
     kakao_callback_schema,
-    kakao_login_schema,
     logout_schema,
     recovery_schema,
     token_refresh_schema,
@@ -78,46 +77,6 @@ class KakaoCallbackView(APIView):
         access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
         response = redirect(
             f"{frontend_url}/social-callback?provider=kakao&is_success=true&is_new_user={str(is_new_user).lower()}"
-        )
-        _set_refresh_cookie(response, refresh_token)
-        return response
-
-
-class KakaoLoginView(APIView):
-    """
-    POST /api/v1/auth/kakao/login
-
-    카카오 인가코드로 로그인 처리.
-    - 기존 유저: 200
-    - 신규 가입: 201
-    - Refresh Token은 HttpOnly Cookie로 내려감
-    """
-
-    permission_classes = []
-
-    @kakao_login_schema
-    def post(self, request: Request) -> Response:
-        serializer = KakaoLoginSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"error_detail": MissingAuthCodeError.default_detail},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        code: str = serializer.validated_data["code"]
-        logger.info(f"kakao_code{code}")
-        try:
-            user, is_new_user = KakaoAuthService.get_or_create_user(code)
-        except AuthBaseException as e:
-            logger.error(f"kakao_error{e.detail}")
-            return Response({"error_detail": e.detail}, status=e.status_code)
-
-        access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
-        http_status = status.HTTP_201_CREATED if is_new_user else status.HTTP_200_OK
-
-        response = Response(
-            {"access_token": access_token, "is_new_user": is_new_user},
-            status=http_status,
         )
         _set_refresh_cookie(response, refresh_token)
         return response
