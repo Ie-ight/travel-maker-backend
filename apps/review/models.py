@@ -19,4 +19,4 @@ class Review(TimeStampModel):
 
     class Meta:
         unique_together = ("user", "place")
-        ordering = ["-created_at"]
+        ordering = ["-id"]
