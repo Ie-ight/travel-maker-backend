@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.place.models import Place
 from apps.travel_quiz.exceptions import InvalidAnswerChoice, InvalidAnswersLength
+from apps.travel_quiz.models import UserTestResult
 from apps.travel_quiz.services.travel_quiz_services import QuizSubmitResult
 
 _VALID_CHOICES = {"A", "B"}
@@ -49,6 +50,17 @@ class QuizSubmitResponseSerializer(serializers.Serializer):  # type: ignore[type
     destinations = PlaceRecommendationSerializer(source="recommended_places", many=True)
 
     def get_tags(self, obj: QuizSubmitResult) -> list[str]:
+        return list(obj.travel_type.tags.values_list("tag_name", flat=True))
+
+
+class QuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    name = serializers.CharField(source="travel_type.name")
+    description = serializers.CharField(source="travel_type.description")
+    image_url = serializers.CharField(source="travel_type.image_url")
+    tags = serializers.SerializerMethodField()
+    updated_at = serializers.DateTimeField()
+
+    def get_tags(self, obj: UserTestResult) -> list[str]:
         return list(obj.travel_type.tags.values_list("tag_name", flat=True))
 
 

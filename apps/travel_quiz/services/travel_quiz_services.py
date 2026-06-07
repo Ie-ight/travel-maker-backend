@@ -6,8 +6,10 @@ from django.db import transaction
 from pgvector.django import CosineDistance
 
 from apps.place.models import Place
+from apps.travel_quiz.exceptions import QuizResultNotFound
 from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.travel_quiz.services.quiz_data import QUIZ_DATA
+from apps.user.models import User
 
 _PLAN_SOLO_DESCRIPTIONS = {
     (True, True): "철저한 준비로 혼자만의 루트를 만들며",
@@ -102,3 +104,10 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
         result_vector=norm,
         recommended_places=recommended_places,
     )
+
+
+def get_user_quiz_result(user: User) -> UserTestResult:
+    try:
+        return UserTestResult.objects.select_related("travel_type").prefetch_related("travel_type__tags").get(user=user)
+    except UserTestResult.DoesNotExist:
+        raise QuizResultNotFound() from None
