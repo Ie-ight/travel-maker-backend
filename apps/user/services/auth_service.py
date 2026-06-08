@@ -223,6 +223,16 @@ class KakaoAuthService:
         return str(refresh.access_token), str(refresh)
 
     @staticmethod
+    def blacklist_access_token_jti(jti: str, exp: int) -> None:
+        """Access Token JTI를 남은 유효 시간만큼 블랙리스트에 등록."""
+        ttl = exp - int(time.time())
+        if ttl > 0 and jti:
+            try:
+                cache.set(blacklist_key(jti), "true", ttl)
+            except Exception:
+                logger.error("액세스 토큰 블랙리스트 등록 실패", exc_info=True)
+
+    @staticmethod
     def blacklist_token(refresh_token_str: str) -> None:
         """Refresh Token을 Redis 캐시에 블랙리스트 등록"""
         from rest_framework_simplejwt.exceptions import TokenError

@@ -9,6 +9,21 @@ from apps.user.serializers.auth_serializer import (
     WithdrawSerializer,
 )
 
+kakao_callback_schema = extend_schema(
+    tags=["auth"],
+    summary="카카오 소셜 로그인 콜백 (백엔드 주도)",
+    description=(
+        "Kakao가 인가코드를 쿼리 파라미터로 전달하는 백엔드 주도 OAuth2 콜백.\n"
+        "처리 후 프론트엔드로 302 리다이렉트한다.\n"
+        "- 성공: `FRONTEND_URL/auth/callback?access_token=...&is_new_user=...`\n"
+        "- 실패: `FRONTEND_URL/auth/callback?error=auth_failed`\n"
+        "- Refresh Token: `Set-Cookie: refresh_token` (HttpOnly)"
+    ),
+    responses={
+        302: OpenApiResponse(description="프론트엔드로 리다이렉트"),
+    },
+)
+
 kakao_login_schema = extend_schema(
     tags=["auth"],
     summary="카카오 소셜 로그인",
