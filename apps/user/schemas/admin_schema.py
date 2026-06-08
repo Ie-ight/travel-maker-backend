@@ -1,4 +1,8 @@
-from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiTypes,  # type: ignore[attr-defined]
+    extend_schema,
+)
 
 from apps.user.serializers.admin_serializers import AdminUserListSerializer
 

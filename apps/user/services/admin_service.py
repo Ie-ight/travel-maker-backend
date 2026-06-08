@@ -26,4 +26,4 @@ class AdminUserService:
 
         paginator = AdminUserPagination()
         page = paginator.paginate_queryset(qs, request)
-        return page, paginator
+        return page, paginator  # type: ignore[return-value]

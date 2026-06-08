@@ -26,7 +26,7 @@ def get_admin_reviews(request: Request) -> tuple[QuerySet[Review] | None, AdminR
         qs = qs.filter(user_id=user_id)
     paginator = AdminReviewPagination()
     page = paginator.paginate_queryset(qs, request)
-    return page, paginator
+    return page, paginator  # type: ignore[return-value]
 
 
 def _update_place_rating(place_id: int) -> None:
