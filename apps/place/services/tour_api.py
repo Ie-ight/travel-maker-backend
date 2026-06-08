@@ -32,6 +32,14 @@ class TourApiError(Exception):
         self.retryable = retryable
 
 
+class AllKeysExhaustedError(TourApiError):
+    """등록된 모든 service key의 한도("22"/429)가 소진됨.
+
+    일 단위로 리셋되는 한도라 백오프로 살릴 수 없는 전역 치명 조건이다. 수집 루프는 이 예외를
+    개별 타입/레코드 실패처럼 삼키지 말고 run 전체를 중단해야 한다.
+    """
+
+
 def _check_header(response: Any) -> None:
     """response.header.resultCode가 "0000"이 아니면 TourApiError를 던진다.
 
@@ -144,11 +152,21 @@ class TourApiClient:
             except TourApiError as exc:
                 # 키 한도 초과 → 남은 키가 있으면 즉시 다음 키로 전환해 재시도(백오프 없이).
                 # data.go.kr은 키 한도를 resultCode "22"(JSON) 또는 HTTP 429 둘 다로 알려준다.
-                if exc.code in ("22", "429") and self._rotate_key():
-                    logger.info("%s 키 전환 후 재시도", operation)
-                    attempt = 0  # 새 키엔 일시 오류 재시도 예산을 새로 부여
-                    continue
-                # 일시 오류(타임아웃·5xx·429·마지막 키의 "22") → 지수 백오프 재시도
+                if exc.code in ("22", "429"):
+                    if self._rotate_key():
+                        logger.info("%s 키 전환 후 재시도", operation)
+                        attempt = 0  # 새 키엔 일시 오류 재시도 예산을 새로 부여
+                        continue
+                    # 전환할 키가 없음. 멀티키인데 전부 소진이면 백오프로 살릴 수 없는 전역 치명
+                    # 조건이라 즉시 중단한다(단일키는 일시 스파이크일 수 있어 기존대로 백오프 재시도).
+                    if len(self._service_keys) > 1:
+                        logger.error("%s 모든 키(%d개) 한도 소진, 수집 중단", operation, len(self._service_keys))
+                        raise AllKeysExhaustedError(
+                            f"모든 Tour API 키({len(self._service_keys)}개) 한도 소진: {exc}",
+                            code=exc.code,
+                            retryable=False,
+                        ) from exc
+                # 일시 오류(타임아웃·5xx·단일키의 "22"/429) → 지수 백오프 재시도
                 if exc.retryable and attempt < self.max_retries:
                     delay = self.backoff_base * (2**attempt)
                     if exc.code in ("22", "429"):  # 트래픽 초과·속도 제한은 더 길게 쉬어준다

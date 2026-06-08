@@ -11,6 +11,7 @@ import pytest
 import requests
 
 from apps.place.services.tour_api import (
+    AllKeysExhaustedError,
     TourApiClient,
     TourApiError,
     _check_header,
@@ -212,16 +213,16 @@ class TestRetry:
         # 성공한 두 번째 호출은 전환된 키(k2)로 나갔는지 확인
         assert session.get.call_args.kwargs["params"]["serviceKey"] == "k2"
 
-    def test_모든키_소진시_실패(self) -> None:
-        # 다중키: 모든 키가 "22" → 마지막 키 백오프 소진 후 실패
+    def test_모든키_소진시_즉시_중단(self) -> None:
+        # 다중키: 모든 키가 "22" → 전환할 키 소진 시 백오프 없이 즉시 AllKeysExhaustedError(전역 치명).
         session = self._session(_fake_response(_envelope("", result_code="22")))
         client = TourApiClient(
             service_keys=["k1", "k2"], session=session, backoff_base=0, min_interval=0, max_retries=2
         )
-        with pytest.raises(TourApiError):
+        with pytest.raises(AllKeysExhaustedError):
             client.area_based_list(14)
-        # k1 1회 → k2 전환 후 k2에서 최초1 + 백오프 재시도2 = 1 + 3
-        assert session.get.call_count == 4
+        # k1 1회 → k2 전환 1회 → 더 전환 불가 → 즉시 중단(백오프 재시도 없음)
+        assert session.get.call_count == 2
 
     def test_429_단일키는_백오프_재시도(self) -> None:
         # 단일키: HTTP 429는 전환 불가 → 백오프 재시도 → 성공

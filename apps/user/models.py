@@ -25,10 +25,12 @@ class CustomUserManager(BaseUserManager["User"]):
         self,
         email: str,
         nickname: str,
+        password: str | None = None,
         **extra_fields: bool | str | None,
     ) -> User:
         email = self.normalize_email(email)
         user: User = self.model(email=email, nickname=nickname, **extra_fields)
+        user.set_password(password)
         user.save(using=self._db)
         return user
 
@@ -36,12 +38,13 @@ class CustomUserManager(BaseUserManager["User"]):
         self,
         email: str,
         nickname: str,
+        password: str | None = None,
         **extra_fields: bool | str | None,
     ) -> User:
         extra_fields["role"] = "ADMIN"
         extra_fields["is_active"] = True
         extra_fields["is_staff"] = True
-        return self.create_user(email, nickname, **extra_fields)
+        return self.create_user(email, nickname, password, **extra_fields)
 
 
 class User(AbstractBaseUser, TimeStampModel):

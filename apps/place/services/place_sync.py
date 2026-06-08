@@ -24,7 +24,7 @@ from apps.place.services.place_info_mapping import (
     PLACE_INFO_FIELD_MAP,
 )
 from apps.place.services.tagging import assign_deterministic_tags
-from apps.place.services.tour_api import TourApiClient, TourApiError
+from apps.place.services.tour_api import AllKeysExhaustedError, TourApiClient, TourApiError
 
 logger = logging.getLogger("place.sync")
 
@@ -322,6 +322,8 @@ def _process_list_item(
         common = api.detail_common(content_id)
         images = api.detail_image(content_id)
         intro = api.detail_intro(content_id, content_type_id) if content_type_id in PLACE_INFO_FIELD_MAP else None
+    except AllKeysExhaustedError:
+        raise  # 모든 키 소진은 전역 치명 → 레코드 스킵이 아니라 run 전체 중단
     except TourApiError as exc:
         logger.warning("상세 호출 실패로 건너뜀(다음 수집에서 재시도) content_id=%s: %s", content_id, exc)
         summary.skipped_detail_failed += 1
@@ -359,9 +361,15 @@ def _process_list_item(
 def _safe_area_based_list(
     api: TourApiClient, content_type_id: int, *, num_of_rows: int, page_no: int, arrange: str | None = None
 ) -> list[dict[str, Any]]:
-    """목록 호출 실패(재시도 소진 포함) 시 로그 후 빈 리스트 → 해당 타입 종료(전체 abort 방지)."""
+    """목록 호출 실패(재시도 소진 포함) 시 로그 후 빈 리스트 → 해당 타입 종료(전체 abort 방지).
+
+    단, 모든 키 소진(AllKeysExhaustedError)은 다음 타입에서도 100% 실패하는 전역 치명 조건이라
+    삼키지 않고 전파해 run 전체를 중단한다.
+    """
     try:
         return api.area_based_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no, arrange=arrange)
+    except AllKeysExhaustedError:
+        raise
     except TourApiError as exc:
         logger.error("타입 %s page %d 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
         return []
@@ -454,9 +462,14 @@ def _process_sync_item(
 def _safe_area_based_sync_list(
     api: TourApiClient, content_type_id: int, *, num_of_rows: int, page_no: int
 ) -> list[dict[str, Any]]:
-    """증분 목록 호출 실패 시 로그 후 빈 리스트 → 해당 타입 종료(전체 abort 방지)."""
+    """증분 목록 호출 실패 시 로그 후 빈 리스트 → 해당 타입 종료(전체 abort 방지).
+
+    모든 키 소진(AllKeysExhaustedError)만은 전파해 run 전체를 중단한다.
+    """
     try:
         return api.area_based_sync_list(content_type_id, num_of_rows=num_of_rows, page_no=page_no)
+    except AllKeysExhaustedError:
+        raise
     except TourApiError as exc:
         logger.error("타입 %s page %d 증분 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
         return []
