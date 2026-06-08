@@ -5,7 +5,7 @@ from apps.place.serializers.place_serializers import PlaceErrorResponseSerialize
 place_recommend_schema = extend_schema(
     tags=["Place"],
     summary="장소 추천",
-    description=("퀴즈 결과 벡터 기반 코사인 유사도 추천. " "퀴즈 미완료 또는 비로그인 시 북마크 수 인기순으로 폴백."),
+    description=("퀴즈 결과 벡터 기반 코사인 유사도 추천. 퀴즈 미완료 또는 비로그인 시 북마크 수 인기순으로 폴백."),
     parameters=[
         OpenApiParameter(
             name="tags",

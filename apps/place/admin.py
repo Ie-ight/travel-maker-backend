@@ -41,5 +41,5 @@ class PlaceFeatureAdmin(BaseAdmin):
     list_display = ["id", "place", "updated_at"]
     list_display_links = ["id", "place"]
     search_fields = ["place__place_name"]
-    readonly_fields = ["created_at", "updated_at"]
+    readonly_fields = ["style_vector", "created_at", "updated_at"]
     list_select_related = ["place"]
