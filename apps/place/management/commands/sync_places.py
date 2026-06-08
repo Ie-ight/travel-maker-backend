@@ -14,7 +14,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.place.services.place_sync import sync_all, sync_area, sync_incremental
-from apps.place.services.tour_api import TourApiError
+from apps.place.services.tour_api import AllKeysExhaustedError, TourApiError
 
 
 class Command(BaseCommand):
@@ -75,6 +75,10 @@ class Command(BaseCommand):
                     dry_run=options["dry_run"],
                     arrange=options["arrange"],
                 )
+        except AllKeysExhaustedError as exc:
+            raise CommandError(
+                f"모든 Tour API 키 한도 소진으로 수집을 중단했습니다(다음 한도 리셋 후 재실행): {exc}"
+            ) from exc
         except TourApiError as exc:
             raise CommandError(str(exc)) from exc
 
