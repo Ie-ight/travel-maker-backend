@@ -1,2 +1,3 @@
 - 어드민 : https://api.travel-maker.site/admin/
 - docs : https://api.travel-maker.site/api/docs/
+- 베포 사이트 : https://www.travel-maker.site/
