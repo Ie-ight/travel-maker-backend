@@ -25,7 +25,7 @@ urlpatterns = [
     path("api/v1/", include("apps.user.urls.user_urls")),
     # path("api/users/", include("apps.users.urls")),
     path("api/v1/bookmarks/", include("apps.bookmark.urls")),
-    path("api/v1/places", include("apps.place.urls")),
+    path("api/v1/", include("apps.place.urls")),
     path("api/v1/tags/", include(tag_urlpatterns)),
 ]
 # Static & Media files (개발 환경에서만)
