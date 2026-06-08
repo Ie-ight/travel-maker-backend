@@ -99,7 +99,7 @@ logout_schema = extend_schema(
 token_refresh_schema = extend_schema(
     tags=["auth"],
     summary="Access Token 재발급 (Silent Refresh)",
-    description=("Cookie의 `refresh_token`으로 새 Access Token을 발급합니다.\n" "Request body는 필요 없습니다."),
+    description=("Cookie의 `refresh_token`으로 새 Access Token을 발급합니다.\nRequest body는 필요 없습니다."),
     request=None,
     responses={
         200: OpenApiResponse(

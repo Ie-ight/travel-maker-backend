@@ -219,7 +219,7 @@ class KakaoCallbackView(APIView):
 
         access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
         is_new_str = "true" if is_new_user else "false"
-        redirect_url = f"{settings.FRONTEND_URL}/auth/callback" f"?access_token={access_token}&is_new_user={is_new_str}"
+        redirect_url = f"{settings.FRONTEND_URL}/auth/callback?access_token={access_token}&is_new_user={is_new_str}"
         response = HttpResponseRedirect(redirect_url)
         _set_refresh_cookie(response, refresh_token)
         return response

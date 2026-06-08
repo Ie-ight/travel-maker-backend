@@ -73,7 +73,7 @@ def upload_review_image(review_id: int, image_data: bytes, content_type: str) ->
     )
 
     """ Review image_url 업데이트 """
-    image_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}" f".s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{key}"
+    image_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{key}"
     Review.objects.filter(pk=review_id).update(image_url=image_url)
     # get() 방식과 비교
     # Review.objects.get(pk=review_id)  → 객체를 메모리에 올림 → .save() → 전체 컬럼 UPDATE
