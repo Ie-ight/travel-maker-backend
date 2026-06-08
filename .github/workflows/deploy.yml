@@ -48,6 +48,9 @@ jobs:
           # Static 파일 업데이트
           docker cp travel-maker-web-prod:/app/staticfiles/. /var/www/travel-maker/staticfiles/
 
+          # 마이그레이션 실행
+          docker compose -f docker-compose.prod.yml exec -T web uv run python manage.py migrate --noinput
+
           # 헬스체크
           sleep 10
           curl -f https://localhost/health/ -k || exit 1  # ← HTTPS로 (-k는 인증서 무시)
