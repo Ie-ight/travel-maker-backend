@@ -1,5 +1,5 @@
 from django.db import models
-from pgvector.django import VectorField
+from pgvector.django import HnswIndex, VectorField
 
 from apps.core.models import TimeStampModel
 
@@ -98,3 +98,12 @@ class PlaceFeature(TimeStampModel):
         db_table = "place_features"
         verbose_name = "장소 성향 벡터"
         verbose_name_plural = "장소 성향 벡터 목록"
+        indexes = [
+            HnswIndex(
+                name="place_style_vector_hnsw",
+                fields=["style_vector"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_cosine_ops"],
+            )
+        ]

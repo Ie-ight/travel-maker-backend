@@ -217,6 +217,20 @@ config/settings/base.py                       # CELERY_BEAT_SCHEDULE 추가
 
 ---
 
+### Phase 8 — Redis 키 관리 (`apps/core/cache.py`)
+
+모든 Redis cache key는 `apps/core/cache.py`에서 생성 함수로 정의한다. 서비스 코드에 문자열 하드코딩 금지.
+
+- [x] `blacklist_key(jti)` → `blacklist:{jti}` (JWT 블랙리스트)
+- [ ] 향후 Redis 용도 추가 시 (추천 캐싱 등) 이 파일에 먼저 키 함수 정의
+
+구현 파일:
+```
+apps/core/cache.py    # Redis 키 정의 모듈 (완료)
+```
+
+---
+
 ## 개발 규칙 요약
 
 - **레이어 분리 필수**: views → services → serializers. 비즈니스 로직은 services에만.

@@ -16,8 +16,10 @@ class PlaceListSerializer(serializers.ModelSerializer[Place]):
     tags = TagSerializer(many=True, read_only=True)
 
     def get_image_url(self, obj: Place) -> str | None:
-        image = obj.images.filter(is_main=True).first()
-        return image.image_url if image else None
+        for image in obj.images.all():  # prefetch 캐시 활용 — .filter()는 캐시 무시
+            if image.is_main:
+                return image.image_url
+        return None
 
     class Meta:
         model = Place

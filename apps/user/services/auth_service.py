@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
 
+from apps.core.cache import blacklist_key
 from apps.user.models import SocialUser, User, generate_nickname
 from apps.user.utils.auth_exceptions import (
     AlreadyWithdrawnError,
@@ -45,8 +46,6 @@ class KakaoAuthService:
 
     REFRESH_TOKEN_COOKIE = "refresh_token"
     REFRESH_TOKEN_TTL = 60 * 60 * 24 * 7  # 7일
-
-    # ── 카카오 API 통신 ──────────────────────────────────────────────────────
 
     @staticmethod
     def get_access_token(code: str) -> str:
@@ -112,8 +111,6 @@ class KakaoAuthService:
             gender=gender,
             birthday=birthday,
         )
-
-    # ── 유저 조회 / 생성 ─────────────────────────────────────────────────────
 
     @classmethod
     def get_or_create_user(cls, code: str) -> tuple[User, bool]:
@@ -217,8 +214,6 @@ class KakaoAuthService:
         user.save(update_fields=["is_active", "deleted_at"])
         return user
 
-    # ── JWT 토큰 ─────────────────────────────────────────────────────────────
-
     @staticmethod
     def generate_token_pair(user: User) -> tuple[str, str]:
         """JWT Access / Refresh 토큰 쌍 발급. Returns: (access_token, refresh_token)"""
@@ -226,8 +221,6 @@ class KakaoAuthService:
 
         refresh = RefreshToken.for_user(user)
         return str(refresh.access_token), str(refresh)
-
-    # ── 토큰 블랙리스트 ──────────────────────────────────────────────────────
 
     @staticmethod
     def blacklist_token(refresh_token_str: str) -> None:
@@ -241,7 +234,7 @@ class KakaoAuthService:
             exp: int = token.payload.get("exp", 0)
             ttl = exp - int(time.time())
             if ttl > 0 and jti:
-                cache.set(f"blacklist_{jti}", "true", ttl)
+                cache.set(blacklist_key(jti), "true", ttl)
         except TokenError:
             pass  # 이미 만료된 토큰
         except Exception:
@@ -251,7 +244,7 @@ class KakaoAuthService:
     def is_jti_blacklisted(jti: str) -> bool:
         """jti로 블랙리스트 여부 확인. 캐시 장애 시 False(fail-open) 반환."""
         try:
-            return bool(cache.get(f"blacklist_{jti}"))
+            return bool(cache.get(blacklist_key(jti)))
         except Exception:
             logger.error("블랙리스트 조회 실패 (캐시 장애), fail-open 처리", exc_info=True)
             return False
