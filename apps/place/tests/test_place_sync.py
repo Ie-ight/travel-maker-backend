@@ -14,6 +14,7 @@ from apps.place.services.place_sync import (
     SyncSummary,
     _blank_to_none,
     _clean_homepage,
+    _clean_info_text,
     _clean_tel,
     _to_bool,
     _to_decimal,
@@ -210,6 +211,52 @@ class TestNormalizers:
 
     def test_homepage_URL없는_원문은_None(self) -> None:
         assert _clean_homepage("홈페이지 없음") is None
+
+
+class TestCleanInfoText:
+    """운영시간 등 자유 텍스트 HTML 정제(<br> → \\n, 태그 제거, 줄바꿈 정규화)."""
+
+    @pytest.mark.parametrize("value", ["", "   ", None])
+    def test_빈값은_None(self, value: Any) -> None:
+        assert _clean_info_text(value) is None
+
+    def test_마크업없는_단일라인_그대로(self) -> None:
+        assert _clean_info_text("09:00~18:00") == "09:00~18:00"
+
+    @pytest.mark.parametrize("br", ["<br>", "<br/>", "<br />", "<br >", "<BR>", "<vr>"])
+    def test_br_계열은_줄바꿈으로(self, br: str) -> None:
+        # <vr>은 실데이터에 있던 <br> 오타
+        assert _clean_info_text(f"오전{br}오후") == "오전\n오후"
+
+    def test_깨진_br_unclosed도_줄바꿈으로(self) -> None:
+        # 실데이터: 닫는 > 대신 <를 친 '<br<' 타이포
+        assert _clean_info_text("평일 10:00~20:30<br<주말 10:00~20:00") == "평일 10:00~20:30\n주말 10:00~20:00"
+
+    @pytest.mark.parametrize("word", ["a<brunch>b", "a<brb"])
+    def test_br_유사단어는_줄바꿈으로_안바뀜(self, word: str) -> None:
+        # br/vr 뒤가 글자면 break로 보지 않는다(<brunch>는 _TAG_RE가 태그로 제거)
+        assert _clean_info_text(word) == ("ab" if word == "a<brunch>b" else "a<brb")
+
+    def test_br과_실제줄바꿈_겹쳐도_중복줄바꿈_제거(self) -> None:
+        # 실데이터는 대부분 '<br>\n' 형태 — 빈 줄이 생기지 않아야 한다
+        raw = "[3월~10월] 09:00 ~ 18:00<br />\n[11월~2월] 09:00 ~ 17:00"
+        assert _clean_info_text(raw) == "[3월~10월] 09:00 ~ 18:00\n[11월~2월] 09:00 ~ 17:00"
+
+    def test_여러_br_멀티라인(self) -> None:
+        raw = "[평일]<br>\n10:00~18:00<br>\n[주말]<br>\n10:00~19:00"
+        assert _clean_info_text(raw) == "[평일]\n10:00~18:00\n[주말]\n10:00~19:00"
+
+    def test_앵커태그_제거하고_내부텍스트_유지(self) -> None:
+        raw = '이용요금 <a href="https://x.com" target="_blank">홈페이지</a> 참조'
+        assert _clean_info_text(raw) == "이용요금 홈페이지 참조"
+
+    def test_줄안_다중공백_정리(self) -> None:
+        assert _clean_info_text("09:00   ~   18:00") == "09:00 ~ 18:00"
+
+    def test_멱등성(self) -> None:
+        raw = "[평일]<br>\n10:00~18:00"
+        once = _clean_info_text(raw)
+        assert _clean_info_text(once) == once
 
 
 class TestBuildPlaceDefaults:

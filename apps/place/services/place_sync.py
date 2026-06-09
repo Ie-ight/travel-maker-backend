@@ -43,6 +43,14 @@ _PHONE_RE = re.compile(r"(?<!\d)(?:\d{2,4} *- *\d{3,4} *- *\d{4}|\d{4} *- *\d{4}
 #: 4자리 국번 접두(안심·평생번호 등) — bare 번호 하이픈 삽입 시 국번 길이 판정용
 _TEL_AREA4_PREFIXES = frozenset({"0303", "0502", "0503", "0504", "0505", "0506", "0507", "0508"})
 
+# PlaceInfo 자유 텍스트(operating_hours 등) 정제용. detailIntro2 텍스트엔 줄바꿈 의도의 <br> 계열(<br>,
+# <br/>, <br />, <br >, <vr> 오타, 닫는 > 대신 <를 친 <br< 같은 깨진 변형)과 드물게 <a> 앵커가 섞여
+# 온다(실측: 그 외 태그·HTML 엔티티 없음). br/vr 뒤가 공백·/·<·>·끝일 때만 잡아 단어(<brunch> 등) 오매칭을 막는다.
+_BR_RE = re.compile(r"<\s*/?\s*(?:br|vr)(?=[\s/<>]|$)\s*/?\s*[<>]?", re.IGNORECASE)  # 줄바꿈 태그 → \n
+_TAG_RE = re.compile(r"<[^>]+>")  # 그 외 태그(<a> 등) 제거 — 내부 텍스트는 유지
+_WS_LINE_RE = re.compile(r"[ \t]*\n[ \t\n]*")  # 줄바꿈 주변 공백·중복 줄바꿈 collapse(<br>\n → \n)
+_MULTISPACE_RE = re.compile(r"[ \t]{2,}")  # 줄 안 다중 공백 정리
+
 
 def _blank_to_none(value: Any) -> str | None:
     """빈 문자열 ""을 None으로 정규화한다(§3-5). 그 외는 strip한 문자열."""
@@ -50,6 +58,24 @@ def _blank_to_none(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _clean_info_text(value: Any) -> str | None:
+    """PlaceInfo 자유 텍스트의 HTML 마크업을 제거하고 멀티라인 평문으로 정규화한다.
+
+    detailIntro2의 운영시간·휴무일·입장료 등은 줄바꿈 의도의 <br> 계열과 드문 <a> 앵커가 섞여 온다.
+    응답 계약은 그대로 str로 두되 값만 정리한다: <br>는 \\n으로, 그 외 태그는 제거(내부 텍스트 유지),
+    <br>\\n처럼 실제 줄바꿈과 겹쳐 생기는 중복 줄바꿈·줄 앞뒤 공백은 collapse한다. 프론트는 split("\\n")만
+    하면 된다. 빈 값은 None.
+    """
+    text = _blank_to_none(value)
+    if text is None:
+        return None
+    text = _BR_RE.sub("\n", text)
+    text = _TAG_RE.sub("", text)
+    text = _WS_LINE_RE.sub("\n", text)
+    text = _MULTISPACE_RE.sub(" ", text)
+    return text.strip() or None
 
 
 def _to_decimal(value: Any) -> Decimal | None:
@@ -163,7 +189,8 @@ def build_place_info_defaults(content_type_id: int, intro_item: dict[str, Any]) 
     defaults: dict[str, Any] = {}
     for model_field, api_key in field_map.items():
         raw = intro_item.get(api_key)
-        defaults[model_field] = _to_bool(raw) if model_field in BOOLEAN_FIELDS else _blank_to_none(raw)
+        # boolean은 가능/불가 정규화, 그 외 자유 텍스트는 HTML(<br> 등) 제거·줄바꿈 정규화
+        defaults[model_field] = _to_bool(raw) if model_field in BOOLEAN_FIELDS else _clean_info_text(raw)
     if content_type_id == LODGING_TYPE_ID:  # 운영시간 = 체크인/체크아웃 조합
         defaults["operating_hours"] = _lodging_operating_hours(intro_item)
     return defaults
@@ -636,5 +663,62 @@ def backfill_details(
         summary.info_refreshed,
         summary.errors,
         summary.aborted,
+    )
+    return summary
+
+
+#: 정제 대상 PlaceInfo 자유 텍스트 필드(boolean 제외). _clean_info_text를 태운다.
+PLACE_INFO_TEXT_FIELDS: tuple[str, ...] = (
+    "operating_hours",
+    "closed_days",
+    "admission_fee",
+    "spend_time",
+    "discount_info",
+    "accom_count",
+)
+
+
+@dataclass
+class CleanInfoSummary:
+    """기존 PlaceInfo 텍스트 정제 백필 결과 요약."""
+
+    scanned: int = 0  # 조회한 PlaceInfo 행 수
+    changed_rows: int = 0  # 한 필드 이상 값이 바뀐 행 수
+    changed_fields: int = 0  # 값이 바뀐 (행·필드) 총 개수
+
+
+def clean_existing_place_info(*, dry_run: bool = False, batch_size: int = 500) -> CleanInfoSummary:
+    """이미 저장된 PlaceInfo 자유 텍스트를 _clean_info_text로 재정규화한다(멱등).
+
+    수집 시점 정제(build_place_info_defaults)는 이후 수집분에만 적용되므로, 기존 행의 <br> 등 마크업은
+    이 백필로 정리한다. 값이 실제로 바뀐 행만 bulk_update한다(이미 깨끗한 값은 동일하게 나와 건너뜀).
+    커서와 쓰기 동시 진행을 피하려고 변경 대상을 먼저 모은 뒤 일괄 갱신한다.
+    """
+    summary = CleanInfoSummary()
+    to_update: list[PlaceInfo] = []
+    for info in PlaceInfo.objects.all().iterator(chunk_size=2000):
+        summary.scanned += 1
+        dirty = False
+        for field in PLACE_INFO_TEXT_FIELDS:
+            current = getattr(info, field)
+            cleaned = _clean_info_text(current)
+            if cleaned != current:
+                setattr(info, field, cleaned)
+                summary.changed_fields += 1
+                dirty = True
+        if dirty:
+            summary.changed_rows += 1
+            to_update.append(info)
+
+    if not dry_run:
+        for start in range(0, len(to_update), batch_size):
+            PlaceInfo.objects.bulk_update(to_update[start : start + batch_size], list(PLACE_INFO_TEXT_FIELDS))
+
+    logger.info(
+        "PlaceInfo 텍스트 정제%s: 조회 %d·변경행 %d·변경필드 %d",
+        " (dry-run)" if dry_run else "",
+        summary.scanned,
+        summary.changed_rows,
+        summary.changed_fields,
     )
     return summary
