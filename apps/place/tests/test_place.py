@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.bookmark.models import Bookmark
-from apps.place.models import Place
+from apps.place.models import Place, PlaceInfo
 from apps.place.services.place_services import get_place_detail
 from apps.place.tests.factories import PlaceFactory, PlaceImageFactory, TagFactory, UserFactory
 from apps.review.models import Review
@@ -543,12 +543,45 @@ class TestPlaceDetailView:
             "description",
             "latitude",
             "longitude",
+            "homepage",
+            "tel",
+            "address_primary",
+            "address_detail",
             "rating_avg",
             "review_count",
             "bookmark_count",
             "images",
             "tags",
+            "info",
         }
+
+    def test_info_includes_place_info(self, api_client: APIClient) -> None:
+        place = PlaceFactory()  # type: ignore[misc]
+        PlaceInfo.objects.create(
+            place=place, parking=True, pet=False, admission_fee="무료", operating_hours="09:00~18:00"
+        )
+        info = api_client.get(self._url(place.id)).data["info"]
+        assert info["parking"] is True  # boolean 그대로
+        assert info["pet"] is False
+        assert info["admission_fee"] == "무료"
+        assert info["operating_hours"] == "09:00~18:00"
+        assert set(info.keys()) == {
+            "operating_hours",
+            "closed_days",
+            "parking",
+            "admission_fee",
+            "spend_time",
+            "discount_info",
+            "accom_count",
+            "pet",
+            "baby_carriage",
+            "credit_card",
+        }
+
+    def test_info_null_when_no_place_info(self, api_client: APIClient) -> None:
+        place = PlaceFactory()  # type: ignore[misc]  # PlaceInfo 없는 장소(14%)
+        data = api_client.get(self._url(place.id)).data
+        assert data["info"] is None
 
     def test_lat_lng_rating_avg_are_numbers(self, api_client: APIClient) -> None:
         place = PlaceFactory(rating_avg="4.5")  # type: ignore[misc]
