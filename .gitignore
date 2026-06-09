@@ -100,3 +100,8 @@ infrastructure/docker/docker-compose.override.yml
 .omc/state/
 .omc/sessions/
 .omc/artifacts/
+
+# place 데이터 덤프(바이너리, 공유는 별도 전달)
+dumps/*.dump
+
+.claude/now.md
