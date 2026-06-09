@@ -3,7 +3,7 @@ from rest_framework import serializers
 from apps.place.models import Place
 from apps.travel_quiz.exceptions import InvalidAnswerChoice, InvalidAnswersLength
 from apps.travel_quiz.models import UserTestResult
-from apps.travel_quiz.services.travel_quiz_services import QuizSubmitResult
+from apps.travel_quiz.services.travel_quiz_services import build_type_tags, make_description
 
 _VALID_CHOICES = {"A", "B"}
 
@@ -37,31 +37,44 @@ class PlaceRecommendationSerializer(serializers.ModelSerializer[Place]):
         fields = ["place_id", "place_name", "description", "image_url", "tags"]
 
 
+class DetailCardSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    title = serializers.CharField()
+    description = serializers.CharField()
+
+
 class QuizSubmitResponseSerializer(serializers.Serializer):  # type: ignore[type-arg]
     saved = serializers.BooleanField()
     travel_type_id = serializers.IntegerField(source="travel_type.id")
     type_key = serializers.CharField(source="travel_type.type_key")
     name = serializers.CharField(source="travel_type.name")
-    description = serializers.CharField(source="travel_type.description")
-    dynamic_description = serializers.CharField()
+    description = serializers.CharField()
     image_url = serializers.CharField(source="travel_type.image_url")
-    tags = serializers.SerializerMethodField()
+    type_tags = serializers.ListField(child=serializers.CharField())
+    detail_cards = DetailCardSerializer(many=True)
     result_vector = serializers.ListField(child=serializers.FloatField())
     destinations = PlaceRecommendationSerializer(source="recommended_places", many=True)
-
-    def get_tags(self, obj: QuizSubmitResult) -> list[str]:
-        return list(obj.travel_type.tags.values_list("tag_name", flat=True))
 
 
 class QuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]
     name = serializers.CharField(source="travel_type.name")
-    description = serializers.CharField(source="travel_type.description")
+    description = serializers.SerializerMethodField()
     image_url = serializers.CharField(source="travel_type.image_url")
-    tags = serializers.SerializerMethodField()
+    type_tags = serializers.SerializerMethodField()
     updated_at = serializers.DateTimeField()
 
-    def get_tags(self, obj: UserTestResult) -> list[str]:
-        return list(obj.travel_type.tags.values_list("tag_name", flat=True))
+    def get_description(self, obj: UserTestResult) -> str:
+        return make_description(obj.result_vector)
+
+    def get_type_tags(self, obj: UserTestResult) -> list[str]:
+        return build_type_tags(obj.travel_type.type_key)
+
+
+class AvatarUpdateSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    travel_type_id = serializers.IntegerField(required=True)
+
+
+class AvatarUpdateResponseSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    updated = serializers.BooleanField()
 
 
 class QuizErrorResponseSerializer(serializers.Serializer):  # type: ignore[type-arg]

@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 
 from apps.place.models import PlaceFeature
 from apps.travel_quiz.models import UserTestResult
+from apps.travel_quiz.services.travel_quiz_services import build_type_tags
 from apps.travel_quiz.tests.factories import PlaceFactory, TravelTypeFactory, UserFactory
 from apps.user.models import User
 
@@ -73,7 +74,9 @@ class TestQuizSubmit:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["error_detail"] == "answers 각 항목은 'A' 또는 'B'여야 합니다."
 
-    def test_추천_장소와_결과벡터_및_동적설명_포함(self, client: APIClient, travel_types: dict[str, object]) -> None:
+    def test_추천_장소와_결과벡터_타입태그_상세카드_포함(
+        self, client: APIClient, travel_types: dict[str, object]
+    ) -> None:
         place = PlaceFactory()
         PlaceFeature.objects.create(place=place, style_vector=[0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
 
@@ -81,7 +84,17 @@ class TestQuizSubmit:
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["result_vector"]) == 6
-        assert response.data["dynamic_description"]
+
+        type_tags = response.data["type_tags"]
+        assert type_tags == build_type_tags(response.data["type_key"])
+        assert response.data["description"]
+
+        detail_cards = response.data["detail_cards"]
+        assert len(detail_cards) == 4
+        for card in detail_cards:
+            assert card["title"]
+            assert card["description"]
+
         assert 1 <= len(response.data["destinations"]) <= 3
         assert response.data["destinations"][0]["place_id"] == place.id
         assert response.data["destinations"][0]["tags"]

@@ -15,3 +15,8 @@ class InvalidAnswerChoice(APIException):
 class QuizResultNotFound(APIException):
     status_code = status.HTTP_404_NOT_FOUND
     default_detail = "퀴즈 결과를 찾을 수 없습니다."
+
+
+class InvalidTravelTypeId(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "유효하지 않은 travel_type_id입니다."

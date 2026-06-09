@@ -1,6 +1,8 @@
 from drf_spectacular.utils import extend_schema
 
 from apps.travel_quiz.serializers.travel_quiz_serializers import (
+    AvatarUpdateResponseSerializer,
+    AvatarUpdateSerializer,
     QuizErrorResponseSerializer,
     QuizResultSerializer,
     QuizSubmitResponseSerializer,
@@ -29,5 +31,17 @@ quiz_result_schema = extend_schema(
         200: QuizResultSerializer,
         401: QuizErrorResponseSerializer,
         404: QuizErrorResponseSerializer,
+    },
+)
+
+quiz_avatar_schema = extend_schema(
+    tags=["TravelQuiz"],
+    summary="퀴즈 결과 캐릭터를 프로필 이미지로 등록",
+    description="travel_type_id로 지정한 여행 성향 캐릭터의 이미지를 로그인한 유저의 프로필 이미지로 등록합니다.",
+    request=AvatarUpdateSerializer,
+    responses={
+        200: AvatarUpdateResponseSerializer,
+        400: QuizErrorResponseSerializer,
+        401: QuizErrorResponseSerializer,
     },
 )

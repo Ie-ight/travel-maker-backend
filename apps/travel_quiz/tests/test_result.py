@@ -2,6 +2,7 @@ import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from apps.travel_quiz.services.travel_quiz_services import build_type_tags, make_description
 from apps.travel_quiz.tests.factories import TravelTypeFactory, UserFactory, UserTestResultFactory
 from apps.user.models import User
 
@@ -25,16 +26,16 @@ def auth_client(client: APIClient, user: User) -> APIClient:
 @pytest.mark.django_db
 class TestQuizResultGet:
     def test_퀴즈_결과_조회_성공(self, auth_client: APIClient, user: User) -> None:
-        travel_type = TravelTypeFactory()
-        UserTestResultFactory(user=user, travel_type=travel_type)
+        travel_type = TravelTypeFactory(type_key="ttt")
+        result = UserTestResultFactory(user=user, travel_type=travel_type)
 
         response = auth_client.get("/api/v1/users/quiz/result")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["name"] == travel_type.name
-        assert response.data["description"] == travel_type.description
+        assert response.data["description"] == make_description(result.result_vector)
         assert response.data["image_url"] == travel_type.image_url
-        assert response.data["tags"] == list(travel_type.tags.values_list("tag_name", flat=True))
+        assert response.data["type_tags"] == build_type_tags(travel_type.type_key)
         assert response.data["updated_at"] is not None
 
     def test_퀴즈_결과_없음_404(self, auth_client: APIClient) -> None:

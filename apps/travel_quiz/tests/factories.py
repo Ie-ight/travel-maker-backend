@@ -30,21 +30,10 @@ class TagFactory(DjangoModelFactory):  # type: ignore[misc]
 class TravelTypeFactory(DjangoModelFactory):  # type: ignore[misc]
     class Meta:
         model = TravelType
-        skip_postgeneration_save = True
 
     type_key = factory.Sequence(lambda n: f"k{n:02d}")  # type: ignore[misc]
     name = factory.Sequence(lambda n: f"여행유형{n}")  # type: ignore[misc]
-    description = factory.Sequence(lambda n: f"한 줄 설명 {n}")  # type: ignore[misc]
     image_url = "https://example.com/travel-type.png"
-
-    @factory.post_generation
-    def tags(self, create: bool, extracted: list[Tag] | None, **kwargs: object) -> None:
-        if not create:
-            return
-        if extracted is not None:
-            self.tags.set(extracted)
-            return
-        self.tags.add(*TagFactory.create_batch(2))
 
 
 class UserTestResultFactory(DjangoModelFactory):  # type: ignore[misc]

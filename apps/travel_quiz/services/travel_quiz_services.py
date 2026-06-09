@@ -6,10 +6,16 @@ from django.db import transaction
 from pgvector.django import CosineDistance
 
 from apps.place.models import Place
-from apps.travel_quiz.exceptions import QuizResultNotFound
+from apps.travel_quiz.exceptions import InvalidTravelTypeId, QuizResultNotFound
 from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.travel_quiz.services.quiz_data import QUIZ_DATA
 from apps.user.models import User
+
+_AXIS_TAG_LABELS: tuple[dict[str, str], ...] = (
+    {"t": "액티비티형", "f": "힐링형"},
+    {"t": "혼자형", "f": "단체형"},
+    {"t": "자연형", "f": "도시형"},
+)
 
 _PLAN_SOLO_DESCRIPTIONS = {
     (True, True): "철저한 준비로 혼자만의 루트를 만들며",
@@ -27,10 +33,43 @@ _EXPERIENCE_BUDGET_DESCRIPTIONS = {
 
 
 @dataclass
+class DetailCard:
+    title: str
+    description: str
+
+
+_CARD1: dict[bool, DetailCard] = {
+    True: DetailCard("몸으로 떠나는 여행", "체력을 아낌없이 쓰는 게 진짜 여행이에요."),
+    False: DetailCard("천천히 스며드는 여행", "여유롭게 흡수하는 것이 나만의 여행법이에요."),
+}
+
+_CARD2: dict[tuple[bool, bool], DetailCard] = {
+    (True, True): DetailCard("나만의 완벽한 루트", "철저한 준비로 혼자만의 동선을 완성해요."),
+    (False, True): DetailCard("즉흥적인 이동", "계획 없이 끌리는 골목으로 자유롭게 떠나요."),
+    (True, False): DetailCard("완벽한 단체 동선", "철저한 준비로 일행 모두의 여행을 완성해요."),
+    (False, False): DetailCard("함께하는 우연", "즉흥적인 선택으로 함께 만드는 특별한 순간이에요."),
+}
+
+_CARD3: dict[bool, DetailCard] = {
+    True: DetailCard("자연 속 충전", "자연 속에서 에너지를 회복하는 타입이에요."),
+    False: DetailCard("도시의 분위기", "도시의 빛과 문화에서 영감을 받아요."),
+}
+
+_CARD4: dict[tuple[bool, bool], DetailCard] = {
+    (True, True): DetailCard("알뜰한 문화 탐방", "현지 문화를 가성비 있게 깊이 파고들어요."),
+    (True, False): DetailCard("문화에 아낌없이", "그 지역의 이야기와 역사에 아낌없이 투자해요."),
+    (False, True): DetailCard("합리적인 체험", "직접 체험하는 여행을 합리적인 가격에 즐겨요."),
+    (False, False): DetailCard("특별한 경험엔 아낌없이", "기억에 남을 순간엔 지갑을 열어요."),
+}
+
+
+@dataclass
 class QuizSubmitResult:
     saved: bool
     travel_type: TravelType
-    dynamic_description: str
+    type_tags: list[str]
+    description: str
+    detail_cards: list[DetailCard]
     result_vector: list[float]
     recommended_places: list[Place]
 
@@ -51,7 +90,11 @@ def _determine_type_key(norm: list[float]) -> str:
     return ("t" if is_active else "f") + ("t" if is_solo else "f") + ("t" if is_nature else "f")
 
 
-def _make_dynamic_description(norm: list[float]) -> str:
+def build_type_tags(type_key: str) -> list[str]:
+    return [labels[char] for labels, char in zip(_AXIS_TAG_LABELS, type_key, strict=True)]
+
+
+def make_description(norm: list[float]) -> str:
     is_active = norm[0] >= 0.5
     is_planned = norm[1] >= 0.5
     is_solo = norm[2] >= 0.5
@@ -70,6 +113,22 @@ def _make_dynamic_description(norm: list[float]) -> str:
     return f"{d1} {d2} {d3} {d4}"
 
 
+def _build_detail_cards(norm: list[float]) -> list[DetailCard]:
+    is_active = norm[0] >= 0.5
+    is_planned = norm[1] >= 0.5
+    is_solo = norm[2] >= 0.5
+    is_nature = norm[3] >= 0.5
+    is_cultural = norm[4] >= 0.5
+    is_budget = norm[5] >= 0.5
+
+    return [
+        _CARD1[is_active],
+        _CARD2[(is_planned, is_solo)],
+        _CARD3[is_nature],
+        _CARD4[(is_cultural, is_budget)],
+    ]
+
+
 def _get_recommended_places(result_vector: list[float]) -> list[Place]:
     return list(
         Place.objects.filter(is_active=True, place_feature__isnull=False)
@@ -80,12 +139,11 @@ def _get_recommended_places(result_vector: list[float]) -> list[Place]:
     )
 
 
-@transaction.atomic  # 점수 계산과 로그인 유저 자동저장 묶음
+@transaction.atomic  # 점수 계산과 로그인 유저 자동저장 로직 묶음
 def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> QuizSubmitResult:
     norm = _calculate_norm_vector(answers)
     type_key = _determine_type_key(norm)
-    dynamic_description = _make_dynamic_description(norm)
-    travel_type = TravelType.objects.prefetch_related("tags").get(type_key=type_key)
+    travel_type = TravelType.objects.get(type_key=type_key)
 
     saved = False
     if user.is_authenticated:
@@ -100,7 +158,9 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
     return QuizSubmitResult(
         saved=saved,
         travel_type=travel_type,
-        dynamic_description=dynamic_description,
+        type_tags=build_type_tags(type_key),
+        description=make_description(norm),
+        detail_cards=_build_detail_cards(norm),
         result_vector=norm,
         recommended_places=recommended_places,
     )
@@ -108,6 +168,17 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
 
 def get_user_quiz_result(user: User) -> UserTestResult:
     try:
-        return UserTestResult.objects.select_related("travel_type").prefetch_related("travel_type__tags").get(user=user)
+        return UserTestResult.objects.select_related("travel_type").get(user=user)
     except UserTestResult.DoesNotExist:
         raise QuizResultNotFound() from None
+
+
+def update_user_avatar(user: User, travel_type_id: int) -> bool:
+    try:
+        travel_type = TravelType.objects.get(id=travel_type_id)
+    except TravelType.DoesNotExist:
+        raise InvalidTravelTypeId() from None
+
+    user.profile_img_url = travel_type.image_url
+    user.save(update_fields=["profile_img_url"])
+    return True
