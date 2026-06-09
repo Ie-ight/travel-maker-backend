@@ -106,6 +106,12 @@ class Command(BaseCommand):
             default=None,
             help="분당 최대 요청 수(미지정 시 gemini=8, ollama=0(무제한). 0=무제한)",
         )
+        parser.add_argument(
+            "--workers",
+            type=int,
+            default=4,
+            help="병렬 처리를 위한 스레드 수 (provider=ollama 및 rpm=0 일때만 활성, 기본 4)",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         provider = (options["provider"] or settings.AI_TAGGING_PROVIDER).lower()
@@ -134,30 +140,78 @@ class Command(BaseCommand):
 
         rows: list[dict[str, Any]] = []
         processed = skipped = errors = 0
-        for place in queryset:
-            if min_interval:
-                wait = min_interval - (time.monotonic() - last_started)
-                if last_started and wait > 0:
-                    time.sleep(wait)
-            last_started = time.monotonic()
-            try:
-                result = analyze_place(place, provider=provider, model=model)
-            except AITaggingError as exc:
-                errors += 1
-                self.stderr.write(f"  [{place.content_id}] 실패: {exc}")
-                continue
-            if result is None:
-                skipped += 1
-                continue
 
-            if not dry_run:
-                persist_ai_result(place, result)
-            processed += 1
-            if dry_run:
-                self.stdout.write(f"  [{place.content_id}] {place.place_name}: vector={result.style_vector}")
-                self.stdout.write(f"      tags={result.tags}")
-            if out is not None:
-                rows.append(_row(place, result))
+        workers = options["workers"]
+        if workers > 1 and rpm == 0:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            from django.db import close_old_connections
+
+            self.stdout.write(self.style.SUCCESS(f"병렬 처리 시작 (스레드 수: {workers})..."))
+
+            def process_place(place: Place) -> tuple[Place, Any, str]:
+                close_old_connections()
+                try:
+                    result = analyze_place(place, provider=provider, model=model)
+                    if result is None:
+                        return place, None, "skipped"
+                    if not dry_run:
+                        persist_ai_result(place, result)
+                    return place, result, "success"
+                except Exception as exc:
+                    return place, exc, "error"
+                finally:
+                    close_old_connections()
+
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                place_list = list(queryset)
+                futures = {executor.submit(process_place, place): place for place in place_list}
+                for future in as_completed(futures):
+                    place = futures[future]
+                    try:
+                        place, result, status = future.result()
+                        if status == "success":
+                            processed += 1
+                            if dry_run:
+                                self.stdout.write(
+                                    f"  [{place.content_id}] {place.place_name}: vector={result.style_vector}"
+                                )
+                                self.stdout.write(f"      tags={result.tags}")
+                            if out is not None:
+                                rows.append(_row(place, result))
+                        elif status == "skipped":
+                            skipped += 1
+                        else:
+                            errors += 1
+                            self.stderr.write(f"  [{place.content_id}] 실패: {result}")
+                    except Exception as e:
+                        errors += 1
+                        self.stderr.write(f"  [{place.content_id}] 예상치 못한 에러: {e}")
+        else:
+            for place in queryset:
+                if min_interval:
+                    wait = min_interval - (time.monotonic() - last_started)
+                    if last_started and wait > 0:
+                        time.sleep(wait)
+                last_started = time.monotonic()
+                try:
+                    result = analyze_place(place, provider=provider, model=model)
+                except AITaggingError as exc:
+                    errors += 1
+                    self.stderr.write(f"  [{place.content_id}] 실패: {exc}")
+                    continue
+                if result is None:
+                    skipped += 1
+                    continue
+
+                if not dry_run:
+                    persist_ai_result(place, result)
+                processed += 1
+                if dry_run:
+                    self.stdout.write(f"  [{place.content_id}] {place.place_name}: vector={result.style_vector}")
+                    self.stdout.write(f"      tags={result.tags}")
+                if out is not None:
+                    rows.append(_row(place, result))
 
         if out is not None:
             path = Path(out)

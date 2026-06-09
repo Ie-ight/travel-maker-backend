@@ -17,4 +17,6 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
+        # place 데이터 덤프(dumps/*.dump)는 공유용 대용량 바이너리라 검사 제외(나머진 기본 500KB 가드 유지)
+        exclude: ^dumps/
       - id: check-merge-conflict
