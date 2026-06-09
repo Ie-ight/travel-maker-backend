@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TravelMaker — 경로 피드</title>
+  <style>
+    /* ───────────────────────────────
+       Reset & Base
+    ─────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:      #3B82F6;
+      --primary-dark: #1D4ED8;
+      --accent:       #F59E0B;
+      --surface:      #FFFFFF;
+      --bg:           #F8FAFC;
+      --border:       #E2E8F0;
+      --text-main:    #0F172A;
+      --text-sub:     #64748B;
+      --text-muted:   #94A3B8;
+      --danger:       #EF4444;
+      --green:        #22C55E;
+      --radius-sm:    6px;
+      --radius-md:    12px;
+      --radius-lg:    20px;
+      --shadow-sm:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md:    0 4px 16px rgba(0,0,0,.10);
+      --shadow-lg:    0 10px 40px rgba(0,0,0,.14);
+      --transition:   .18s ease;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ───────────────────────────────
+       Header / Nav
+    ─────────────────────────────── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -.5px;
+      flex-shrink: 0;
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--primary), #6366F1);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 1rem;
+    }
+
+    .search-wrap {
+      flex: 1;
+      max-width: 480px;
+      position: relative;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 9px 16px 9px 40px;
+      border: 1.5px solid var(--border);
+      border-radius: 99px;
+      font-size: .9rem;
+      background: var(--bg);
+      color: var(--text-main);
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .search-wrap input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+    .search-icon {
+      position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+      color: var(--text-muted); font-size: .9rem; pointer-events: none;
+    }
+
+    .nav-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px;
+      border-radius: 99px;
+      font-size: .875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      border: none;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow-md); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-sub);
+      border: 1.5px solid var(--border);
+    }
+    .btn-ghost:hover { background: var(--bg); color: var(--text-main); }
+
+    .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      transition: border-color var(--transition);
+    }
+    .avatar:hover { border-color: var(--primary); }
+    .avatar-placeholder {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366F1, #8B5CF6);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: .8rem; font-weight: 700;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    /* ───────────────────────────────
+       Page Nav Tabs
+    ─────────────────────────────── */
+    .page-tabs {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .page-tabs-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      gap: 0;
+    }
+    .tab {
+      padding: 14px 20px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2.5px solid transparent;
+      transition: all var(--transition);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .tab:hover { color: var(--text-sub); }
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    /* ───────────────────────────────
+       Main Layout
+    ─────────────────────────────── */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* ───────────────────────────────
+       Filter Bar
+    ─────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .filter-label {
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      flex-shrink: 0;
+    }
+    .filter-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      padding: 6px 14px;
+      border-radius: 99px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text-sub);
+      white-space: nowrap;
+    }
+    .chip:hover { border-color: var(--primary); color: var(--primary); }
+    .chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .filter-divider {
+      width: 1px; height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .sort-select {
+      margin-left: auto;
+      padding: 7px 32px 7px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      background: var(--surface);
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+    .sort-select:focus { border-color: var(--primary); }
+
+    /* ───────────────────────────────
+       Section Title
+    ─────────────────────────────── */
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+    .section-count {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    /* ───────────────────────────────
+       Card Grid
+    ─────────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    /* ───────────────────────────────
+       Route Card
+    ─────────────────────────────── */
+    .route-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--transition), box-shadow var(--transition);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+    }
+    .route-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* Cover */
+    .card-cover {
+      position: relative;
+      height: 200px;
+      overflow: hidden;
+    }
+    .card-cover-bg {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform .4s ease;
+    }
+    .route-card:hover .card-cover-bg { transform: scale(1.05); }
+    .card-cover-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,.55));
+    }
+
+    /* Cover badges */
+    .cover-badges {
+      position: absolute;
+      top: 14px; left: 14px;
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-size: .72rem;
+      font-weight: 700;
+      backdrop-filter: blur(8px);
+    }
+    .badge-region {
+      background: rgba(255,255,255,.92);
+      color: var(--primary-dark);
+    }
+    .badge-datrip {
+      background: rgba(245,158,11,.92);
+      color: #fff;
+    }
+    .badge-new {
+      background: rgba(34,197,94,.92);
+      color: #fff;
+    }
+
+    .cover-bookmark-btn {
+      position: absolute;
+      top: 12px; right: 12px;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(8px);
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 1rem;
+      color: var(--text-sub);
+      transition: all var(--transition);
+    }
+    .cover-bookmark-btn:hover {
+      background: #fff;
+      color: var(--accent);
+      transform: scale(1.1);
+    }
+    .cover-bookmark-btn.saved { color: var(--accent); }
+
+    /* Cover bottom info */
+    .cover-bottom {
+      position: absolute;
+      bottom: 12px; left: 14px; right: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cover-duration {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(0,0,0,.5);
+      backdrop-filter: blur(6px);
+      color: #fff;
+      font-size: .78rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 99px;
+    }
+
+    /* Card Body */
+    .card-body {
+      padding: 16px 18px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-desc {
+      font-size: .82rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .tag-pill {
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: .75rem;
+      font-weight: 600;
+      background: #EFF6FF;
+      color: var(--primary);
+    }
+    .tag-pill.theme {
+      background: #FEF3C7;
+      color: #B45309;
+    }
+
+    /* Card Footer */
+    .card-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .user-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .7rem; font-weight: 700; color: #fff;
+    }
+    .user-meta { min-width: 0; }
+    .user-name {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-date {
+      font-size: .72rem;
+      color: var(--text-muted);
+    }
+
+    .card-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .stat:hover { color: var(--text-sub); }
+    .stat-icon { font-size: .85rem; }
+
+    /* ───────────────────────────────
+       Featured Card (first card large)
+    ─────────────────────────────── */
+    .card-featured {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media (max-width: 700px) {
+      .card-featured { grid-template-columns: 1fr; grid-column: 1; }
+    }
+    .card-featured .card-cover { height: 100%; min-height: 240px; }
+    .card-featured .card-body { padding: 24px 24px 16px; justify-content: center; gap: 14px; }
+    .card-featured .card-title { font-size: 1.4rem; -webkit-line-clamp: 3; }
+    .card-featured .card-footer { padding: 16px 24px; }
+
+    /* ───────────────────────────────
+       Day Planner Preview Strip
+    ─────────────────────────────── */
+    .day-strip {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .day-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+    .day-chip-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+      flex-shrink: 0;
+    }
+
+    /* ───────────────────────────────
+       Empty State
+    ─────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state-icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 1.1rem; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; }
+    .empty-state p { font-size: .9rem; }
+
+    /* ───────────────────────────────
+       Load More
+    ─────────────────────────────── */
+    .load-more-wrap {
+      text-align: center;
+      margin-top: 40px;
+    }
+    .btn-load {
+      padding: 12px 36px;
+      border-radius: 99px;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .btn-load:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #EFF6FF;
+    }
+
+    /* ───────────────────────────────
+       Gradient Covers (CSS-only placeholder images)
+    ─────────────────────────────── */
+    .grad-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .grad-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .grad-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .grad-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .grad-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .grad-6 { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
+    .grad-7 { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+    .grad-8 { background: linear-gradient(135deg, #2af598 0%, #009efd 100%); }
+
+    .cover-illust {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 8px; color: rgba(255,255,255,.85); font-size: 2.6rem;
+    }
+    .cover-illust span { font-size: .85rem; font-weight: 700; letter-spacing: .04em; opacity: .9; }
+
+    /* ───────────────────────────────
+       Scrollbar
+    ─────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* ───────────────────────────────
+       Responsive
+    ─────────────────────────────── */
+    @media (max-width: 768px) {
+      .header-inner { padding: 0 16px; gap: 12px; }
+      .search-wrap { max-width: 200px; }
+      .main { padding: 20px 16px; }
+      .card-grid { grid-template-columns: 1fr; gap: 16px; }
+      .card-featured { grid-template-columns: 1fr; }
+      .section-title { font-size: 1.1rem; }
+    }
+
+    /* ───────────────────────────────
+       Interaction — Like button
+    ─────────────────────────────── */
+    .like-btn {
+      display: flex; align-items: center; gap: 4px;
+      background: none; border: none;
+      font-size: .8rem; font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition);
+    }
+    .like-btn:hover { color: var(--danger); background: #FEF2F2; }
+    .like-btn.liked { color: var(--danger); }
+    .like-btn .stat-icon { font-size: .9rem; }
+  </style>
+</head>
+<body>
+
+<!-- ╔══════════════════════════════════════
+     Header
+══════════════════════════════════════╗ -->
+<header class="header">
+  <div class="header-inner">
+    <a class="logo" href="#">
+      <div class="logo-icon">✈</div>
+      TravelMaker
+    </a>
+
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="경로 제목, 지역, 태그 검색..." />
+    </div>
+
+    <div class="nav-actions">
+      <a href="#" class="btn btn-primary">+ 경로 만들기</a>
+      <div class="avatar-placeholder" title="내 프로필">나</div>
+    </div>
+  </div>
+</header>
+
+<!-- ╔══════════════════════════════════════
+     Page Tabs
+══════════════════════════════════════╗ -->
+<nav class="page-tabs">
+  <div class="page-tabs-inner">
+    <a class="tab" href="#">전체 피드</a>
+    <a class="tab active" href="#">인기 경로</a>
+    <a class="tab" href="#">최신 경로</a>
+    <a class="tab" href="#">팔로잉</a>
+    <a class="tab" href="#">내 경로</a>
+  </div>
+</nav>
+
+<!-- ╔══════════════════════════════════════
+     Main Content
+══════════════════════════════════════╗ -->
+<main class="main">
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <span class="filter-label">지역</span>
+    <div class="filter-chips">
+      <span class="chip active">전체</span>
+      <span class="chip">서울</span>
+      <span class="chip">부산</span>
+      <span class="chip">제주</span>
+      <span class="chip">경주</span>
+      <span class="chip">강릉</span>
+    </div>
+    <div class="filter-divider"></div>
+    <div class="filter-chips">
+      <span class="chip">당일치기</span>
+      <span class="chip">1박2일</span>
+      <span class="chip">2박3일+</span>
+    </div>
+    <select class="sort-select">
+      <option>인기순</option>
+      <option>최신순</option>
+      <option>좋아요순</option>
+    </select>
+  </div>
+
+  <!-- Section Title -->
+  <div class="section-head">
+    <h2 class="section-title">인기 여행 경로</h2>
+    <span class="section-count">총 247개</span>
+  </div>
+
+  <!-- Card Grid -->
+  <div class="card-grid">
+
+    <!-- ★ Featured Card (span full width) -->
+    <article class="route-card card-featured">
+      <div class="card-cover">
+        <div class="card-cover-bg grad-1">
+          <div class="cover-illust">🏝️<span>JEJU ISLAND</span></div>
+        </div>
+        <div class="card-cover-overlay"></div>
+        <div class="cover-badges">
+          <span class="badge badge-region">제주</span>
+          <span class="badge badge-new">🔥 인기</span>
+        </div>
+        <button class="cover-bookmark-btn saved" title="저장됨">🔖</button>
+        <div class="cover-bottom">
+          <div class="cover-duration">📅 3박 4일</div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; flex:1;">
+        <div class="card-body">
+          <div class="card-title">제주 3박 4일 — 숨은 해변과 오름 완전 정복 코스</div>
+          <div class="card-desc">
+            관광지는 No, 현지인들이 즐겨 찾는 숨은 명소 위주로 짠 제주 여행 코스입니다.
+            렌터카 없이도 즐길 수 있는 대중교통 루트로 구성했어요.
+          </div>
+          <div class="day-strip">
+            <div class="day-chip"><span class="day-chip-dot"></span>1일차 3곳</div>
+            <div class="day-chip"><span class="day-chip-dot"></span>2일차 4곳</div>
+            <div class="day-chip"><span class="day-chip-dot"></span>3일차 3곳</div>
+            <div class="day-chip"><span class="day-chip-dot"></span>4일차 2곳</div>
+          </div>
+          <div class="card-tags">
+            <span class="tag-pill">제주</span>
+            <span class="tag-pill theme">힐링</span>
+            <span class="tag-pill theme">자연</span>
+            <span class="tag-pill theme">사진명소</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="user-info">
+            <div class="user-avatar" style="background: linear-gradient(135deg,#667eea,#764ba2);">지</div>
+            <div class="user-meta">
+              <div class="user-name">지현이네여행</div>
+              <div class="user-date">2026-06-03</div>
+            </div>
+          </div>
+          <div class="card-stats">
+            <button class="like-btn liked">❤️ 382</button>
+            <div class="stat"><span class="stat-icon">💬</span> 47</div>
+            <div class="stat"><span class="stat-icon">🔖</span> 218</div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card 2 -->
+    <article class="route-card">
+      <div class="card-cover">
+        <div class="card-cover-bg grad-3">
+          <div class="cover-illust">🌊<span>BUSAN</span></div>
+        </div>
+        <div class="card-cover-overlay"></div>
+        <div class="cover-badges">
+          <span class="badge badge-region">부산</span>
+        </div>
+        <button class="cover-bookmark-btn" title="저장하기">🔖</button>
+        <div class="cover-bottom">
+          <div class="cover-duration">📅 1박 2일</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">부산 감성 1박 2일 — 해운대부터 감천까지</div>
+        <div class="card-desc">해운대, 광안리, 감천문화마을을 하루에 다 담은 알찬 부산 여행.</div>
+        <div class="day-strip">
+          <div class="day-chip"><span class="day-chip-dot"></span>1일차 5곳</div>
+          <div class="day-chip"><span class="day-chip-dot"></span>2일차 4곳</div>
+        </div>
+        <div class="card-tags">
+          <span class="tag-pill">부산</span>
+          <span class="tag-pill theme">맛집투어</span>
+          <span class="tag-pill theme">야경</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="user-info">
+          <div class="user-avatar" style="background: linear-gradient(135deg,#4facfe,#00f2fe);">민</div>
+          <div class="user-meta">
+            <div class="user-name">민준여행기</div>
+            <div class="user-date">2026-05-28</div>
+          </div>
+        </div>
+        <div class="card-stats">
+          <button class="like-btn">🤍 156</button>
+          <div class="stat"><span class="stat-icon">💬</span> 23</div>
+          <div class="stat"><span class="stat-icon">🔖</span> 89</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card 3 -->
+    <article class="route-card">
+      <div class="card-cover">
+        <div class="card-cover-bg grad-5">
+          <div class="cover-illust">🏛️<span>GYEONGJU</span></div>
+        </div>
+        <div class="card-cover-overlay"></div>
+        <div class="cover-badges">
+          <span class="badge badge-region">경주</span>
+          <span class="badge badge-datrip">당일치기</span>
+        </div>
+        <button class="cover-bookmark-btn" title="저장하기">🔖</button>
+        <div class="cover-bottom">
+          <div class="cover-duration">📅 당일치기</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">경주 당일치기 — 불국사·첨성대·황리단길 one day</div>
+        <div class="card-desc">서울에서 KTX 타고 당일치기로 경주를 완벽하게 돌아보는 코스.</div>
+        <div class="day-strip">
+          <div class="day-chip"><span class="day-chip-dot"></span>1일차 6곳</div>
+        </div>
+        <div class="card-tags">
+          <span class="tag-pill">경주</span>
+          <span class="tag-pill theme">역사</span>
+          <span class="tag-pill theme">카페</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="user-info">
+          <div class="user-avatar" style="background: linear-gradient(135deg,#fa709a,#fee140);">수</div>
+          <div class="user-meta">
+            <div class="user-name">수빈_travel</div>
+            <div class="user-date">2026-06-01</div>
+          </div>
+        </div>
+        <div class="card-stats">
+          <button class="like-btn">🤍 203</button>
+          <div class="stat"><span class="stat-icon">💬</span> 31</div>
+          <div class="stat"><span class="stat-icon">🔖</span> 127</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card 4 -->
+    <article class="route-card">
+      <div class="card-cover">
+        <div class="card-cover-bg grad-4">
+          <div class="cover-illust">🌲<span>GANGNEUNG</span></div>
+        </div>
+        <div class="card-cover-overlay"></div>
+        <div class="cover-badges">
+          <span class="badge badge-region">강릉</span>
+        </div>
+        <button class="cover-bookmark-btn saved" title="저장됨">🔖</button>
+        <div class="cover-bottom">
+          <div class="cover-duration">📅 2박 3일</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">강릉 커피+바다 2박 3일 힐링 여행</div>
+        <div class="card-desc">강릉의 유명 카페거리와 경포대, 주문진 풍경을 여유롭게 즐기는 코스.</div>
+        <div class="day-strip">
+          <div class="day-chip"><span class="day-chip-dot"></span>1일차 3곳</div>
+          <div class="day-chip"><span class="day-chip-dot"></span>2일차 4곳</div>
+          <div class="day-chip"><span class="day-chip-dot"></span>3일차 2곳</div>
+        </div>
+        <div class="card-tags">
+          <span class="tag-pill">강릉</span>
+          <span class="tag-pill theme">힐링</span>
+          <span class="tag-pill theme">커피</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="user-info">
+          <div class="user-avatar" style="background: linear-gradient(135deg,#43e97b,#38f9d7);">혜</div>
+          <div class="user-meta">
+            <div class="user-name">혜리로그</div>
+            <div class="user-date">2026-05-22</div>
+          </div>
+        </div>
+        <div class="card-stats">
+          <button class="like-btn">🤍 94</button>
+          <div class="stat"><span class="stat-icon">💬</span> 11</div>
+          <div class="stat"><span class="stat-icon">🔖</span> 63</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card 5 -->
+    <article class="route-card">
+      <div class="card-cover">
+        <div class="card-cover-bg grad-2">
+          <div class="cover-illust">🌸<span>SEOUL</span></div>
+        </div>
+        <div class="card-cover-overlay"></div>
+        <div class="cover-badges">
+          <span class="badge badge-region">서울</span>
+          <span class="badge badge-new">NEW</span>
+        </div>
+        <button class="cover-bookmark-btn" title="저장하기">🔖</button>
+        <div class="cover-bottom">
+          <div class="cover-duration">📅 당일치기</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">서울 성수동·뚝섬 힙한 당일 코스</div>
+        <div class="card-desc">2026년 가장 핫한 성수동 팝업과 카페, 한강뷰 루프탑까지 담은 코스.</div>
+        <div class="day-strip">
+          <div class="day-chip"><span class="day-chip-dot"></span>1일차 7곳</div>
+        </div>
+        <div class="card-tags">
+          <span class="tag-pill">서울</span>
+          <span class="tag-pill theme">트렌드</span>
+          <span class="tag-pill theme">카페</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="user-info">
+          <div class="user-avatar" style="background: linear-gradient(135deg,#f093fb,#f5576c);">준</div>
+          <div class="user-meta">
+            <div class="user-name">준혁인스타</div>
+            <div class="user-date">2026-06-07</div>
+          </div>
+        </div>
+        <div class="card-stats">
+          <button class="like-btn">🤍 71</button>
+          <div class="stat"><span class="stat-icon">💬</span> 8</div>
+          <div class="stat"><span class="stat-icon">🔖</span> 44</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card 6 -->
+    <article class="route-card">
+      <div class="card-cover">
+        <div class="card-cover-bg grad-8">
+          <div class="cover-illust">🍁<span>JEONJU</span></div>
+        </div>
+        <div class="card-cover-overlay"></div>
+        <div class="cover-badges">
+          <span class="badge badge-region">전주</span>
+        </div>
+        <button class="cover-bookmark-btn" title="저장하기">🔖</button>
+        <div class="cover-bottom">
+          <div class="cover-duration">📅 1박 2일</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">전주 한옥마을 1박 2일 — 비빔밥부터 막걸리까지</div>
+        <div class="card-desc">전주 한옥마을에서 1박 하며 전통 음식과 문화를 오감으로 체험하는 코스.</div>
+        <div class="day-strip">
+          <div class="day-chip"><span class="day-chip-dot"></span>1일차 4곳</div>
+          <div class="day-chip"><span class="day-chip-dot"></span>2일차 3곳</div>
+        </div>
+        <div class="card-tags">
+          <span class="tag-pill">전주</span>
+          <span class="tag-pill theme">맛집투어</span>
+          <span class="tag-pill theme">전통</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="user-info">
+          <div class="user-avatar" style="background: linear-gradient(135deg,#2af598,#009efd);">은</div>
+          <div class="user-meta">
+            <div class="user-name">은지의맛집지도</div>
+            <div class="user-date">2026-05-15</div>
+          </div>
+        </div>
+        <div class="card-stats">
+          <button class="like-btn liked">❤️ 137</button>
+          <div class="stat"><span class="stat-icon">💬</span> 19</div>
+          <div class="stat"><span class="stat-icon">🔖</span> 88</div>
+        </div>
+      </div>
+    </article>
+
+  </div><!-- /card-grid -->
+
+  <!-- Load More -->
+  <div class="load-more-wrap">
+    <button class="btn-load">더 보기</button>
+  </div>
+
+</main>
+
+<!-- ╔══════════════════════════════════════
+     Simple JS interactions
+══════════════════════════════════════╗ -->
+<script>
+  // Chip toggle
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      const siblings = this.parentElement.querySelectorAll('.chip');
+      siblings.forEach(s => s.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // Like button toggle
+  document.querySelectorAll('.like-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const isLiked = this.classList.toggle('liked');
+      const text = this.textContent;
+      const match = text.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0]);
+        this.innerHTML = (isLiked ? '❤️ ' : '🤍 ') + (isLiked ? num + 1 : num - 1);
+      }
+    });
+  });
+
+  // Bookmark button toggle
+  document.querySelectorAll('.cover-bookmark-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      this.classList.toggle('saved');
+    });
+  });
+
+  // Card click ripple (optional UX)
+  document.querySelectorAll('.route-card').forEach(card => {
+    card.addEventListener('click', function() {
+      this.style.outline = '2px solid var(--primary)';
+      setTimeout(() => { this.style.outline = ''; }, 300);
+    });
+  });
+</script>
+
+</body>
+</html>

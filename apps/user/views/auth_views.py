@@ -36,13 +36,16 @@ logger = logging.getLogger(__name__)
 
 
 def _set_refresh_cookie(response: HttpResponseBase, refresh_token: str) -> None:
+    secure = not settings.DEBUG
     response.set_cookie(
         key=REFRESH_COOKIE,
         value=refresh_token,
         max_age=REFRESH_TTL,
         httponly=True,
-        secure=not settings.DEBUG,
-        samesite="Lax",
+        secure=secure,
+        # 프로덕션(HTTPS)에서 프론트엔드가 다른 도메인일 때 쿠키가 전송되려면 SameSite=None 필요.
+        # SameSite=None 은 반드시 Secure=True 와 함께 사용해야 하므로 개발 환경은 Lax 유지.
+        samesite="None" if secure else "Lax",
         path="/",
     )
 
