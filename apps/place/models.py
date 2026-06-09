@@ -34,7 +34,16 @@ class Place(TimeStampModel):
 
     class Meta:
         db_table = "places"
-        indexes = [models.Index(fields=["place_name"])]
+        indexes = [
+            models.Index(fields=["place_name"]),
+            # 활성 장소의 rating/review(rating_count) 내림차순 정렬 가속(부분 인덱스, id 동률 보조키 포함)
+            models.Index(
+                fields=["-rating_avg", "-id"], condition=models.Q(is_active=True), name="place_active_rating_idx"
+            ),
+            models.Index(
+                fields=["-rating_count", "-id"], condition=models.Q(is_active=True), name="place_active_review_idx"
+            ),
+        ]
         verbose_name = "장소"
         verbose_name_plural = "장소 목록"
 
