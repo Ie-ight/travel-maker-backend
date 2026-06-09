@@ -14,10 +14,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import DatabaseError, transaction
+from django.db.models import Q
 
 from apps.place.models import Place, PlaceImage, PlaceInfo
 from apps.place.services.place_info_mapping import (
     BOOLEAN_FIELDS,
+    INFOCENTER_KEY,
     LODGING_CHECKIN_KEY,
     LODGING_CHECKOUT_KEY,
     LODGING_TYPE_ID,
@@ -34,6 +36,12 @@ DEFAULT_CONTENT_TYPE_IDS: tuple[int, ...] = (12, 14, 15, 28, 32, 38, 39)
 _HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.IGNORECASE)
 _URL_RE = re.compile(r"https?://\S+")
 _HANGUL_TRAIL_RE = re.compile(r"[가-힣]+$")
+# infocenter* 첫 전화번호 패턴: 하이픈형(하이픈 주변 공백 오타 허용) / 특수번호(DDDD-DDDD) / 하이픈
+# 없는 번호(0으로 시작 9~12자리 — 날짜·ID 오인 방지). 앞이 숫자면(중간) 시작 안 함. 라벨·이메일·복수번호·
+# 내선(~N)·축약 둘째번호 등 첫 완전 번호 뒤의 부가 텍스트는 모두 제외된다(첫 대표번호 1개만 남긴다).
+_PHONE_RE = re.compile(r"(?<!\d)(?:\d{2,4} *- *\d{3,4} *- *\d{4}|\d{4} *- *\d{4}|0\d{8,11})")
+#: 4자리 국번 접두(안심·평생번호 등) — bare 번호 하이픈 삽입 시 국번 길이 판정용
+_TEL_AREA4_PREFIXES = frozenset({"0303", "0502", "0503", "0504", "0505", "0506", "0507", "0508"})
 
 
 def _blank_to_none(value: Any) -> str | None:
@@ -67,6 +75,58 @@ def _clean_homepage(value: Any) -> str | None:
     if match:
         return _HANGUL_TRAIL_RE.sub("", match.group(0)) or None
     return None
+
+
+def _hyphenate_bare(digits: str) -> str:
+    """하이픈 없는 전화번호 숫자열(0으로 시작)에 한국 표기 규칙으로 하이픈을 넣는다(국번-중간-끝4).
+
+    국번 길이: 02(서울)=2, 안심·평생번호(0507 등)=4, 그 외(0XX·010·070)=3. 규칙으로 세 토막을 못
+    만드는 비정형(중간 토막 없음)은 원형을 유지한다.
+    """
+    if digits.startswith("02"):
+        area_len = 2
+    elif digits[:4] in _TEL_AREA4_PREFIXES:
+        area_len = 4
+    else:
+        area_len = 3
+    area, body = digits[:area_len], digits[area_len:]
+    if len(body) <= 4:  # 중간 토막이 안 나오는 비정형 → 원형 유지
+        return digits
+    return f"{area}-{body[:-4]}-{body[-4:]}"
+
+
+def _clean_tel(value: Any) -> str | None:
+    """전화번호 원문에서 첫 전화번호만 추출·정규화한다(번호 없으면 None).
+
+    infocenter*는 '062-365-8733'처럼 번호만 오기도 하지만 '○○관광안내소 062-...'처럼 라벨을 달거나,
+    '033-..., email@x', '010-... / 010-...', '031-770-1072~5', '031-770-1072, 1079'처럼 부가 정보·
+    내선·복수 번호가 붙어 오기도 한다. 첫 완전 번호 1개만 뽑아 라벨·이메일·내선(~N)·둘째 번호 등은 모두
+    버린다. 하이픈 주변 공백 오타('02-360- 4351')는 제거하고, 하이픈 없는 번호('0614718500')는 한국
+    표기로 하이픈을 넣는다. 번호가 없으면(순수 텍스트) None을 반환한다.
+    """
+    text = _blank_to_none(value)
+    if text is None:
+        return None
+    match = _PHONE_RE.search(text)
+    if match is None:
+        return None
+    token = match.group(0).replace(" ", "")  # 하이픈 주변 공백 오타 보정
+    return token if "-" in token else _hyphenate_bare(token)
+
+
+def _resolve_tel(content_type_id: int, list_item: dict[str, Any], intro_item: dict[str, Any] | None) -> str | None:
+    """전화번호를 결정한다: detailIntro2 infocenter*(타입별)를 우선, 없으면 목록 tel.
+
+    목록(areaBasedList2) tel은 축제 외 타입에서 거의 비어 오고(실측 0%), 실제 번호는 detailIntro2
+    infocenter*에 온다(실측 ~91%). 축제 등 detailIntro2를 호출하지 않는 타입은 목록 tel을 그대로 쓴다.
+    """
+    if intro_item is not None:
+        key = INFOCENTER_KEY.get(content_type_id)
+        if key is not None:
+            tel = _clean_tel(intro_item.get(key))
+            if tel is not None:
+                return tel
+    return _clean_tel(list_item.get("tel"))
 
 
 def _to_bool(value: Any) -> bool | None:
@@ -109,17 +169,25 @@ def build_place_info_defaults(content_type_id: int, intro_item: dict[str, Any]) 
     return defaults
 
 
-def build_place_defaults(list_item: dict[str, Any], common_item: dict[str, Any] | None) -> dict[str, Any]:
-    """areaBasedList2 항목 + detailCommon2 항목을 Place 필드로 매핑한다(§4)."""
+def build_place_defaults(
+    list_item: dict[str, Any],
+    common_item: dict[str, Any] | None,
+    intro_item: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """areaBasedList2 + detailCommon2(+detailIntro2) 항목을 Place 필드로 매핑한다(§4).
+
+    tel은 목록에 거의 비어 와서 detailIntro2 infocenter*(타입별)를 우선 사용한다(_resolve_tel).
+    """
     common = common_item or {}
+    content_type_id = int(list_item["contenttypeid"])
     return {
         "place_name": _blank_to_none(list_item.get("title")) or "",
-        "content_type_id": int(list_item["contenttypeid"]),
+        "content_type_id": content_type_id,
         "latitude": _to_decimal(list_item.get("mapy")),
         "longitude": _to_decimal(list_item.get("mapx")),
         "address_primary": _blank_to_none(list_item.get("addr1")),
         "address_detail": _blank_to_none(list_item.get("addr2")),
-        "tel": _blank_to_none(list_item.get("tel")),
+        "tel": _resolve_tel(content_type_id, list_item, intro_item),
         "zipcode": _blank_to_none(list_item.get("zipcode")),
         "lcls_systm1": _blank_to_none(list_item.get("lclsSystm1")),
         "lcls_systm2": _blank_to_none(list_item.get("lclsSystm2")),
@@ -334,7 +402,7 @@ def _process_list_item(
     try:
         with transaction.atomic():
             place, created = Place.objects.update_or_create(
-                content_id=content_id, defaults=build_place_defaults(list_item, common)
+                content_id=content_id, defaults=build_place_defaults(list_item, common, intro)
             )
             images_saved = save_images(place, images, firstimage=firstimage, firstimage2=list_item.get("firstimage2"))
             info_saved = 0
@@ -473,3 +541,100 @@ def _safe_area_based_sync_list(
     except TourApiError as exc:
         logger.error("타입 %s page %d 증분 목록 호출 실패, 이 타입 중단: %s", content_type_id, page_no, exc)
         return []
+
+
+@dataclass
+class DetailBackfillSummary:
+    """detailIntro2 백필 결과 요약(tel + PlaceInfo)."""
+
+    target: int = 0  # 대상(빈 tel) 장소 수
+    processed: int = 0  # detailIntro2 호출 성공
+    tel_updated: int = 0  # tel 채운 건수
+    tel_missing: int = 0  # infocenter*가 비어 tel을 못 채움
+    info_created: int = 0  # PlaceInfo 신규 생성
+    info_refreshed: int = 0  # 기존 PlaceInfo 갱신(refresh_info=True일 때만)
+    errors: int = 0  # 호출 실패(다음 실행에서 재시도)
+    aborted: bool = False  # 모든 API 키 한도 소진으로 중단됨
+
+
+def backfill_details(
+    *,
+    content_type_id: int | None = None,
+    limit: int | None = None,
+    dry_run: bool = False,
+    refresh_info: bool = False,
+    client: TourApiClient | None = None,
+) -> DetailBackfillSummary:
+    """tel이 빈 기존 장소를 detailIntro2로 백필한다(tel + 누락 PlaceInfo, 멱등·재개, 신규 수집 없음).
+
+    detailIntro2를 한 번 호출해 (1) infocenter*로 tel을 채우고 (2) PlaceInfo가 없으면 생성한다.
+    refresh_info=True면 기존 PlaceInfo도 새 intro로 갱신한다(기본 False — 누락분만 생성).
+    축제 등 detailIntro2를 호출하지 않는 타입(INFOCENTER_KEY 없음)은 제외한다. tel이 채워지면 다음
+    실행 대상에서 자동으로 빠지므로, 키 한도로 중단(aborted)돼도 다시 실행하면 남은 건부터 이어간다.
+    """
+    api = client or TourApiClient()
+    summary = DetailBackfillSummary()
+
+    queryset = Place.objects.filter(content_type_id__in=INFOCENTER_KEY).filter(Q(tel__isnull=True) | Q(tel=""))
+    if content_type_id is not None:
+        queryset = queryset.filter(content_type_id=content_type_id)
+    queryset = queryset.order_by("id")
+    if limit is not None:
+        queryset = queryset[:limit]
+    # 호출 중 갱신하므로 대상을 먼저 확정한다(쓰기와 커서 동시 진행 회피).
+    targets = list(queryset.values_list("id", "content_id", "content_type_id"))
+    summary.target = len(targets)
+    # 이미 PlaceInfo가 있는 place_id — 신규 생성/갱신 판단용(refresh_info=False면 있는 건 건너뜀)
+    has_info = set(
+        PlaceInfo.objects.filter(place_id__in=[pk for pk, _, _ in targets]).values_list("place_id", flat=True)
+    )
+
+    for pk, content_id, ctype in targets:
+        try:
+            intro = api.detail_intro(content_id, ctype)
+        except AllKeysExhaustedError:
+            summary.aborted = True
+            logger.error(
+                "detailIntro2 백필: 모든 키 한도 소진 — %d건 처리 후 중단(다음 실행에서 재개)", summary.processed
+            )
+            break
+        except TourApiError as exc:
+            summary.errors += 1
+            logger.warning("detailIntro2 백필 호출 실패 content_id=%s: %s", content_id, exc)
+            continue
+        summary.processed += 1
+
+        # (1) tel — infocenter*에서 채운다(빈 곳만이 대상이므로 덮어쓰기 우려 없음)
+        tel = _clean_tel((intro or {}).get(INFOCENTER_KEY[ctype]))
+        if tel is None:
+            summary.tel_missing += 1
+        else:
+            if not dry_run:
+                Place.objects.filter(pk=pk).update(tel=tel)
+            summary.tel_updated += 1
+
+        # (2) PlaceInfo — 누락분 생성(refresh_info면 기존도 갱신)
+        if intro is not None:
+            info_exists = pk in has_info
+            if not info_exists or refresh_info:
+                defaults = build_place_info_defaults(ctype, intro)
+                if defaults is not None:
+                    if not dry_run:
+                        PlaceInfo.objects.update_or_create(place_id=pk, defaults=defaults)
+                    if info_exists:
+                        summary.info_refreshed += 1
+                    else:
+                        summary.info_created += 1
+
+    logger.info(
+        "detailIntro2 백필 완료: 대상 %d·처리 %d·tel채움 %d·tel없음 %d·info생성 %d·info갱신 %d·실패 %d·중단 %s",
+        summary.target,
+        summary.processed,
+        summary.tel_updated,
+        summary.tel_missing,
+        summary.info_created,
+        summary.info_refreshed,
+        summary.errors,
+        summary.aborted,
+    )
+    return summary

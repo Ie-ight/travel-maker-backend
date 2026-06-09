@@ -14,8 +14,10 @@ from apps.place.services.place_sync import (
     SyncSummary,
     _blank_to_none,
     _clean_homepage,
+    _clean_tel,
     _to_bool,
     _to_decimal,
+    backfill_details,
     build_place_defaults,
     build_place_info_defaults,
     save_images,
@@ -233,6 +235,86 @@ class TestBuildPlaceDefaults:
         defaults = build_place_defaults({**LIST_ITEM, "modifiedtime": "20260101120000"}, None)
         assert defaults["source_modified_at"] == "20260101120000"
         assert defaults["is_active"] is True
+
+    def test_tel은_intro_infocenter에서_가져옴(self) -> None:
+        # 목록 tel은 비어 있어도 detailIntro2 infocenter*(타입14=infocenterculture)에서 채운다
+        defaults = build_place_defaults(LIST_ITEM, COMMON_ITEM, INTRO_ITEM_14)
+        assert defaults["tel"] == "0507-1486-4982"
+
+    def test_tel_intro_infocenter_비면_목록tel_폴백(self) -> None:
+        # 축제 등 detailIntro2 미호출(intro=None) 타입은 목록 tel을 그대로 쓴다
+        defaults = build_place_defaults({**LIST_ITEM, "tel": "051-740-3210"}, COMMON_ITEM, None)
+        assert defaults["tel"] == "051-740-3210"
+
+    def test_tel_intro_infocenter_빈값이면_목록tel_폴백(self) -> None:
+        intro = {**INTRO_ITEM_14, "infocenterculture": ""}
+        defaults = build_place_defaults({**LIST_ITEM, "tel": "051-740-3210"}, COMMON_ITEM, intro)
+        assert defaults["tel"] == "051-740-3210"
+
+
+class TestCleanTel:
+    @pytest.mark.parametrize(
+        "raw",
+        ["062-365-8733", "02-3435-0400", "031-6193-2068", "0507-1431-7040", "1899-2154"],
+    )
+    def test_정상_번호는_그대로(self, raw: str) -> None:
+        assert _clean_tel(raw) == raw
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("0614718500", "061-471-8500"),  # 0XX 지역 10자리
+            ("021234567", "02-123-4567"),  # 서울 9자리
+            ("0212345678", "02-1234-5678"),  # 서울 10자리
+            ("01012345678", "010-1234-5678"),  # 휴대폰 11자리
+            ("07012345678", "070-1234-5678"),  # 070 11자리
+            ("050712345678", "0507-1234-5678"),  # 안심번호 4자리 국번 12자리
+        ],
+    )
+    def test_하이픈없는_번호_정규화(self, raw: str, expected: str) -> None:
+        assert _clean_tel(raw) == expected
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [("02-360- 4351", "02-360-4351"), ("031 -770- 1001", "031-770-1001")],
+    )
+    def test_하이픈_주변_공백오타_보정(self, raw: str, expected: str) -> None:
+        assert _clean_tel(raw) == expected
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("031-770-1001~2", "031-770-1001"),  # 내선 ~N 제외
+            ("044-850-0591~0594", "044-850-0591"),
+            ("055-340-7900~01", "055-340-7900"),
+        ],
+    )
+    def test_내선표기_제외(self, raw: str, expected: str) -> None:
+        assert _clean_tel(raw) == expected
+
+    def test_라벨은_제외하고_번호만(self) -> None:
+        assert _clean_tel("광주광역시 관광안내소 062-365-8733") == "062-365-8733"
+        assert _clean_tel("1577-0072 익산시 민원콜센터") == "1577-0072"
+
+    def test_뒤따르는_이메일_제외(self) -> None:
+        assert _clean_tel("033-644-1239, soohotel2005@gmail.com") == "033-644-1239"
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("010-4753-2731 / 033-333-8523", "010-4753-2731"),  # 완전한 둘째 번호 제외
+            ("061-536-2727, 010-9626-5848", "061-536-2727"),
+            ("02-3700-3900<br>02-3700-3901", "02-3700-3900"),
+            ("031-770-1072, 1079", "031-770-1072"),  # 축약 둘째 번호 제외
+            ("02-2153-0310, 0311 (12:00~13:00 점심시간)", "02-2153-0310"),  # 시간 메모 제외
+        ],
+    )
+    def test_복수번호는_첫번째만(self, raw: str, expected: str) -> None:
+        assert _clean_tel(raw) == expected
+
+    @pytest.mark.parametrize("value", ["", "   ", None, "관광안내소 참조", "홈페이지 참조"])
+    def test_번호없으면_None(self, value: Any) -> None:
+        assert _clean_tel(value) is None
 
 
 class TestToBool:
@@ -563,3 +645,109 @@ class TestSyncIncremental:
         second = sync_incremental([14], num_of_rows=1, client=client)
         assert first.created == 1
         assert second.created == 0 and second.skipped_unchanged == 1  # baseline 저장돼 두 번째는 스킵
+
+
+@pytest.mark.django_db
+class TestBackfillDetails:
+    def _place(self, content_id: int, *, content_type_id: int = 14, tel: str | None = None) -> Place:
+        return Place.objects.create(
+            content_id=content_id, content_type_id=content_type_id, place_name=f"P{content_id}", tel=tel
+        )
+
+    def test_빈tel을_infocenter로_채움(self) -> None:
+        self._place(101)
+        self._place(102)
+        client = FakeClient(
+            [],
+            intro_by_id={
+                101: {**INTRO_ITEM_14, "infocenterculture": "042-280-2114"},
+                102: {**INTRO_ITEM_14, "infocenterculture": "광주광역시 관광안내소 062-365-8733"},
+            },
+        )
+        summary = backfill_details(client=client)
+        assert summary.target == 2
+        assert summary.tel_updated == 2
+        assert Place.objects.get(content_id=101).tel == "042-280-2114"
+        # 라벨은 제외되고 번호만 저장된다
+        assert Place.objects.get(content_id=102).tel == "062-365-8733"
+
+    def test_이미_tel있으면_대상아님(self) -> None:
+        self._place(101, tel="02-1234-5678")
+        client = FakeClient([], intro_by_id={101: {**INTRO_ITEM_14, "infocenterculture": "다른번호"}})
+        summary = backfill_details(client=client)
+        assert summary.target == 0
+        assert Place.objects.get(content_id=101).tel == "02-1234-5678"
+
+    def test_축제는_제외(self) -> None:
+        # 축제(15)는 INFOCENTER_KEY 없음 → 대상에서 빠진다
+        self._place(201, content_type_id=15)
+        client = FakeClient([], intro_by_id={201: {"infocenterculture": "x"}})
+        summary = backfill_details(client=client)
+        assert summary.target == 0
+
+    def test_infocenter_비면_tel_못채움(self) -> None:
+        self._place(101)
+        client = FakeClient([], intro_by_id={101: {**INTRO_ITEM_14, "infocenterculture": ""}})
+        summary = backfill_details(client=client)
+        assert summary.processed == 1
+        assert summary.tel_missing == 1
+        assert summary.tel_updated == 0
+        assert Place.objects.get(content_id=101).tel is None
+
+    def test_누락_PlaceInfo_생성(self) -> None:
+        place = self._place(101)
+        assert not PlaceInfo.objects.filter(place=place).exists()
+        client = FakeClient([], intro_by_id={101: INTRO_ITEM_14})
+        summary = backfill_details(client=client)
+        assert summary.info_created == 1
+        info = PlaceInfo.objects.get(place=place)
+        assert info.parking is False  # "불가능"
+        assert info.admission_fee == "1인 5,000원"
+
+    def test_기존_PlaceInfo는_기본적으로_건드리지_않음(self) -> None:
+        place = self._place(101)
+        PlaceInfo.objects.create(place=place, admission_fee="기존값")
+        client = FakeClient([], intro_by_id={101: INTRO_ITEM_14})
+        summary = backfill_details(client=client)
+        assert summary.info_created == 0
+        assert summary.info_refreshed == 0
+        assert PlaceInfo.objects.get(place=place).admission_fee == "기존값"  # 그대로
+
+    def test_refresh_info면_기존_PlaceInfo_갱신(self) -> None:
+        place = self._place(101)
+        PlaceInfo.objects.create(place=place, admission_fee="기존값")
+        client = FakeClient([], intro_by_id={101: INTRO_ITEM_14})
+        summary = backfill_details(client=client, refresh_info=True)
+        assert summary.info_refreshed == 1
+        assert PlaceInfo.objects.get(place=place).admission_fee == "1인 5,000원"  # 갱신됨
+
+    def test_dry_run은_저장안함(self) -> None:
+        place = self._place(101)
+        client = FakeClient([], intro_by_id={101: {**INTRO_ITEM_14, "infocenterculture": "042-280-2114"}})
+        summary = backfill_details(client=client, dry_run=True)
+        assert summary.tel_updated == 1 and summary.info_created == 1  # 카운트는 됨
+        assert Place.objects.get(content_id=101).tel is None
+        assert not PlaceInfo.objects.filter(place=place).exists()
+
+    def test_limit_적용(self) -> None:
+        for cid in (101, 102, 103):
+            self._place(cid)
+        client = FakeClient(
+            [], intro_by_id={c: {**INTRO_ITEM_14, "infocenterculture": "02-3700-3900"} for c in (101, 102, 103)}
+        )
+        summary = backfill_details(limit=2, client=client)
+        assert summary.target == 2
+        assert summary.tel_updated == 2
+
+    def test_키소진시_중단_재개가능(self) -> None:
+        self._place(101)
+        self._place(102)
+
+        class _ExhaustedClient(FakeClient):
+            def detail_intro(self, content_id: int, content_type_id: int) -> dict[str, Any] | None:
+                raise AllKeysExhaustedError("소진")
+
+        summary = backfill_details(client=_ExhaustedClient([]))
+        assert summary.aborted is True
+        assert summary.tel_updated == 0
+        assert Place.objects.get(content_id=101).tel is None  # 저장된 것 없음 → 다음 실행에서 재대상
