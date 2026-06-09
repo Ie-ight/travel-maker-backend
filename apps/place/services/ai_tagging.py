@@ -117,7 +117,7 @@ def _build_user_text(place: Place) -> str:
         f"타입: {type_name}\n"
         f"분류: {lcls}\n"
         f"주소: {place.address_primary or '-'}\n"
-        f"설명(overview):\n{place.description or '(없음)'}"
+        f"설명(overview):\n{(place.description or '')[:1500] or '(없음)'}"
     )
 
 
@@ -215,6 +215,7 @@ def _ollama_generate(user_text: str, *, client: Any, model: str | None) -> str:
             ],
             format="json",  # 유효 JSON 강제
             options={"temperature": 0, "num_predict": 2048},
+            think=False,  # Gemma 4 등 추론 모델의 thinking 차단하여 JSON 출력 예산 소진 방지
         )
     except Exception as exc:  # ollama 연결/추론 오류 일체
         raise AITaggingError(f"Ollama 호출 실패: {exc}") from exc

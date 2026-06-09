@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TravelMaker — 리뷰 게시판</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #3B82F6; --primary-dark: #1D4ED8;
+      --accent: #F59E0B; --surface: #FFFFFF;
+      --bg: #F8FAFC; --border: #E2E8F0;
+      --text-main: #0F172A; --text-sub: #64748B; --text-muted: #94A3B8;
+      --danger: #EF4444; --green: #22C55E;
+      --radius-sm: 6px; --radius-md: 12px; --radius-lg: 20px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.08); --shadow-md: 0 4px 16px rgba(0,0,0,.10); --shadow-lg: 0 10px 40px rgba(0,0,0,.14);
+      --t: .18s ease;
+    }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', -apple-system, sans-serif; background: var(--bg); color: var(--text-main); line-height: 1.6; }
+
+    /* ── Header ── */
+    .header { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .header-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 24px; }
+    .logo { display: flex; align-items: center; gap: 8px; text-decoration: none; font-size: 1.2rem; font-weight: 800; color: var(--primary); letter-spacing: -.5px; flex-shrink: 0; }
+    .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--primary), #6366F1); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1rem; }
+    .search-wrap { flex: 1; max-width: 480px; position: relative; }
+    .search-wrap input { width: 100%; padding: 9px 16px 9px 40px; border: 1.5px solid var(--border); border-radius: 99px; font-size: .9rem; background: var(--bg); color: var(--text-main); outline: none; transition: border-color var(--t), box-shadow var(--t); }
+    .search-wrap input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: .9rem; pointer-events: none; }
+    .nav-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 99px; font-size: .875rem; font-weight: 600; cursor: pointer; transition: all var(--t); border: none; text-decoration: none; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow-md); }
+    .avatar-placeholder { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #6366F1, #8B5CF6); display: flex; align-items: center; justify-content: center; color: #fff; font-size: .8rem; font-weight: 700; flex-shrink: 0; cursor: pointer; }
+
+    /* ── Page Tabs ── */
+    .page-tabs { background: var(--surface); border-bottom: 1px solid var(--border); }
+    .page-tabs-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: flex; }
+    .tab { padding: 14px 20px; font-size: .9rem; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all var(--t); text-decoration: none; white-space: nowrap; }
+    .tab:hover { color: var(--text-sub); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* ── Main Layout ── */
+    .main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: grid; grid-template-columns: 1fr 320px; gap: 32px; }
+    @media (max-width: 900px) { .main { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+    /* ── Filter Bar ── */
+    .filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip { padding: 6px 14px; border-radius: 99px; font-size: .82rem; font-weight: 600; cursor: pointer; transition: all var(--t); border: 1.5px solid var(--border); background: var(--surface); color: var(--text-sub); white-space: nowrap; }
+    .chip:hover { border-color: var(--primary); color: var(--primary); }
+    .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .filter-divider { width: 1px; height: 20px; background: var(--border); }
+    .sort-select { margin-left: auto; padding: 7px 32px 7px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: .85rem; font-weight: 600; color: var(--text-sub); background: var(--surface); cursor: pointer; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+
+    /* ── Section Head ── */
+    .section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
+    .section-title { font-size: 1.2rem; font-weight: 800; }
+    .section-count { font-size: .85rem; font-weight: 600; color: var(--text-muted); }
+
+    /* ── Review List ── */
+    .review-list { display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Review Card ── */
+    .review-card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); overflow: hidden; transition: transform var(--t), box-shadow var(--t); }
+    .review-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+    .review-card-inner { display: flex; gap: 0; }
+
+    /* Rating sidebar */
+    .rating-bar { width: 80px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 20px 12px; }
+    .rating-big { font-size: 2rem; font-weight: 900; line-height: 1; }
+    .stars { display: flex; gap: 2px; }
+    .star { font-size: .8rem; }
+    .star.filled { color: var(--accent); }
+    .star.empty { color: var(--border); }
+
+    .review-card-body { flex: 1; padding: 18px 18px 14px 0; }
+
+    /* Place info */
+    .place-info { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .place-thumb { width: 48px; height: 48px; border-radius: var(--radius-md); object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+    .place-meta { min-width: 0; }
+    .place-name { font-size: .95rem; font-weight: 800; color: var(--text-main); }
+    .place-region { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+
+    .review-content { font-size: .88rem; color: var(--text-sub); line-height: 1.6; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .review-img-strip { display: flex; gap: 8px; margin-bottom: 12px; }
+    .review-img { width: 72px; height: 72px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid var(--border); }
+
+    .review-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tag-pill { padding: 3px 10px; border-radius: 99px; font-size: .74rem; font-weight: 600; }
+    .tag-pill.blue { background: #EFF6FF; color: var(--primary); }
+    .tag-pill.amber { background: #FEF3C7; color: #B45309; }
+    .tag-pill.green { background: #F0FDF4; color: #15803D; }
+
+    .review-footer { display: flex; align-items: center; justify-content: space-between; }
+    .user-info { display: flex; align-items: center; gap: 8px; }
+    .user-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .user-name { font-size: .82rem; font-weight: 700; color: var(--text-main); }
+    .user-date { font-size: .72rem; color: var(--text-muted); }
+    .review-actions { display: flex; align-items: center; gap: 10px; }
+    .action-btn { display: flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 600; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: var(--radius-sm); transition: all var(--t); }
+    .action-btn:hover { color: var(--primary); background: #EFF6FF; }
+    .action-btn.liked { color: var(--danger); }
+    .action-btn.liked:hover { background: #FEF2F2; }
+
+    /* ── Featured big review ── */
+    .review-card.featured .review-card-inner { flex-direction: column; }
+    .review-card.featured .rating-bar { flex-direction: row; width: 100%; justify-content: flex-start; padding: 16px 18px 0; gap: 12px; }
+    .review-card.featured .review-card-body { padding: 12px 18px 16px; }
+    .featured-cover { width: 100%; height: 180px; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 14px; display: flex; align-items: center; justify-content: center; font-size: 3rem; }
+
+    /* ── Write Review CTA ── */
+    .write-cta { background: linear-gradient(135deg, #3B82F6, #6366F1); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .write-cta-text h3 { font-size: 1rem; font-weight: 800; margin-bottom: 4px; }
+    .write-cta-text p { font-size: .83rem; opacity: .85; }
+    .btn-white { background: #fff; color: var(--primary); font-size: .85rem; font-weight: 700; padding: 9px 20px; border-radius: 99px; border: none; cursor: pointer; flex-shrink: 0; transition: all var(--t); }
+    .btn-white:hover { box-shadow: var(--shadow-md); }
+
+    /* ── Sidebar ── */
+    .sidebar { display: flex; flex-direction: column; gap: 20px; }
+    .sidebar-card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 20px; }
+    .sidebar-title { font-size: .95rem; font-weight: 800; margin-bottom: 14px; }
+
+    /* Top Places */
+    .place-rank-list { display: flex; flex-direction: column; gap: 12px; }
+    .place-rank-item { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .place-rank-item:hover .place-rank-name { color: var(--primary); }
+    .rank-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 800; flex-shrink: 0; }
+    .rank-num.top { background: var(--accent); color: #fff; }
+    .rank-num.normal { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+    .place-rank-thumb { width: 44px; height: 44px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+    .place-rank-info { flex: 1; min-width: 0; }
+    .place-rank-name { font-size: .85rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .place-rank-meta { display: flex; align-items: center; gap: 8px; }
+    .place-rank-rating { font-size: .75rem; color: var(--accent); font-weight: 700; }
+    .place-rank-count { font-size: .72rem; color: var(--text-muted); }
+
+    /* Rating Distribution */
+    .rating-dist { display: flex; flex-direction: column; gap: 6px; }
+    .dist-row { display: flex; align-items: center; gap: 8px; }
+    .dist-label { font-size: .78rem; font-weight: 600; color: var(--text-sub); width: 24px; flex-shrink: 0; text-align: right; }
+    .dist-bar-wrap { flex: 1; height: 8px; background: var(--bg); border-radius: 99px; overflow: hidden; }
+    .dist-bar { height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s ease; }
+    .dist-count { font-size: .72rem; color: var(--text-muted); width: 28px; flex-shrink: 0; }
+
+    /* Recent Activity */
+    .activity-list { display: flex; flex-direction: column; gap: 10px; }
+    .activity-item { display: flex; align-items: flex-start; gap: 10px; }
+    .activity-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: #fff; }
+    .activity-text { font-size: .8rem; color: var(--text-sub); line-height: 1.5; }
+    .activity-text strong { color: var(--text-main); font-weight: 700; }
+    .activity-time { font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Pagination ── */
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 32px; }
+    .page-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--surface); font-size: .85rem; font-weight: 600; color: var(--text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--t); }
+    .page-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .page-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .page-btn.arrow { font-size: 1rem; }
+
+    /* ── Gradient covers ── */
+    .g1 { background: linear-gradient(135deg,#667eea,#764ba2); }
+    .g2 { background: linear-gradient(135deg,#f093fb,#f5576c); }
+    .g3 { background: linear-gradient(135deg,#4facfe,#00f2fe); }
+    .g4 { background: linear-gradient(135deg,#43e97b,#38f9d7); }
+    .g5 { background: linear-gradient(135deg,#fa709a,#fee140); }
+    .g6 { background: linear-gradient(135deg,#a18cd1,#fbc2eb); }
+    .g7 { background: linear-gradient(135deg,#ffecd2,#fcb69f); }
+    .g8 { background: linear-gradient(135deg,#2af598,#009efd); }
+
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-inner">
+    <a class="logo" href="#"><div class="logo-icon">✈</div>TravelMaker</a>
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="장소명, 지역, 태그 검색..." />
+    </div>
+    <div class="nav-actions">
+      <a href="#" class="btn btn-primary">✏️ 리뷰 쓰기</a>
+      <div class="avatar-placeholder" title="내 프로필">나</div>
+    </div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="page-tabs">
+  <div class="page-tabs-inner">
+    <a class="tab" href="#">경로 피드</a>
+    <a class="tab active" href="#">리뷰 게시판</a>
+    <a class="tab" href="#">팔로잉</a>
+    <a class="tab" href="#">내 리뷰</a>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <div class="content-area">
+
+    <!-- Write CTA -->
+    <div class="write-cta">
+      <div class="write-cta-text">
+        <h3>여행 다녀오셨나요? 솔직한 리뷰를 남겨보세요 🙌</h3>
+        <p>내 경험을 공유하면 다른 여행자에게 큰 도움이 됩니다</p>
+      </div>
+      <button class="btn-white">리뷰 작성하기</button>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-chips">
+        <span class="chip active">전체</span>
+        <span class="chip">서울</span>
+        <span class="chip">부산</span>
+        <span class="chip">제주</span>
+        <span class="chip">경주</span>
+        <span class="chip">강릉</span>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-chips">
+        <span class="chip">⭐ 5점</span>
+        <span class="chip">⭐ 4점+</span>
+        <span class="chip">📸 사진 있음</span>
+      </div>
+      <select class="sort-select">
+        <option>최신순</option>
+        <option>평점 높은순</option>
+        <option>좋아요순</option>
+        <option>댓글 많은순</option>
+      </select>
+    </div>
+
+    <!-- Section Head -->
+    <div class="section-head">
+      <h2 class="section-title">전체 리뷰</h2>
+      <span class="section-count">총 1,842개</span>
+    </div>
+
+    <!-- Review List -->
+    <div class="review-list">
+
+      <!-- Featured Review -->
+      <div class="review-card featured">
+        <div class="review-card-inner">
+          <div class="rating-bar">
+            <div style="font-size:1.8rem;font-weight:900;color:#0F172A;">5.0</div>
+            <div class="stars">
+              <span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span>
+            </div>
+          </div>
+          <div class="review-card-body">
+            <div class="featured-cover g1"><span style="font-size:3.5rem;">🌊</span></div>
+            <div class="place-info">
+              <div class="place-thumb g3" style="border-radius:8px;">🐟</div>
+              <div class="place-meta">
+                <div class="place-name">자갈치 시장</div>
+                <div class="place-region">📍 부산 중구 · 전통시장</div>
+              </div>
+            </div>
+            <div class="review-tags">
+              <span class="tag-pill blue">부산</span>
+              <span class="tag-pill amber">맛집투어</span>
+              <span class="tag-pill green">가성비최고</span>
+            </div>
+            <p class="review-content" style="-webkit-line-clamp:4;">
+              부산에 갔으면 자갈치는 필수! 아침 일찍 가서 싱싱한 회를 먹었는데 정말 감동이었어요.
+              활어 직판장이라 가격도 시중의 절반 수준이고, 상인 분들도 친절하게 추천해주셔서 좋았습니다.
+              특히 2층 식당가에서 먹는 뷰가 최고였어요. 부산을 대표하는 시장이니 꼭 들러보세요 🐟
+            </p>
+            <div class="review-img-strip">
+              <div class="review-img g3">🐟</div>
+              <div class="review-img g1">🦞</div>
+              <div class="review-img g5">🌊</div>
+            </div>
+            <div class="review-footer">
+              <div class="user-info">
+                <div class="user-avatar" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">민</div>
+                <div>
+                  <div class="user-name">민준여행기</div>
+                  <div class="user-date">2026-06-05</div>
+                </div>
+              </div>
+              <div class="review-actions">
+                <button class="action-btn liked">❤️ 124</button>
+                <button class="action-btn">💬 18</button>
+                <button class="action-btn">🔗 공유</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review 2 -->
+      <div class="review-card">
+        <div class="review-card-inner">
+          <div class="rating-bar" style="background:#FFFBEB;">
+            <div class="rating-big" style="color:#0F172A;">4.0</div>
+            <div class="stars">
+              <span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star empty">★</span>
+            </div>
+          </div>
+          <div class="review-card-body">
+            <div class="place-info">
+              <div class="place-thumb g1" style="border-radius:8px;">🏛️</div>
+              <div class="place-meta">
+                <div class="place-name">불국사</div>
+                <div class="place-region">📍 경상북도 경주시 · 문화유산</div>
+              </div>
+            </div>
+            <div class="review-tags">
+              <span class="tag-pill blue">경주</span>
+              <span class="tag-pill amber">역사탐방</span>
+            </div>
+            <p class="review-content">
+              유네스코 세계문화유산답게 정말 웅장하고 아름다웠어요. 아침 일찍 방문하면 사람도 적고 사진도 잘 찍혀요.
+              단, 주차 공간이 협소하니 대중교통 추천합니다.
+            </p>
+            <div class="review-footer">
+              <div class="user-info">
+                <div class="user-avatar" style="background:linear-gradient(135deg,#fa709a,#fee140);">수</div>
+                <div>
+                  <div class="user-name">수빈_travel</div>
+                  <div class="user-date">2026-06-02</div>
+                </div>
+              </div>
+              <div class="review-actions">
+                <button class="action-btn">🤍 87</button>
+                <button class="action-btn">💬 9</button>
+                <button class="action-btn">🔗 공유</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review 3 -->
+      <div class="review-card">
+        <div class="review-card-inner">
+          <div class="rating-bar" style="background:#F0FDF4;">
+            <div class="rating-big" style="color:#0F172A;">5.0</div>
+            <div class="stars">
+              <span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span>
+            </div>
+          </div>
+          <div class="review-card-body">
+            <div class="place-info">
+              <div class="place-thumb g4" style="border-radius:8px;">☕</div>
+              <div class="place-meta">
+                <div class="place-name">테라로사 커피공장</div>
+                <div class="place-region">📍 강원도 강릉시 · 카페</div>
+              </div>
+            </div>
+            <div class="review-tags">
+              <span class="tag-pill blue">강릉</span>
+              <span class="tag-pill amber">커피성지</span>
+              <span class="tag-pill green">인스타감성</span>
+            </div>
+            <p class="review-content">
+              강릉 커피 여행의 필수 코스! 공장 느낌의 인테리어가 독특하고 커피 퀄리티는 두말할 것 없이 최고예요.
+              바깥 테라스에 앉아서 마시는 아메리카노 한 잔은 정말 힐링 그 자체입니다.
+            </p>
+            <div class="review-img-strip">
+              <div class="review-img g4">☕</div>
+              <div class="review-img g8">🌿</div>
+            </div>
+            <div class="review-footer">
+              <div class="user-info">
+                <div class="user-avatar" style="background:linear-gradient(135deg,#43e97b,#38f9d7);">혜</div>
+                <div>
+                  <div class="user-name">혜리로그</div>
+                  <div class="user-date">2026-05-30</div>
+                </div>
+              </div>
+              <div class="review-actions">
+                <button class="action-btn liked">❤️ 203</button>
+                <button class="action-btn">💬 31</button>
+                <button class="action-btn">🔗 공유</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review 4 -->
+      <div class="review-card">
+        <div class="review-card-inner">
+          <div class="rating-bar" style="background:#FFF1F2;">
+            <div class="rating-big" style="color:#0F172A;">3.0</div>
+            <div class="stars">
+              <span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star empty">★</span><span class="star empty">★</span>
+            </div>
+          </div>
+          <div class="review-card-body">
+            <div class="place-info">
+              <div class="place-thumb g6" style="border-radius:8px;">🎡</div>
+              <div class="place-meta">
+                <div class="place-name">에버랜드</div>
+                <div class="place-region">📍 경기도 용인시 · 테마파크</div>
+              </div>
+            </div>
+            <div class="review-tags">
+              <span class="tag-pill blue">경기</span>
+              <span class="tag-pill amber">가족여행</span>
+            </div>
+            <p class="review-content">
+              어트랙션 자체는 재밌지만 주말 대기 시간이 너무 길었어요. T익스프레스 2시간, 아마존 1시간 반...
+              평일 방문을 강력 추천합니다. 음식 가격도 좀 부담스럽네요.
+            </p>
+            <div class="review-footer">
+              <div class="user-info">
+                <div class="user-avatar" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);">지</div>
+                <div>
+                  <div class="user-name">지현이네여행</div>
+                  <div class="user-date">2026-05-25</div>
+                </div>
+              </div>
+              <div class="review-actions">
+                <button class="action-btn">🤍 42</button>
+                <button class="action-btn">💬 15</button>
+                <button class="action-btn">🔗 공유</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review 5 -->
+      <div class="review-card">
+        <div class="review-card-inner">
+          <div class="rating-bar" style="background:#EFF6FF;">
+            <div class="rating-big" style="color:#0F172A;">4.5</div>
+            <div class="stars">
+              <span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star filled">★</span><span class="star" style="color:#F59E0B;font-size:.8rem;">½</span>
+            </div>
+          </div>
+          <div class="review-card-body">
+            <div class="place-info">
+              <div class="place-thumb g2" style="border-radius:8px;">🌸</div>
+              <div class="place-meta">
+                <div class="place-name">성산 일출봉</div>
+                <div class="place-region">📍 제주 서귀포시 · 자연경관</div>
+              </div>
+            </div>
+            <div class="review-tags">
+              <span class="tag-pill blue">제주</span>
+              <span class="tag-pill amber">자연</span>
+              <span class="tag-pill green">일출명소</span>
+            </div>
+            <p class="review-content">
+              제주 여행의 하이라이트! 새벽 5시에 올라가서 일출을 보았는데 정말 평생 잊지 못할 풍경이었습니다.
+              올라가는 계단이 좀 힘들지만 정상에서 보이는 분화구와 바다 경치는 그 이상의 보람이 있어요.
+            </p>
+            <div class="review-img-strip">
+              <div class="review-img g2">🌸</div>
+              <div class="review-img g5">🌄</div>
+              <div class="review-img g1">🌊</div>
+            </div>
+            <div class="review-footer">
+              <div class="user-info">
+                <div class="user-avatar" style="background:linear-gradient(135deg,#f093fb,#f5576c);">준</div>
+                <div>
+                  <div class="user-name">준혁인스타</div>
+                  <div class="user-date">2026-06-07</div>
+                </div>
+              </div>
+              <div class="review-actions">
+                <button class="action-btn liked">❤️ 178</button>
+                <button class="action-btn">💬 24</button>
+                <button class="action-btn">🔗 공유</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /review-list -->
+
+    <!-- Pagination -->
+    <div class="pagination">
+      <button class="page-btn arrow">‹</button>
+      <button class="page-btn active">1</button>
+      <button class="page-btn">2</button>
+      <button class="page-btn">3</button>
+      <button class="page-btn">4</button>
+      <button class="page-btn">5</button>
+      <span style="color:var(--text-muted);padding:0 4px;">…</span>
+      <button class="page-btn">46</button>
+      <button class="page-btn arrow">›</button>
+    </div>
+
+  </div><!-- /content-area -->
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <!-- Top Rated Places -->
+    <div class="sidebar-card">
+      <div class="sidebar-title">🏆 이번 주 인기 장소</div>
+      <div class="place-rank-list">
+        <div class="place-rank-item">
+          <span class="rank-num top">1</span>
+          <div class="place-rank-thumb g3">🐟</div>
+          <div class="place-rank-info">
+            <div class="place-rank-name">자갈치 시장</div>
+            <div class="place-rank-meta">
+              <span class="place-rank-rating">★ 4.8</span>
+              <span class="place-rank-count">리뷰 384개</span>
+            </div>
+          </div>
+        </div>
+        <div class="place-rank-item">
+          <span class="rank-num top">2</span>
+          <div class="place-rank-thumb g4">☕</div>
+          <div class="place-rank-info">
+            <div class="place-rank-name">테라로사 커피공장</div>
+            <div class="place-rank-meta">
+              <span class="place-rank-rating">★ 4.7</span>
+              <span class="place-rank-count">리뷰 291개</span>
+            </div>
+          </div>
+        </div>
+        <div class="place-rank-item">
+          <span class="rank-num top">3</span>
+          <div class="place-rank-thumb g2">🌸</div>
+          <div class="place-rank-info">
+            <div class="place-rank-name">성산 일출봉</div>
+            <div class="place-rank-meta">
+              <span class="place-rank-rating">★ 4.6</span>
+              <span class="place-rank-count">리뷰 512개</span>
+            </div>
+          </div>
+        </div>
+        <div class="place-rank-item">
+          <span class="rank-num normal">4</span>
+          <div class="place-rank-thumb g1">🏛️</div>
+          <div class="place-rank-info">
+            <div class="place-rank-name">불국사</div>
+            <div class="place-rank-meta">
+              <span class="place-rank-rating">★ 4.5</span>
+              <span class="place-rank-count">리뷰 203개</span>
+            </div>
+          </div>
+        </div>
+        <div class="place-rank-item">
+          <span class="rank-num normal">5</span>
+          <div class="place-rank-thumb g5">🌊</div>
+          <div class="place-rank-info">
+            <div class="place-rank-name">광안리 해수욕장</div>
+            <div class="place-rank-meta">
+              <span class="place-rank-rating">★ 4.4</span>
+              <span class="place-rank-count">리뷰 167개</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rating Distribution -->
+    <div class="sidebar-card">
+      <div class="sidebar-title">📊 전체 평점 분포</div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;">
+        <div style="font-size:2.8rem;font-weight:900;color:#0F172A;line-height:1;">4.2</div>
+        <div>
+          <div class="stars" style="gap:3px;">
+            <span class="star filled" style="font-size:1rem;">★</span><span class="star filled" style="font-size:1rem;">★</span><span class="star filled" style="font-size:1rem;">★</span><span class="star filled" style="font-size:1rem;">★</span><span class="star empty" style="font-size:1rem;">★</span>
+          </div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:4px;">1,842개 리뷰 기준</div>
+        </div>
+      </div>
+      <div class="rating-dist">
+        <div class="dist-row"><span class="dist-label">5★</span><div class="dist-bar-wrap"><div class="dist-bar" style="width:62%;background:#22C55E;"></div></div><span class="dist-count">1,142</span></div>
+        <div class="dist-row"><span class="dist-label">4★</span><div class="dist-bar-wrap"><div class="dist-bar" style="width:22%;"></div></div><span class="dist-count">405</span></div>
+        <div class="dist-row"><span class="dist-label">3★</span><div class="dist-bar-wrap"><div class="dist-bar" style="width:9%;background:#94A3B8;"></div></div><span class="dist-count">166</span></div>
+        <div class="dist-row"><span class="dist-label">2★</span><div class="dist-bar-wrap"><div class="dist-bar" style="width:4%;background:#F87171;"></div></div><span class="dist-count">74</span></div>
+        <div class="dist-row"><span class="dist-label">1★</span><div class="dist-bar-wrap"><div class="dist-bar" style="width:3%;background:#EF4444;"></div></div><span class="dist-count">55</span></div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="sidebar-card">
+      <div class="sidebar-title">⚡ 실시간 리뷰</div>
+      <div class="activity-list">
+        <div class="activity-item">
+          <div class="activity-avatar" style="background:linear-gradient(135deg,#667eea,#764ba2);">아</div>
+          <div>
+            <div class="activity-text"><strong>아영_제주러버</strong>가 <strong>한라산 등반로</strong>에 ⭐5 리뷰를 남겼어요</div>
+            <div class="activity-time">방금 전</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-avatar" style="background:linear-gradient(135deg,#f093fb,#f5576c);">우</div>
+          <div>
+            <div class="activity-text"><strong>우진이여행</strong>가 <strong>광안리 해수욕장</strong>에 ⭐4 리뷰를 남겼어요</div>
+            <div class="activity-time">3분 전</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-avatar" style="background:linear-gradient(135deg,#43e97b,#38f9d7);">소</div>
+          <div>
+            <div class="activity-text"><strong>소연쏘트래블</strong>이 <strong>전주 한옥마을</strong>에 ⭐5 리뷰를 남겼어요</div>
+            <div class="activity-time">12분 전</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-avatar" style="background:linear-gradient(135deg,#fa709a,#fee140);">태</div>
+          <div>
+            <div class="activity-text"><strong>태민_백패커</strong>가 <strong>설악산 국립공원</strong>에 ⭐3 리뷰를 남겼어요</div>
+            <div class="activity-time">24분 전</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div><!-- /main -->
+
+<script>
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      const p = this.parentElement;
+      p.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.action-btn').forEach(btn => {
+    if (btn.textContent.includes('❤') || btn.textContent.includes('🤍')) {
+      btn.addEventListener('click', function() {
+        const liked = this.classList.toggle('liked');
+        const n = parseInt(this.textContent.replace(/\D/g,''));
+        this.textContent = (liked ? '❤️ ' : '🤍 ') + (liked ? n+1 : n-1);
+      });
+    }
+  });
+</script>
+</body>
+</html>

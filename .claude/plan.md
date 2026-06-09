@@ -5,22 +5,54 @@ TravelMaker 백엔드 구현 현황 및 남은 작업 계획.
 
 ---
 
+## 내일 바로 할 일 (2026-06-06 기준)
+
+### Step 1 — PR/브랜치 마무리 (우선)
+
+PR #76 (`feat/sort` → `dev`) CI ✅ 통과, 리뷰 후 머지 대기 중.
+**머지 완료 후 순서대로:**
+
+1. **`feat/quiz-result` push + PR 생성**
+   - 로컬 브랜치에 커밋(`e0d64eb`)은 있으나 push 안 됨
+   - stash도 있음 → `git stash list` 확인 후 필요시 적용
+   - PR base: `dev`
+   - `git push origin feat/quiz-result` → `gh pr create`
+
+2. **`feat/kakao-callback` rebase + PR 업데이트**
+   - 현재 PR base: `feat/sort` (올바름)
+   - feat/sort가 dev에 머지되면 → `git rebase origin/dev` → `git push --force-with-lease`
+   - PR base를 `dev`로 변경: `gh pr edit <번호> --base dev`
+
+### Step 2 — 기능 구현 우선순위
+
+| 순서 | Phase | 내용 | 예상 소요 |
+|---|---|---|---|
+| 1 | Phase 1 | 유저 관심 태그 API | 소 |
+| 2 | Phase 4 | 팔로우 API | 중 |
+| 3 | Phase 5 | 팔로우 피드 API | 중 |
+| 4 | Phase 6 | S3 이미지 업로드 | 중 |
+| 5 | Phase 7 | Celery Beat 증분 동기화 | 소 |
+
+---
+
 ## 현황 요약
 
 | 앱 | 상태 | 비고 |
 |---|---|---|
-| `apps/core` | ✅ 완료 | 공통 모델, 예외 핸들러, 페이지네이션 |
-| `apps/user` — 인증 | ✅ 완료 | 카카오 OAuth2, JWT, refresh, logout, withdrawal, recovery |
+| `apps/core` | ✅ 완료 | 공통 모델, 예외 핸들러, 페이지네이션, Redis 키 관리 |
+| `apps/user` — 인증 | ✅ 완료 | 카카오 OAuth2 백엔드 콜백 방식, JWT, refresh, logout, withdrawal, recovery |
 | `apps/user` — 프로필 | ✅ 완료 | GET/PATCH, 내 북마크 목록, 내 리뷰 목록 |
-| `apps/user` — 팔로우 | 🔲 미구현 | 모델만 존재. API 없음 |
+| `apps/user` — 관심 태그 | 🔲 미구현 | `User.tags` M2M 모델만 존재. API 없음 |
+| `apps/user` — 팔로우 | 🔲 미구현 | `Follow` 모델만 존재. API 없음 |
 | `apps/place` — 장소 CRUD | ✅ 완료 | list, search, filter, detail |
 | `apps/place` — 태그 | ✅ 완료 | 태그 목록 API, 관심 태그 기반 필터 |
 | `apps/place` — 지도 | ✅ 완료 | 마커 목록, 경로(Kakao Mobility 프록시), JS키 |
 | `apps/place` — 데이터 파이프라인 | ✅ 완료 | sync_places, ai_tag, assign_tags 등 management commands |
-| `apps/place` — 추천 API | 🔲 미구현 | pgvector 코사인 유사도 기반 추천 |
+| `apps/place` — 추천 API | ✅ 완료 | pgvector HNSW 코사인 유사도 기반 추천 (`feat/sort` PR #76) |
 | `apps/review` | ✅ 완료 | CRUD, 이미지 Celery 비동기 처리 |
 | `apps/review` — S3 업로드 | 🔲 미구현 | 현재 이미지 URL 직접 저장 |
 | `apps/bookmark` | ✅ 완료 | 생성/삭제 |
+| `apps/travel_quiz` — 퀴즈 결과 | ✅ 완료 | POST/GET `/api/v1/quiz/result` (`feat/quiz-result` 로컬, push 필요) |
 | 증분 동기화 스케줄 | 🔲 미구현 | Celery Beat + `sync_places --sync` |
 
 ---
@@ -31,8 +63,7 @@ TravelMaker 백엔드 구현 현황 및 남은 작업 계획.
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| POST | `kakao/login` | 카카오 로그인 (프론트엔드 주도) |
-| GET | `kakao/callback` | 카카오 콜백 (백엔드 주도) |
+| GET | `kakao/callback` | 카카오 콜백 (백엔드 주도 302 리다이렉트) |
 | POST | `token/refresh` | 액세스 토큰 재발급 |
 | POST | `logout` | 로그아웃 (refresh 토큰 블랙리스트) |
 | DELETE | `withdrawal` | 회원 탈퇴 (soft delete) |
@@ -53,6 +84,7 @@ TravelMaker 백엔드 구현 현황 및 남은 작업 계획.
 | GET | `` | 장소 목록 (페이지네이션) |
 | GET | `search` | 키워드 검색 |
 | GET | `filter` | 태그 필터 |
+| GET | `recommend` | 유저 성향 벡터 기반 추천 (pgvector HNSW) |
 | GET | `<place_id>` | 장소 상세 |
 | GET | `map` | 지도 마커 좌표 목록 |
 | GET | `map/route` | 경로 조회 (Kakao Mobility 프록시) |
@@ -64,6 +96,13 @@ TravelMaker 백엔드 구현 현황 및 남은 작업 계획.
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | GET | `` | 전체 태그 목록 |
+
+### 퀴즈 (`/api/v1/`)
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| POST | `quiz/result` | 퀴즈 결과 저장/갱신 (travel_type_key + result_vector) |
+| GET | `quiz/result` | 내 퀴즈 결과 조회 |
 
 ### 리뷰 (`/api/v1/`)
 
@@ -96,52 +135,20 @@ apps/user/schemas/profile_schema.py           # @extend_schema 추가
 
 ---
 
-### Phase 2 — 유저 성향 설문 + `user_features` 벡터
+### Phase 2 — 유저 성향 설문 + `user_features` 벡터 ✅ 완료 (travel_quiz로 대체)
 
-추천의 핵심 입력값. 설문 결과를 장소 `style_vector`와 동일한 6차원 구조로 저장한다.
-
-**벡터 축 (장소 `style_vector`와 동일)**:
-`[활동성, 계획성, 사교성, 공간지향, 경험지향, 소비스타일]`
-
-- [ ] `UserFeature` 모델 추가 (`User` 1:1, `preference_vector VECTOR(6)`)
-- [ ] 마이그레이션 (`pgvector` 확장 이미 활성화됨)
-- [ ] 설문 문항 설계 (각 축당 슬라이더 or 선택지, 0.0~1.0 환산 로직)
-- [ ] `POST /api/v1/users/me/survey` — 설문 제출 → 벡터 저장
-- [ ] `GET /api/v1/users/me/survey` — 내 성향 벡터 조회
-- [ ] 테스트
-
-구현 파일:
-```
-apps/user/models.py                           # UserFeature 모델
-apps/user/migrations/                         # 마이그레이션
-apps/user/serializers/survey_serializer.py    # 새 파일
-apps/user/services/survey_service.py          # 새 파일 (설문 → 벡터 변환)
-apps/user/views/survey_view.py               # 새 파일
-apps/user/urls/user_urls.py                   # URL 등록
-apps/user/schemas/survey_schema.py           # 새 파일
-```
+`apps/travel_quiz` 앱의 `UserTestResult` 모델(travel_type + result_vector VECTOR(6))로 구현 완료.
+`POST/GET /api/v1/quiz/result` (`feat/quiz-result` 브랜치 — **push/PR 필요**).
 
 ---
 
-### Phase 3 — pgvector 기반 장소 추천 API
+### Phase 3 — pgvector 기반 장소 추천 API ✅ 완료
 
-`PlaceFeature.style_vector`와 `UserFeature.preference_vector` 간 코사인 유사도로 추천.
-Phase 2 완료 후 진행한다.
+`GET /api/v1/places/recommend` 구현 완료 (`feat/sort` PR #76 머지 대기).
 
-- [ ] `GET /api/v1/places/recommend` — 내 성향 기반 추천 (인증 필요)
-  - 쿼리: `ORDER BY style_vector <=> user_vector LIMIT 20`
-  - 필터 옵션: 관심 태그, 지역 (선택)
-- [ ] 비로그인 폴백: 인기순(북마크 수) 반환
-- [ ] 테스트
-
-구현 파일:
-```
-apps/place/services/place_services.py         # 추천 쿼리 함수 추가
-apps/place/views/place_views.py               # PlaceRecommendView 추가
-apps/place/serializers/place_serializers.py   # 기존 PlaceListSerializer 재사용
-apps/place/urls.py                            # URL 등록
-apps/place/schemas/place_schemas.py           # @extend_schema 추가
-```
+- HNSW 인덱스(`vector_cosine_ops`) 활용, `SET LOCAL hnsw.iterative_scan = strict_order`
+- over-fetch(×4) → Python dedup → Place 2차 쿼리 enrichment
+- 비로그인/벡터 없는 경우 인기순(북마크 수) 폴백 + Redis 캐시(TTL 300s)
 
 ---
 
@@ -217,17 +224,13 @@ config/settings/base.py                       # CELERY_BEAT_SCHEDULE 추가
 
 ---
 
-### Phase 8 — Redis 키 관리 (`apps/core/cache.py`)
+### Phase 8 — Redis 키 관리 (`apps/core/cache.py`) ✅ 완료
 
 모든 Redis cache key는 `apps/core/cache.py`에서 생성 함수로 정의한다. 서비스 코드에 문자열 하드코딩 금지.
 
 - [x] `blacklist_key(jti)` → `blacklist:{jti}` (JWT 블랙리스트)
-- [ ] 향후 Redis 용도 추가 시 (추천 캐싱 등) 이 파일에 먼저 키 함수 정의
-
-구현 파일:
-```
-apps/core/cache.py    # Redis 키 정의 모듈 (완료)
-```
+- [x] `popular_places_fallback_key(limit)` → `popular_places:limit:{N}` (추천 폴백 캐시)
+- 향후 Redis 용도 추가 시 이 파일에 먼저 키 함수 정의
 
 ---
 

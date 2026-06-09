@@ -64,6 +64,18 @@ PLACE_INFO_FIELD_MAP: dict[int, dict[str, str]] = {
 #: "불가"/"없음" 포함 시 False, 값 있으면 True, 빈 값이면 None으로 정규화하는 필드.
 BOOLEAN_FIELDS = frozenset({"parking", "pet", "baby_carriage", "credit_card"})
 
+#: detailIntro2의 전화번호(infocenter*) 필드명 → Place.tel. 타입마다 키가 다르다(§3).
+#: tel은 목록(areaBasedList2)에 축제 외엔 거의 빈 값으로 오고, 실제 번호는 detailIntro2 infocenter*에 온다.
+#: 축제(15)·여행코스(25)는 detailIntro2를 호출하지 않으므로(매핑 없음) 목록 tel을 그대로 쓴다.
+INFOCENTER_KEY: dict[int, str] = {
+    12: "infocenter",
+    14: "infocenterculture",
+    28: "infocenterleports",
+    32: "infocenterlodging",
+    38: "infocentershopping",
+    39: "infocenterfood",
+}
+
 #: 숙박은 운영시간이 단일 필드가 아니라 체크인/체크아웃으로 분리돼 온다(place_sync에서 합친다).
 LODGING_TYPE_ID = 32
 LODGING_CHECKIN_KEY = "checkintime"

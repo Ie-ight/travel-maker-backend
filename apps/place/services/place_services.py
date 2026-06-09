@@ -37,7 +37,8 @@ def get_place_list(
 def get_place_detail(place_id: int) -> Place | None:
     # 없으면 None 반환(순수 데이터 접근). "없으면 404" 판단은 뷰가 한다.
     return (
-        Place.objects.prefetch_related("images", "tags")
+        Place.objects.select_related("info")  # 운영정보(PlaceInfo, 역방향 1:1) — 상세 detail용
+        .prefetch_related("images", "tags")
         .annotate(
             # bookmark/review를 동시에 annotate하면 distinct 없이는 곱연산으로 부풀려진다
             bookmark_count=Count("bookmarks", distinct=True),
