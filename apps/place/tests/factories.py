@@ -7,34 +7,34 @@ from apps.place.models import Place, PlaceImage, Tag
 User = get_user_model()
 
 
-class UserFactory(DjangoModelFactory):  # type: ignore[misc]
+class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
 
-    email = factory.Sequence(lambda n: f"u{n}@test.com")  # type: ignore[misc]
-    nickname = factory.Sequence(lambda n: f"u_{n:04d}")  # type: ignore[misc]
+    email = factory.Sequence(lambda n: f"u{n}@test.com")
+    nickname = factory.Sequence(lambda n: f"u_{n:04d}")
     gender = "M"
     birthday = "2000-01-01"
     is_active = True
 
 
-class TagFactory(DjangoModelFactory):  # type: ignore[misc]
+class TagFactory(DjangoModelFactory):
     class Meta:
         model = Tag
 
     tag_type = "분위기"
-    tag_name = factory.Sequence(lambda n: f"tag{n}")  # type: ignore[misc]
+    tag_name = factory.Sequence(lambda n: f"tag{n}")
 
 
-class PlaceFactory(DjangoModelFactory):  # type: ignore[misc]
+class PlaceFactory(DjangoModelFactory):
     class Meta:
         model = Place
         skip_postgeneration_save = True
 
-    place_name = factory.Sequence(lambda n: f"place{n}")  # type: ignore[misc]
+    place_name = factory.Sequence(lambda n: f"place{n}")
     latitude = "37.1234567"
     longitude = "127.1234567"
-    content_id = factory.Sequence(lambda n: n + 1)  # type: ignore[misc]
+    content_id = factory.Sequence(lambda n: n + 1)
     content_type_id = 12
 
     @factory.post_generation
@@ -59,11 +59,11 @@ class PlaceFactory(DjangoModelFactory):  # type: ignore[misc]
         self.tags.add(*TagFactory.create_batch(2))
 
 
-class PlaceImageFactory(DjangoModelFactory):  # type: ignore[misc]
+class PlaceImageFactory(DjangoModelFactory):
     class Meta:
         model = PlaceImage
 
-    place = factory.SubFactory(PlaceFactory)  # type: ignore[misc]
-    image_url = factory.Sequence(lambda n: f"image{n}.jpg")  # type: ignore[misc]
+    place = factory.SubFactory(PlaceFactory)
+    image_url = factory.Sequence(lambda n: f"image{n}.jpg")
     is_main = False
-    order = factory.Sequence(lambda n: n)  # type: ignore[misc]
+    order = factory.Sequence(lambda n: n)

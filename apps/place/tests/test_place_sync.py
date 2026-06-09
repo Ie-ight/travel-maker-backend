@@ -176,40 +176,40 @@ class FakePagedClient:
 
 class TestNormalizers:
     @pytest.mark.parametrize("value", ["", "   ", None])
-    def test_빈값은_None(self, value: Any) -> None:
+    def test_blank_is_none(self, value: Any) -> None:
         assert _blank_to_none(value) is None
 
-    def test_공백제거(self) -> None:
+    def test_strips_whitespace(self) -> None:
         assert _blank_to_none("  가가책방 ") == "가가책방"
 
-    def test_좌표_Decimal_변환(self) -> None:
+    def test_coordinate_to_decimal(self) -> None:
         assert _to_decimal("127.1219749520") == Decimal("127.1219749520")
 
     @pytest.mark.parametrize("value", ["", None, "not-a-number"])
-    def test_숫자아니면_None(self, value: Any) -> None:
+    def test_non_number_is_none(self, value: Any) -> None:
         assert _to_decimal(value) is None
 
-    def test_homepage_앵커에서_URL_추출(self) -> None:
+    def test_homepage_extracts_url_from_anchor(self) -> None:
         assert _clean_homepage(COMMON_ITEM["homepage"]) == "https://brunch.co.kr/@captaindrop"
 
-    def test_homepage_앵커없으면_원문(self) -> None:
+    def test_homepage_plain_url_kept_when_no_anchor(self) -> None:
         assert _clean_homepage("https://example.com") == "https://example.com"
 
-    def test_homepage_빈값은_None(self) -> None:
+    def test_homepage_blank_is_none(self) -> None:
         assert _clean_homepage("") is None
 
-    def test_homepage_평문_복수URL_첫번째만(self) -> None:
+    def test_homepage_plain_text_first_url_only(self) -> None:
         raw = "공식 홈페이지 https://a.com 공식 인스타그램 https://www.instagram.com/abc"
         assert _clean_homepage(raw) == "https://a.com"
 
-    def test_homepage_공백없이_붙은_한글_제거(self) -> None:
+    def test_homepage_strips_trailing_hangul_without_space(self) -> None:
         raw = "공식 홈페이지 https://a.com공식 인스타그램 https://www.instagram.com/abc"
         assert _clean_homepage(raw) == "https://a.com"
 
-    def test_homepage_한글IDN_도메인_보존(self) -> None:
+    def test_homepage_keeps_hangul_idn_domain(self) -> None:
         assert _clean_homepage("https://홈페이지.kr") == "https://홈페이지.kr"
 
-    def test_homepage_URL없는_원문은_None(self) -> None:
+    def test_homepage_text_without_url_is_none(self) -> None:
         assert _clean_homepage("홈페이지 없음") is None
 
 
@@ -217,50 +217,50 @@ class TestCleanInfoText:
     """운영시간 등 자유 텍스트 HTML 정제(<br> → \\n, 태그 제거, 줄바꿈 정규화)."""
 
     @pytest.mark.parametrize("value", ["", "   ", None])
-    def test_빈값은_None(self, value: Any) -> None:
+    def test_blank_is_none(self, value: Any) -> None:
         assert _clean_info_text(value) is None
 
-    def test_마크업없는_단일라인_그대로(self) -> None:
+    def test_plain_single_line_unchanged(self) -> None:
         assert _clean_info_text("09:00~18:00") == "09:00~18:00"
 
     @pytest.mark.parametrize("br", ["<br>", "<br/>", "<br />", "<br >", "<BR>", "<vr>"])
-    def test_br_계열은_줄바꿈으로(self, br: str) -> None:
+    def test_br_variants_become_newline(self, br: str) -> None:
         # <vr>은 실데이터에 있던 <br> 오타
         assert _clean_info_text(f"오전{br}오후") == "오전\n오후"
 
-    def test_깨진_br_unclosed도_줄바꿈으로(self) -> None:
+    def test_unclosed_br_becomes_newline(self) -> None:
         # 실데이터: 닫는 > 대신 <를 친 '<br<' 타이포
         assert _clean_info_text("평일 10:00~20:30<br<주말 10:00~20:00") == "평일 10:00~20:30\n주말 10:00~20:00"
 
     @pytest.mark.parametrize("word", ["a<brunch>b", "a<brb"])
-    def test_br_유사단어는_줄바꿈으로_안바뀜(self, word: str) -> None:
+    def test_br_like_words_not_converted(self, word: str) -> None:
         # br/vr 뒤가 글자면 break로 보지 않는다(<brunch>는 _TAG_RE가 태그로 제거)
         assert _clean_info_text(word) == ("ab" if word == "a<brunch>b" else "a<brb")
 
-    def test_br과_실제줄바꿈_겹쳐도_중복줄바꿈_제거(self) -> None:
+    def test_br_with_real_newline_collapses_blank_line(self) -> None:
         # 실데이터는 대부분 '<br>\n' 형태 — 빈 줄이 생기지 않아야 한다
         raw = "[3월~10월] 09:00 ~ 18:00<br />\n[11월~2월] 09:00 ~ 17:00"
         assert _clean_info_text(raw) == "[3월~10월] 09:00 ~ 18:00\n[11월~2월] 09:00 ~ 17:00"
 
-    def test_여러_br_멀티라인(self) -> None:
+    def test_multiple_br_multiline(self) -> None:
         raw = "[평일]<br>\n10:00~18:00<br>\n[주말]<br>\n10:00~19:00"
         assert _clean_info_text(raw) == "[평일]\n10:00~18:00\n[주말]\n10:00~19:00"
 
-    def test_앵커태그_제거하고_내부텍스트_유지(self) -> None:
+    def test_anchor_tag_removed_keeps_inner_text(self) -> None:
         raw = '이용요금 <a href="https://x.com" target="_blank">홈페이지</a> 참조'
         assert _clean_info_text(raw) == "이용요금 홈페이지 참조"
 
-    def test_줄안_다중공백_정리(self) -> None:
+    def test_collapses_intra_line_spaces(self) -> None:
         assert _clean_info_text("09:00   ~   18:00") == "09:00 ~ 18:00"
 
-    def test_멱등성(self) -> None:
+    def test_idempotent(self) -> None:
         raw = "[평일]<br>\n10:00~18:00"
         once = _clean_info_text(raw)
         assert _clean_info_text(once) == once
 
 
 class TestBuildPlaceDefaults:
-    def test_매핑과_타입변환(self) -> None:
+    def test_mapping_and_type_conversion(self) -> None:
         defaults = build_place_defaults(LIST_ITEM, COMMON_ITEM)
         assert defaults["place_name"] == "가가책방"
         assert defaults["content_type_id"] == 14
@@ -272,28 +272,28 @@ class TestBuildPlaceDefaults:
         assert defaults["homepage"] == "https://brunch.co.kr/@captaindrop"
         assert defaults["lcls_systm1"] == "VE"
 
-    def test_common_없어도_매핑(self) -> None:
+    def test_maps_without_common(self) -> None:
         defaults = build_place_defaults(LIST_ITEM, None)
         assert defaults["description"] is None
         assert defaults["homepage"] is None
 
-    def test_modifiedtime_매핑(self) -> None:
+    def test_maps_modifiedtime(self) -> None:
         # 단계 7: 목록 modifiedtime → source_modified_at, is_active=True
         defaults = build_place_defaults({**LIST_ITEM, "modifiedtime": "20260101120000"}, None)
         assert defaults["source_modified_at"] == "20260101120000"
         assert defaults["is_active"] is True
 
-    def test_tel은_intro_infocenter에서_가져옴(self) -> None:
+    def test_tel_from_intro_infocenter(self) -> None:
         # 목록 tel은 비어 있어도 detailIntro2 infocenter*(타입14=infocenterculture)에서 채운다
         defaults = build_place_defaults(LIST_ITEM, COMMON_ITEM, INTRO_ITEM_14)
         assert defaults["tel"] == "0507-1486-4982"
 
-    def test_tel_intro_infocenter_비면_목록tel_폴백(self) -> None:
+    def test_tel_falls_back_to_list_tel_when_intro_empty(self) -> None:
         # 축제 등 detailIntro2 미호출(intro=None) 타입은 목록 tel을 그대로 쓴다
         defaults = build_place_defaults({**LIST_ITEM, "tel": "051-740-3210"}, COMMON_ITEM, None)
         assert defaults["tel"] == "051-740-3210"
 
-    def test_tel_intro_infocenter_빈값이면_목록tel_폴백(self) -> None:
+    def test_tel_falls_back_to_list_tel_when_intro_blank(self) -> None:
         intro = {**INTRO_ITEM_14, "infocenterculture": ""}
         defaults = build_place_defaults({**LIST_ITEM, "tel": "051-740-3210"}, COMMON_ITEM, intro)
         assert defaults["tel"] == "051-740-3210"
@@ -304,7 +304,7 @@ class TestCleanTel:
         "raw",
         ["062-365-8733", "02-3435-0400", "031-6193-2068", "0507-1431-7040", "1899-2154"],
     )
-    def test_정상_번호는_그대로(self, raw: str) -> None:
+    def test_valid_number_unchanged(self, raw: str) -> None:
         assert _clean_tel(raw) == raw
 
     @pytest.mark.parametrize(
@@ -318,14 +318,14 @@ class TestCleanTel:
             ("050712345678", "0507-1234-5678"),  # 안심번호 4자리 국번 12자리
         ],
     )
-    def test_하이픈없는_번호_정규화(self, raw: str, expected: str) -> None:
+    def test_normalizes_number_without_hyphen(self, raw: str, expected: str) -> None:
         assert _clean_tel(raw) == expected
 
     @pytest.mark.parametrize(
         ("raw", "expected"),
         [("02-360- 4351", "02-360-4351"), ("031 -770- 1001", "031-770-1001")],
     )
-    def test_하이픈_주변_공백오타_보정(self, raw: str, expected: str) -> None:
+    def test_fixes_space_around_hyphen(self, raw: str, expected: str) -> None:
         assert _clean_tel(raw) == expected
 
     @pytest.mark.parametrize(
@@ -336,14 +336,14 @@ class TestCleanTel:
             ("055-340-7900~01", "055-340-7900"),
         ],
     )
-    def test_내선표기_제외(self, raw: str, expected: str) -> None:
+    def test_excludes_extension(self, raw: str, expected: str) -> None:
         assert _clean_tel(raw) == expected
 
-    def test_라벨은_제외하고_번호만(self) -> None:
+    def test_keeps_number_excludes_label(self) -> None:
         assert _clean_tel("광주광역시 관광안내소 062-365-8733") == "062-365-8733"
         assert _clean_tel("1577-0072 익산시 민원콜센터") == "1577-0072"
 
-    def test_뒤따르는_이메일_제외(self) -> None:
+    def test_excludes_trailing_email(self) -> None:
         assert _clean_tel("033-644-1239, soohotel2005@gmail.com") == "033-644-1239"
 
     @pytest.mark.parametrize(
@@ -356,35 +356,35 @@ class TestCleanTel:
             ("02-2153-0310, 0311 (12:00~13:00 점심시간)", "02-2153-0310"),  # 시간 메모 제외
         ],
     )
-    def test_복수번호는_첫번째만(self, raw: str, expected: str) -> None:
+    def test_multiple_numbers_first_only(self, raw: str, expected: str) -> None:
         assert _clean_tel(raw) == expected
 
     @pytest.mark.parametrize("value", ["", "   ", None, "관광안내소 참조", "홈페이지 참조"])
-    def test_번호없으면_None(self, value: Any) -> None:
+    def test_no_number_is_none(self, value: Any) -> None:
         assert _clean_tel(value) is None
 
 
 class TestToBool:
     @pytest.mark.parametrize("value", ["불가", "불가능", "주차 불가능"])
-    def test_불가_포함은_False(self, value: str) -> None:
+    def test_contains_bulga_is_false(self, value: str) -> None:
         assert _to_bool(value) is False
 
     @pytest.mark.parametrize("value", ["없음", "유모차 없음", "주차공간 없음"])
-    def test_없음_포함은_False(self, value: str) -> None:
+    def test_contains_eopseum_is_false(self, value: str) -> None:
         # 실데이터에서 "없음"은 해당 옵션이 없다는 뜻 → 불가(False)
         assert _to_bool(value) is False
 
     @pytest.mark.parametrize("value", ["가능", "주차 가능", "가능 (약 소형 61대)", "있음", "Y"])
-    def test_값_있으면_True(self, value: str) -> None:
+    def test_has_value_is_true(self, value: str) -> None:
         assert _to_bool(value) is True
 
     @pytest.mark.parametrize("value", ["", "   ", None])
-    def test_빈값은_None(self, value: Any) -> None:
+    def test_blank_is_none(self, value: Any) -> None:
         assert _to_bool(value) is None
 
 
 class TestBuildPlaceInfoDefaults:
-    def test_type14_매핑과_boolean정규화(self) -> None:
+    def test_type14_mapping_and_boolean_normalization(self) -> None:
         # 명세 §8 가가책방 예시: 주차 불가, 유료 입장, 반려동물·유아·카드 정보 없음(None)
         defaults = build_place_info_defaults(14, INTRO_ITEM_14)
         assert defaults is not None
@@ -398,10 +398,10 @@ class TestBuildPlaceInfoDefaults:
         assert defaults["spend_time"] is None  # "" → None
         assert defaults["accom_count"] is None
 
-    def test_매핑없는_타입은_None(self) -> None:
+    def test_unmapped_type_is_none(self) -> None:
         assert build_place_info_defaults(15, {"eventstartdate": "20260601"}) is None
 
-    def test_숙박_운영시간_조합(self) -> None:
+    def test_lodging_operating_hours_combined(self) -> None:
         # 숙박(32)은 checkin/checkout을 operating_hours 하나로 합친다
         defaults = build_place_info_defaults(
             32, {"checkintime": "15:00", "checkouttime": "11:00", "parkinglodging": "가능"}
@@ -410,12 +410,12 @@ class TestBuildPlaceInfoDefaults:
         assert defaults["operating_hours"] == "체크인 15:00 / 체크아웃 11:00"
         assert defaults["parking"] is True
 
-    def test_숙박_체크아웃만_있어도_조합(self) -> None:
+    def test_lodging_combines_with_checkout_only(self) -> None:
         defaults = build_place_info_defaults(32, {"checkintime": "", "checkouttime": "11:00"})
         assert defaults is not None
         assert defaults["operating_hours"] == "체크아웃 11:00"
 
-    def test_숙박_둘다_없으면_None(self) -> None:
+    def test_lodging_none_when_both_missing(self) -> None:
         defaults = build_place_info_defaults(32, {"checkintime": "", "checkouttime": ""})
         assert defaults is not None
         assert defaults["operating_hours"] is None
@@ -426,7 +426,7 @@ class TestSaveImages:
     def _place(self) -> Place:
         return Place.objects.create(place_name="p", content_id=1, content_type_id=14)
 
-    def test_detailImage_결과_저장(self) -> None:
+    def test_saves_detail_image_results(self) -> None:
         place = self._place()
         saved = save_images(place, IMAGE_ITEMS, firstimage="fi.jpg", firstimage2="fi2.jpg")
         assert saved == 2
@@ -436,7 +436,7 @@ class TestSaveImages:
         assert images[0].is_main is True
         assert images[1].is_main is False
 
-    def test_detailImage_없으면_firstimage_폴백(self) -> None:
+    def test_falls_back_to_firstimage_without_detail_image(self) -> None:
         place = self._place()
         saved = save_images(place, [], firstimage="http://img/first.jpg", firstimage2="http://img/first2.jpg")
         assert saved == 1
@@ -445,12 +445,12 @@ class TestSaveImages:
         assert image.thumbnail_url == "http://img/first2.jpg"
         assert image.is_main is True
 
-    def test_origin_없으면_small을_대표로(self) -> None:
+    def test_uses_small_as_main_without_origin(self) -> None:
         place = self._place()
         save_images(place, [{"originimgurl": "", "smallimageurl": "http://img/only_small.jpg"}], firstimage="x")
         assert place.images.get().image_url == "http://img/only_small.jpg"
 
-    def test_둘다_빈값이면_skip(self) -> None:
+    def test_skips_when_both_empty(self) -> None:
         place = self._place()
         saved = save_images(place, [{"originimgurl": "", "smallimageurl": ""}], firstimage="x")
         assert saved == 0
@@ -459,7 +459,7 @@ class TestSaveImages:
 
 @pytest.mark.django_db
 class TestSyncArea:
-    def test_firstimage_없는_항목은_skip(self) -> None:
+    def test_skips_item_without_firstimage(self) -> None:
         client = FakeClient([LIST_ITEM, LIST_ITEM_NO_IMAGE], common_by_id={2750143: COMMON_ITEM})
         summary = sync_area(14, client=client)
         assert summary.fetched == 2
@@ -468,7 +468,7 @@ class TestSyncArea:
         assert Place.objects.count() == 1
         assert not Place.objects.filter(content_id=999).exists()
 
-    def test_저장_결과_검증(self) -> None:
+    def test_save_result(self) -> None:
         client = FakeClient(
             [LIST_ITEM],
             common_by_id={2750143: COMMON_ITEM},
@@ -483,14 +483,14 @@ class TestSyncArea:
         assert place.address_detail is None
         assert place.images.count() == 2
 
-    def test_이미지없는_상세는_firstimage_폴백(self) -> None:
+    def test_detail_without_image_falls_back_to_firstimage(self) -> None:
         client = FakeClient([LIST_ITEM], common_by_id={2750143: COMMON_ITEM})  # images 없음
         sync_area(14, client=client)
         image = Place.objects.get(content_id=2750143).images.get()
         assert image.image_url == LIST_ITEM["firstimage"]
         assert image.thumbnail_url == LIST_ITEM["firstimage2"]
 
-    def test_재실행시_멱등_갱신(self) -> None:
+    def test_idempotent_update_on_rerun(self) -> None:
         client = FakeClient([LIST_ITEM], common_by_id={2750143: COMMON_ITEM}, images_by_id={2750143: IMAGE_ITEMS})
         first = sync_area(14, client=client)
         second = sync_area(14, client=client)
@@ -499,7 +499,7 @@ class TestSyncArea:
         assert Place.objects.count() == 1
         assert PlaceImage.objects.filter(place__content_id=2750143).count() == 2  # 중복 저장 없음
 
-    def test_dry_run은_저장하지_않음(self) -> None:
+    def test_dry_run_does_not_save(self) -> None:
         client = FakeClient([LIST_ITEM, LIST_ITEM_NO_IMAGE], common_by_id={2750143: COMMON_ITEM})
         summary = sync_area(14, client=client, dry_run=True)
         assert summary.fetched == 2
@@ -507,7 +507,7 @@ class TestSyncArea:
         assert summary.created == 0
         assert Place.objects.count() == 0
 
-    def test_PlaceInfo_저장(self) -> None:
+    def test_saves_place_info(self) -> None:
         client = FakeClient([LIST_ITEM], common_by_id={2750143: COMMON_ITEM}, intro_by_id={2750143: INTRO_ITEM_14})
         summary = sync_area(14, client=client)
         assert summary.info_saved == 1
@@ -517,7 +517,7 @@ class TestSyncArea:
         assert info.operating_hours == "07:00~24:00"
         assert info.pet is None
 
-    def test_매핑없는_타입은_PlaceInfo_미저장(self) -> None:
+    def test_unmapped_type_skips_place_info(self) -> None:
         # 축제(15)는 매핑 없음 → detailIntro2 미호출, PlaceInfo 생성 안 함 (Place는 저장)
         client = FakeClient([LIST_ITEM_FESTIVAL], intro_by_id={888: INTRO_ITEM_14})
         summary = sync_area(15, client=client)
@@ -525,13 +525,13 @@ class TestSyncArea:
         assert summary.info_saved == 0
         assert PlaceInfo.objects.count() == 0
 
-    def test_PlaceInfo_재실행_멱등(self) -> None:
+    def test_place_info_idempotent_on_rerun(self) -> None:
         client = FakeClient([LIST_ITEM], common_by_id={2750143: COMMON_ITEM}, intro_by_id={2750143: INTRO_ITEM_14})
         sync_area(14, client=client)
         sync_area(14, client=client)
         assert PlaceInfo.objects.filter(place__content_id=2750143).count() == 1
 
-    def test_상세호출_실패시_저장안함(self) -> None:
+    def test_does_not_save_when_detail_call_fails(self) -> None:
         # detail 호출이 실패(429 등)하면 degraded 레코드를 만들지 않고 건너뛴다(다음 run 재시도).
         class _RaisingClient(FakeClient):
             def detail_common(self, content_id: int) -> dict[str, Any] | None:
@@ -543,7 +543,7 @@ class TestSyncArea:
         assert summary.created == 0
         assert Place.objects.count() == 0  # 미완성 레코드 저장 안 됨
 
-    def test_DB저장_실패시_롤백하고_건너뜀(self, monkeypatch: Any) -> None:
+    def test_rolls_back_and_skips_on_db_failure(self, monkeypatch: Any) -> None:
         # 한 레코드의 DB 오류가 전체 run을 중단시키지 않고, 부분 저장 없이 스킵된다.
         from django.db import DatabaseError
 
@@ -559,7 +559,7 @@ class TestSyncArea:
         assert summary.created == 0
         assert Place.objects.count() == 0  # 트랜잭션 롤백 → 부분 저장 없음
 
-    def test_summary_기본값(self) -> None:
+    def test_summary_defaults(self) -> None:
         assert SyncSummary() == SyncSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 
@@ -567,7 +567,7 @@ class TestSyncArea:
 class TestSyncAll:
     """대량 적재 오케스트레이션(단계 6): 다중 타입·끝까지 페이지네이션·재개·상한."""
 
-    def test_여러_타입_순회_누적(self) -> None:
+    def test_iterates_and_accumulates_multiple_types(self) -> None:
         item12 = {**LIST_ITEM, "contentid": "111", "contenttypeid": "12"}
         item14 = {**LIST_ITEM, "contentid": "222", "contenttypeid": "14"}
         client = FakePagedClient(
@@ -578,7 +578,7 @@ class TestSyncAll:
         assert summary.created == 2
         assert Place.objects.filter(content_id__in=[111, 222]).count() == 2
 
-    def test_끝까지_페이지네이션(self) -> None:
+    def test_paginates_to_end(self) -> None:
         a = {**LIST_ITEM, "contentid": "1"}
         b = {**LIST_ITEM, "contentid": "2"}
         c = {**LIST_ITEM, "contentid": "3"}
@@ -588,7 +588,7 @@ class TestSyncAll:
         assert summary.created == 3
         assert client.list_calls == [(14, 1), (14, 2)]
 
-    def test_skip_existing은_기존_스킵(self) -> None:
+    def test_skip_existing_skips_existing(self) -> None:
         Place.objects.create(content_id=555, content_type_id=14, place_name="기존")
         existing = {**LIST_ITEM, "contentid": "555"}
         new = {**LIST_ITEM, "contentid": "666"}
@@ -598,7 +598,7 @@ class TestSyncAll:
         assert summary.created == 1
         assert Place.objects.filter(content_id=666).exists()
 
-    def test_max_pages_상한(self) -> None:
+    def test_max_pages_limit(self) -> None:
         a = {**LIST_ITEM, "contentid": "1"}
         b = {**LIST_ITEM, "contentid": "2"}
         client = FakePagedClient({14: [[a], [b]]}, common_by_id={1: COMMON_ITEM, 2: COMMON_ITEM})
@@ -606,14 +606,14 @@ class TestSyncAll:
         assert client.list_calls == [(14, 1)]  # 1페이지에서 멈춤
         assert summary.created == 1
 
-    def test_arrange_목록호출에_전달(self) -> None:
+    def test_passes_arrange_to_list_call(self) -> None:
         # arrange="C"(수정일순)가 area_based_list까지 전달되는지
         item = {**LIST_ITEM, "contentid": "1"}
         client = FakePagedClient({14: [[item]]}, common_by_id={1: COMMON_ITEM})
         sync_all([14], num_of_rows=1, max_pages=1, arrange="C", client=client)
         assert client.arrange_seen == ["C"]
 
-    def test_모든키_소진시_run_전체_중단(self) -> None:
+    def test_aborts_run_when_all_keys_exhausted(self) -> None:
         # 목록 호출이 AllKeysExhaustedError면 해당 타입만 스킵하지 않고 run 전체가 중단된다.
         attempted: list[int] = []
 
@@ -636,7 +636,7 @@ class TestSyncIncremental:
     def _item(cid: str, *, showflag: str = "1", modifiedtime: str = "20260101000000", **over: Any) -> dict[str, Any]:
         return {**LIST_ITEM, "contentid": cid, "showflag": showflag, "modifiedtime": modifiedtime, **over}
 
-    def test_신규_생성(self) -> None:
+    def test_creates_new(self) -> None:
         client = FakePagedClient({14: [[self._item("1001")]]}, common_by_id={1001: COMMON_ITEM})
         summary = sync_incremental([14], num_of_rows=1, client=client)
         assert summary.created == 1
@@ -644,7 +644,7 @@ class TestSyncIncremental:
         assert p.source_modified_at == "20260101000000"
         assert p.is_active is True
 
-    def test_변경_갱신(self) -> None:
+    def test_updates_changed(self) -> None:
         Place.objects.create(
             content_id=1002, content_type_id=14, place_name="옛이름", source_modified_at="20240101000000"
         )
@@ -656,7 +656,7 @@ class TestSyncIncremental:
         assert p.place_name == "새이름"
         assert p.source_modified_at == "20260101000000"
 
-    def test_미변경_스킵(self) -> None:
+    def test_skips_unchanged(self) -> None:
         Place.objects.create(
             content_id=1003, content_type_id=14, place_name="그대로", source_modified_at="20260101000000"
         )
@@ -666,27 +666,27 @@ class TestSyncIncremental:
         assert summary.created == 0 and summary.updated == 0
         assert Place.objects.get(content_id=1003).place_name == "그대로"  # detail 미호출
 
-    def test_showflag0_소프트삭제(self) -> None:
+    def test_showflag0_soft_deletes(self) -> None:
         Place.objects.create(content_id=1004, content_type_id=14, place_name="삭제될곳")
         client = FakePagedClient({14: [[self._item("1004", showflag="0")]]})
         summary = sync_incremental([14], num_of_rows=1, client=client)
         assert summary.deactivated == 1
         assert Place.objects.get(content_id=1004).is_active is False
 
-    def test_showflag0_DB에없으면_무시(self) -> None:
+    def test_showflag0_ignored_when_not_in_db(self) -> None:
         client = FakePagedClient({14: [[self._item("9999", showflag="0")]]})
         summary = sync_incremental([14], num_of_rows=1, client=client)
         assert summary.deactivated == 0
         assert Place.objects.count() == 0
 
-    def test_dry_run은_저장안함(self) -> None:
+    def test_dry_run_does_not_save(self) -> None:
         Place.objects.create(content_id=1005, content_type_id=14, place_name="x")
         client = FakePagedClient({14: [[self._item("1005", showflag="0")]]})
         summary = sync_incremental([14], num_of_rows=1, dry_run=True, client=client)
         assert summary.deactivated == 1  # 카운트는 됨
         assert Place.objects.get(content_id=1005).is_active is True  # 저장 안 됨
 
-    def test_재실행_멱등_두번째는_미변경(self) -> None:
+    def test_idempotent_rerun_second_unchanged(self) -> None:
         client = FakePagedClient({14: [[self._item("1006")]]}, common_by_id={1006: COMMON_ITEM})
         first = sync_incremental([14], num_of_rows=1, client=client)
         second = sync_incremental([14], num_of_rows=1, client=client)
@@ -701,7 +701,7 @@ class TestBackfillDetails:
             content_id=content_id, content_type_id=content_type_id, place_name=f"P{content_id}", tel=tel
         )
 
-    def test_빈tel을_infocenter로_채움(self) -> None:
+    def test_fills_empty_tel_from_infocenter(self) -> None:
         self._place(101)
         self._place(102)
         client = FakeClient(
@@ -718,21 +718,21 @@ class TestBackfillDetails:
         # 라벨은 제외되고 번호만 저장된다
         assert Place.objects.get(content_id=102).tel == "062-365-8733"
 
-    def test_이미_tel있으면_대상아님(self) -> None:
+    def test_not_targeted_when_tel_exists(self) -> None:
         self._place(101, tel="02-1234-5678")
         client = FakeClient([], intro_by_id={101: {**INTRO_ITEM_14, "infocenterculture": "다른번호"}})
         summary = backfill_details(client=client)
         assert summary.target == 0
         assert Place.objects.get(content_id=101).tel == "02-1234-5678"
 
-    def test_축제는_제외(self) -> None:
+    def test_excludes_festival(self) -> None:
         # 축제(15)는 INFOCENTER_KEY 없음 → 대상에서 빠진다
         self._place(201, content_type_id=15)
         client = FakeClient([], intro_by_id={201: {"infocenterculture": "x"}})
         summary = backfill_details(client=client)
         assert summary.target == 0
 
-    def test_infocenter_비면_tel_못채움(self) -> None:
+    def test_cannot_fill_tel_when_infocenter_empty(self) -> None:
         self._place(101)
         client = FakeClient([], intro_by_id={101: {**INTRO_ITEM_14, "infocenterculture": ""}})
         summary = backfill_details(client=client)
@@ -741,7 +741,7 @@ class TestBackfillDetails:
         assert summary.tel_updated == 0
         assert Place.objects.get(content_id=101).tel is None
 
-    def test_누락_PlaceInfo_생성(self) -> None:
+    def test_creates_missing_place_info(self) -> None:
         place = self._place(101)
         assert not PlaceInfo.objects.filter(place=place).exists()
         client = FakeClient([], intro_by_id={101: INTRO_ITEM_14})
@@ -751,7 +751,7 @@ class TestBackfillDetails:
         assert info.parking is False  # "불가능"
         assert info.admission_fee == "1인 5,000원"
 
-    def test_기존_PlaceInfo는_기본적으로_건드리지_않음(self) -> None:
+    def test_existing_place_info_untouched_by_default(self) -> None:
         place = self._place(101)
         PlaceInfo.objects.create(place=place, admission_fee="기존값")
         client = FakeClient([], intro_by_id={101: INTRO_ITEM_14})
@@ -760,7 +760,7 @@ class TestBackfillDetails:
         assert summary.info_refreshed == 0
         assert PlaceInfo.objects.get(place=place).admission_fee == "기존값"  # 그대로
 
-    def test_refresh_info면_기존_PlaceInfo_갱신(self) -> None:
+    def test_refresh_info_updates_existing_place_info(self) -> None:
         place = self._place(101)
         PlaceInfo.objects.create(place=place, admission_fee="기존값")
         client = FakeClient([], intro_by_id={101: INTRO_ITEM_14})
@@ -768,7 +768,7 @@ class TestBackfillDetails:
         assert summary.info_refreshed == 1
         assert PlaceInfo.objects.get(place=place).admission_fee == "1인 5,000원"  # 갱신됨
 
-    def test_dry_run은_저장안함(self) -> None:
+    def test_dry_run_does_not_save(self) -> None:
         place = self._place(101)
         client = FakeClient([], intro_by_id={101: {**INTRO_ITEM_14, "infocenterculture": "042-280-2114"}})
         summary = backfill_details(client=client, dry_run=True)
@@ -776,7 +776,7 @@ class TestBackfillDetails:
         assert Place.objects.get(content_id=101).tel is None
         assert not PlaceInfo.objects.filter(place=place).exists()
 
-    def test_limit_적용(self) -> None:
+    def test_applies_limit(self) -> None:
         for cid in (101, 102, 103):
             self._place(cid)
         client = FakeClient(
@@ -786,7 +786,7 @@ class TestBackfillDetails:
         assert summary.target == 2
         assert summary.tel_updated == 2
 
-    def test_키소진시_중단_재개가능(self) -> None:
+    def test_aborts_and_resumable_when_keys_exhausted(self) -> None:
         self._place(101)
         self._place(102)
 
