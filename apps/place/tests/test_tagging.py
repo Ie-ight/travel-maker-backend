@@ -33,12 +33,12 @@ def tag_names(place: Place) -> set[str]:
 
 @pytest.mark.django_db
 class TestSeedTags:
-    def test_시드_적재(self) -> None:
+    def test_seeds_loaded(self) -> None:
         call_command("seed_tags")
         assert Tag.objects.count() == sum(len(v) for v in TAG_SEEDS.values()) == 53
         assert set(Tag.objects.values_list("tag_type", flat=True).distinct()) == set(TAG_SEEDS)
 
-    def test_재실행_멱등(self) -> None:
+    def test_idempotent_rerun(self) -> None:
         call_command("seed_tags")
         call_command("seed_tags")
         assert Tag.objects.count() == 53
@@ -56,22 +56,22 @@ class TestRegionParsing:
             ("충청남도 공주시", "충남"),
         ],
     )
-    def test_시도_파싱(self, addr: str, expected: str) -> None:
+    def test_parses_sido(self, addr: str, expected: str) -> None:
         assert _region_tag_name(addr) == expected
 
     @pytest.mark.parametrize("addr", ["", None, "어딘가 외국"])
-    def test_미매칭은_None(self, addr: str | None) -> None:
+    def test_unmatched_is_none(self, addr: str | None) -> None:
         assert _region_tag_name(addr) is None
 
 
 @pytest.mark.django_db
 class TestAssignRegionTag:
-    def test_지역_태그_부여(self, seeded: None) -> None:
+    def test_assigns_region_tag(self, seeded: None) -> None:
         place = make_place("전북특별자치도 익산시")
         assert assign_region_tag(place) == "전북"
         assert tag_names(place) == {"전북"}
 
-    def test_시드_없으면_미부여(self) -> None:  # seeded 미사용
+    def test_not_assigned_without_seed(self) -> None:  # seeded 미사용
         place = make_place("서울특별시 종로구")
         assert assign_region_tag(place) is None
         assert tag_names(place) == set()
@@ -82,30 +82,30 @@ class TestAssignFacilityTags:
     def _info(self, place: Place, **kwargs: object) -> PlaceInfo:
         return PlaceInfo.objects.create(place=place, **kwargs)
 
-    def test_True_필드만_부여(self, seeded: None) -> None:
+    def test_assigns_only_true_fields(self, seeded: None) -> None:
         place = make_place(content_type_id=14)
         self._info(place, parking=True, credit_card=True, pet=False, baby_carriage=None, admission_fee="무료")
         assert set(assign_facility_tags(place)) == {"주차", "카드 결제", "무료"}
 
-    def test_유료면_무료입장_미부여(self, seeded: None) -> None:
+    def test_paid_does_not_assign_free_admission(self, seeded: None) -> None:
         place = make_place(content_type_id=14)
         self._info(place, parking=False, admission_fee="1인 5,000원")
         assert assign_facility_tags(place) == []
 
-    def test_PlaceInfo_없으면_빈리스트(self, seeded: None) -> None:
+    def test_empty_list_without_place_info(self, seeded: None) -> None:
         place = make_place(content_type_id=12)
         assert assign_facility_tags(place) == []
 
 
 @pytest.mark.django_db
 class TestAssignDeterministicTags:
-    def test_지역_편의성_함께_부여(self, seeded: None) -> None:
+    def test_assigns_region_and_facility_together(self, seeded: None) -> None:
         place = make_place("전북특별자치도 익산시", content_type_id=14)
         PlaceInfo.objects.create(place=place, parking=True, admission_fee="무료", credit_card=False)
         assign_deterministic_tags(place)
         assert tag_names(place) == {"전북", "주차", "무료"}
 
-    def test_멱등_재실행(self, seeded: None) -> None:
+    def test_idempotent_rerun(self, seeded: None) -> None:
         place = make_place("서울특별시 종로구", content_type_id=14)
         PlaceInfo.objects.create(place=place, parking=True)
         assign_deterministic_tags(place)
@@ -113,14 +113,14 @@ class TestAssignDeterministicTags:
         assert tag_names(place) == {"서울", "주차"}
         assert place.tags.count() == 2  # 중복 없음
 
-    def test_AI_태그_보존(self, seeded: None) -> None:
+    def test_preserves_ai_tags(self, seeded: None) -> None:
         place = make_place("서울특별시 종로구", content_type_id=14)
         place.tags.add(Tag.objects.get(tag_name="문화"))  # 여행 스타일(AI성)
         assign_deterministic_tags(place)
         assert "문화" in tag_names(place)
         assert "서울" in tag_names(place)
 
-    def test_PlaceInfo_변경_반영(self, seeded: None) -> None:
+    def test_reflects_place_info_change(self, seeded: None) -> None:
         place = make_place("서울특별시 종로구", content_type_id=14)
         info = PlaceInfo.objects.create(place=place, parking=True)
         assign_deterministic_tags(place)

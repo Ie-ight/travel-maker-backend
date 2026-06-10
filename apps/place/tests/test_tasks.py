@@ -6,7 +6,7 @@ from apps.place.services.place_sync import SyncSummary
 from apps.place.tasks import ai_tag_missing_task, sync_incremental_task
 
 
-def test_sync_incremental_task_위임(monkeypatch: Any) -> None:
+def test_sync_incremental_task_delegates(monkeypatch: Any) -> None:
     calls: dict[str, bool] = {}
 
     def fake_sync() -> SyncSummary:
@@ -18,7 +18,7 @@ def test_sync_incremental_task_위임(monkeypatch: Any) -> None:
     assert calls.get("called") is True
 
 
-def test_ai_tag_missing_task_위임(monkeypatch: Any) -> None:
+def test_ai_tag_missing_task_delegates(monkeypatch: Any) -> None:
     # call_command를 가로채 Gemini·일 한도(20)·분당(4)·only-missing로 위임하는지만 확인
     captured: dict[str, Any] = {}
 
