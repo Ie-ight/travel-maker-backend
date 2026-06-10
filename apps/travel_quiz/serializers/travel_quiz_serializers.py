@@ -24,6 +24,7 @@ class PlaceRecommendationSerializer(serializers.ModelSerializer[Place]):
     place_id = serializers.IntegerField(source="id")
     image_url = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
+    style_vector = serializers.SerializerMethodField()
 
     def get_image_url(self, obj: Place) -> str | None:
         image = obj.images.filter(is_main=True).first()
@@ -32,9 +33,12 @@ class PlaceRecommendationSerializer(serializers.ModelSerializer[Place]):
     def get_tags(self, obj: Place) -> list[str]:
         return list(obj.tags.values_list("tag_name", flat=True))
 
+    def get_style_vector(self, obj: Place) -> list[float]:
+        return [round(float(v), 2) for v in obj.place_feature.style_vector]
+
     class Meta:
         model = Place
-        fields = ["place_id", "place_name", "description", "image_url", "tags"]
+        fields = ["place_id", "place_name", "description", "image_url", "tags", "style_vector"]
 
 
 class DetailCardSerializer(serializers.Serializer):  # type: ignore[type-arg]

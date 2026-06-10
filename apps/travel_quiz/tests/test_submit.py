@@ -98,3 +98,4 @@ class TestQuizSubmit:
         assert 1 <= len(response.data["destinations"]) <= 3
         assert response.data["destinations"][0]["place_id"] == place.id
         assert response.data["destinations"][0]["tags"]
+        assert response.data["destinations"][0]["style_vector"] == [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
