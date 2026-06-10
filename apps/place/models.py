@@ -75,6 +75,9 @@ class Tag(models.Model):
         verbose_name = "태그"
         verbose_name_plural = "태그 목록"
 
+    def __str__(self) -> str:
+        return self.tag_name
+
 
 class PlaceInfo(models.Model):
     """detailIntro2 기반 운영 정보. Place와 1:1, 선택적(호출 전/실패해도 Place는 독립 동작)."""

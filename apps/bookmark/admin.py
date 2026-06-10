@@ -1,13 +1,1 @@
-from django.contrib import admin
-
-from apps.bookmark.models import Bookmark
-from apps.core.admin import BaseAdmin
-
-
-@admin.register(Bookmark)
-class BookmarkAdmin(BaseAdmin):
-    list_display = ["id", "user", "place", "created_at"]
-    list_display_links = ["id"]
-    search_fields = ["user__nickname", "place__place_name"]
-    readonly_fields = ["created_at"]
-    list_select_related = ["user", "place"]
+# Bookmark는 User 상세("저장한 장소")·Place 상세("저장한 유저") 인라인에서 보므로 독립 admin(메뉴 항목)은 두지 않는다.
