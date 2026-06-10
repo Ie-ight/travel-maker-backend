@@ -6,9 +6,8 @@ from pgvector.django import VectorField
 class TravelType(models.Model):
     type_key = models.CharField(max_length=3, unique=True)
     name = models.CharField(max_length=50)
-    description = models.CharField(max_length=100)
     image_url = models.URLField(max_length=500)
-    tags = models.ManyToManyField("place.Tag")
+    # description 필드는 시리얼라이저로 처리
 
     class Meta:
         db_table = "travel_types"
