@@ -6,11 +6,9 @@ from apps.travel_quiz.models import TravelType, UserTestResult
 
 @admin.register(TravelType)
 class TravelTypeAdmin(BaseAdmin):
-    list_display = ["id", "type_key", "name", "description"]
+    list_display = ["id", "type_key", "name", "image_url"]
     list_display_links = ["id", "type_key"]
     search_fields = ["type_key", "name"]
-    list_filter = ["tags"]
-    filter_horizontal = ["tags"]
 
 
 @admin.register(UserTestResult)
