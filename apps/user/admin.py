@@ -16,7 +16,6 @@ class SocialUserInline(admin.TabularInline):  # type: ignore[type-arg]
     extra = 0
     fields = ["provider", "provider_id", "created_at"]
     readonly_fields = ["created_at"]
-    classes = ["collapse"]
 
 
 class UserTestResultInline(admin.StackedInline):  # type: ignore[type-arg]
@@ -26,7 +25,6 @@ class UserTestResultInline(admin.StackedInline):  # type: ignore[type-arg]
     autocomplete_fields = ["travel_type"]
     fields = ["travel_type", "result_vector", "vector_readable", "updated_at"]
     readonly_fields = ["vector_readable", "updated_at"]
-    classes = ["collapse"]
 
     def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
         formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
@@ -46,7 +44,6 @@ class FollowingInline(admin.TabularInline):  # type: ignore[type-arg]
     fields = ["following", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["following"]
-    classes = ["collapse"]
     verbose_name = "팔로잉"
     verbose_name_plural = "팔로잉 (이 유저가 팔로우하는 사람)"
 
@@ -64,7 +61,6 @@ class FollowerInline(admin.TabularInline):  # type: ignore[type-arg]
     fields = ["follower", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["follower"]
-    classes = ["collapse"]
     verbose_name = "팔로워"
     verbose_name_plural = "팔로워 (이 유저를 팔로우하는 사람)"
 
@@ -81,7 +77,6 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
     fields = ["place", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["place"]
-    classes = ["collapse"]
     verbose_name = "북마크"
     verbose_name_plural = "북마크 (이 유저가 저장한 장소)"
 
