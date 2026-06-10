@@ -7,8 +7,9 @@
 장소(Place)·장소 이미지/운영정보/성향 벡터는 소스 데이터로 이미 적재돼 있다고 가정하고 건드리지 않는다.
 데모 유저는 이메일 도메인 `@demo.local`로 식별하므로 재실행·정리가 가능하다.
 
-    docker compose ... exec web uv run python manage.py seed_demo_data --settings=config.settings.local
-    docker compose ... exec web uv run python manage.py seed_demo_data --clear   # 기존 데모 데이터 삭제 후 재생성
+    docker compose ... exec web uv run python manage.py seed_demo_data              # 생성
+    docker compose ... exec web uv run python manage.py seed_demo_data --clear      # 삭제 후 재생성
+    docker compose ... exec web uv run python manage.py seed_demo_data --delete     # 삭제만
 """
 
 from __future__ import annotations
@@ -75,6 +76,7 @@ class Command(BaseCommand):
             help="리뷰·북마크가 몰리는 인기 장소 풀 크기(작을수록 장소당 개수가 많아지고 롱테일이 뚜렷해짐)",
         )
         parser.add_argument("--clear", action="store_true", help="기존 데모 데이터 삭제 후 재생성")
+        parser.add_argument("--delete", action="store_true", help="데모 데이터 삭제만 (재생성 없음)")
 
     def handle(self, *args: Any, **options: Any) -> None:
         rng = random.Random(options["seed"])
@@ -83,6 +85,10 @@ class Command(BaseCommand):
         bookmarks_per_user: int = options["bookmarks_per_user"]
         follows_per_user: int = options["follows_per_user"]
         place_pool: int = options["place_pool"]
+
+        if options["delete"]:
+            self._clear()
+            return
 
         if options["clear"]:
             self._clear()

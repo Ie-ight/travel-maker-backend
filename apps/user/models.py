@@ -79,6 +79,10 @@ class User(AbstractBaseUser, TimeStampModel):
     def has_module_perms(self, app_label: str) -> bool:
         return self.role == self.Role.ADMIN
 
+    def get_all_permissions(self, obj: object = None) -> set[str]:
+        """어드민 테마 적용을 위해서 필요"""
+        return set()
+
     def __str__(self) -> str:
         return f"{self.nickname} ({self.email})"
 
