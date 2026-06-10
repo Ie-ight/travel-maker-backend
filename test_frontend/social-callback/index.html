@@ -15,6 +15,7 @@
     <h2>카카오 소셜 로그인 테스트</h2>
 
     <button onclick="kakaoLogin()">카카오 로그인</button>
+    <button class="action-btn" style="margin-left:8px" onclick="window.location.href='/console.html'">← 콘솔로 돌아가기</button>
 
     <div class="token-box" id="result" style="display:none">
         <h3>결과</h3>
@@ -23,12 +24,14 @@
         <button class="action-btn" onclick="logout()">로그아웃</button>
         <button class="action-btn" onclick="refreshToken()">토큰 재발급</button>
         <button class="action-btn" onclick="goWithdrawal()">회원탈퇴 테스트 →</button>
+        <button class="action-btn" style="background:#6366f1" onclick="window.location.href='/console.html'">← 콘솔로 돌아가기</button>
     </div>
 
     <script>
         const API = 'http://localhost:8000';
         const KAKAO_CLIENT_ID = 'aa52a2618c356d5346c98fa3914415c2';
         const REDIRECT_URI = 'http://localhost:3000/social-callback';
+        const CONSOLE_URL  = '/console.html';
 
         let accessToken = '';
 
@@ -46,43 +49,36 @@
 
             window.history.replaceState({}, '', '/social-callback');
 
-            if (state === 'recovery') {
-                // 탈퇴 계정 복구
-                showResult('계정 복구 처리 중...');
-                try {
-                    const res = await fetch(`${API}/api/v1/auth/recovery/`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ code }),
-                    });
-                    const data = await res.json();
-                    accessToken = data.access_token || '';
-                    showResult({ mode: '계정 복구', ...data });
-                } catch (e) {
-                    showResult({ error: e.message });
-                }
-            } else {
-                // 일반 로그인
-                showResult('로그인 처리 중...');
-                try {
-                    const res = await fetch(`${API}/api/v1/auth/kakao/login/`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ code }),
-                    });
-                    const data = await res.json();
-                    accessToken = data.access_token;
-                    showResult(data);
-                } catch (e) {
-                    showResult({ error: e.message });
-                }
+            const purpose = localStorage.getItem('tm_login_purpose') || 'login';
+            localStorage.removeItem('tm_login_purpose');
+            const isRecovery = state === 'recovery' || purpose === 'recovery';
+
+            showResult(isRecovery ? '계정 복구 처리 중...' : '로그인 처리 중...');
+
+            try {
+                const endpoint = isRecovery ? `${API}/api/v1/auth/recovery` : `${API}/api/v1/auth/kakao/login`;
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ code }),
+                });
+                const data = await res.json();
+                accessToken = data.access_token || '';
+
+                // 결과를 localStorage에 저장 후 콘솔로 복귀
+                const rid = isRecovery ? 'r-recovery' : 'r-login';
+                localStorage.setItem('tm_cb_msg', JSON.stringify({ rid, status: res.status, data }));
+                if (accessToken) localStorage.setItem('tm_tok', accessToken);
+                window.location.href = CONSOLE_URL;
+                return;
+            } catch (e) {
+                showResult({ error: e.message });
             }
         }
 
         async function logout() {
-            const res = await fetch(`${API}/api/v1/auth/logout/`, {
+            const res = await fetch(`${API}/api/v1/auth/logout`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 credentials: 'include',
@@ -92,7 +88,7 @@
         }
 
         async function refreshToken() {
-            const res = await fetch(`${API}/api/v1/auth/token/refresh/`, {
+            const res = await fetch(`${API}/api/v1/auth/token/refresh`, {
                 method: 'POST',
                 credentials: 'include',
             });
@@ -102,14 +98,14 @@
         }
 
         function goWithdrawal() {
-            // access token을 sessionStorage에 저장 후 이동
             sessionStorage.setItem('access_token', accessToken);
             window.location.href = '/withdrawal.html';
         }
 
         function showResult(data) {
             document.getElementById('result').style.display = 'block';
-            document.getElementById('result-text').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('result-text').textContent =
+                typeof data === 'string' ? data : JSON.stringify(data, null, 2);
         }
 
         // 페이지 로드 시 콜백 처리
