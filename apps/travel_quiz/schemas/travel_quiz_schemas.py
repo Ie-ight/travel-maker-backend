@@ -24,7 +24,7 @@ quiz_submit_schema = extend_schema(
 )
 
 quiz_result_schema = extend_schema(
-    tags=["TravelQuiz"],
+    tags=["User"],
     summary="내 퀴즈 결과 조회",
     description="로그인한 유저의 여행 성향 테스트 결과(마이페이지)를 조회합니다.",
     responses={
