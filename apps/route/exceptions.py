@@ -8,8 +8,10 @@ class RouteNotFound(APIException):
     default_code = "not_found"
 
 
-class RouteForbidden(Exception):
-    pass
+class RouteForbidden(APIException):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "권한이 없습니다."
+    default_code = "forbidden"
 
 
 class RouteAlreadyLiked(APIException):

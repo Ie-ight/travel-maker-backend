@@ -3,6 +3,7 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema
 from apps.route.serializers.route_serializers import (
     RouteCreateResponseSerializer,
     RouteCreateSerializer,
+    RouteDetailSerializer,
     RouteLikeResponseSerializer,
     RouteListSerializer,
     RouteMyListSerializer,
@@ -15,6 +16,12 @@ route_create_schema = extend_schema(
     summary="경로 생성",
     request=RouteCreateSerializer,
     responses={201: RouteCreateResponseSerializer},
+)
+
+route_detail_schema = extend_schema(
+    tags=["Route"],
+    summary="경로 상세 조회",
+    responses={200: RouteDetailSerializer},
 )
 
 route_update_schema = extend_schema(
