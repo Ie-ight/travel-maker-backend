@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema
 
 from apps.travel_quiz.serializers.travel_quiz_serializers import (
     AvatarUpdateResponseSerializer,
@@ -17,6 +17,13 @@ quiz_submit_schema = extend_schema(
         "로그인 유저는 결과가 자동 저장되며, 게스트는 결과만 반환됩니다."
     ),
     request=QuizSubmitSerializer,
+    examples=[
+        OpenApiExample(
+            "12문항 답변 예시",
+            value={"answers": ["A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B"]},
+            request_only=True,
+        ),
+    ],
     responses={
         200: QuizSubmitResponseSerializer,
         400: QuizErrorResponseSerializer,
