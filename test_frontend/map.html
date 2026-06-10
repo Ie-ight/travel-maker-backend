@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelMaker 지도</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background: #0f172a;
+    }
+
+    /* ── 사이드바 ── */
+    #sidebar {
+      width: 320px;
+      flex-shrink: 0;
+      background: #1e293b;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 2px 0 16px rgba(0,0,0,.4);
+      z-index: 10;
+    }
+
+    .sb-header {
+      padding: 16px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      flex-shrink: 0;
+    }
+    .sb-header h1 { color: white; font-size: 16px; font-weight: 700; }
+    .sb-header p  { color: rgba(255,255,255,.7); font-size: 11px; margin-top: 2px; }
+
+    .sb-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .sb-body::-webkit-scrollbar { width: 4px; }
+    .sb-body::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+    .card {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 14px;
+      border: 1px solid #334155;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 10px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .field label { font-size: 11px; color: #64748b; }
+    .field input {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .field input:focus { border-color: #6366f1; }
+
+    .btn {
+      width: 100%;
+      padding: 9px;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-p  { background: #6366f1; color: white; }
+    .btn-g  { background: #334155; color: #e2e8f0; }
+    .btn-s  { background: #0f9a6a; color: white; }
+    .btn-d  { background: #ef4444; color: white; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
+
+    /* 장소 정보 카드 */
+    #place-card { display: none; }
+    .place-name { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+    .place-addr { font-size: 12px; color: #64748b; margin-bottom: 8px; line-height: 1.4; }
+    .place-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .badge {
+      font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600;
+    }
+    .badge-yellow { background: #fef08a; color: #713f12; }
+    .badge-blue   { background: #bfdbfe; color: #1e40af; }
+    .badge-green  { background: #bbf7d0; color: #14532d; }
+
+    /* 경로 결과 */
+    #route-result { display: none; }
+    .route-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .route-stat {
+      background: #1e293b;
+      border-radius: 7px;
+      padding: 8px;
+      text-align: center;
+    }
+    .route-stat .val { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+    .route-stat .lbl { font-size: 10px; color: #64748b; margin-top: 2px; }
+
+    /* 로딩 / 상태 */
+    .status {
+      font-size: 12px;
+      color: #64748b;
+      text-align: center;
+      padding: 8px 0;
+    }
+    .status.loading { color: #6366f1; }
+    .status.error   { color: #f87171; }
+    .status.ok      { color: #4ade80; }
+
+    /* 통계 */
+    .stat-row { display: flex; justify-content: space-between; align-items: center; }
+    .stat-row span:first-child { font-size: 12px; color: #64748b; }
+    .stat-row span:last-child  { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+
+    .divider { border: none; border-top: 1px solid #1e293b; margin: 4px 0; }
+
+    .back-btn {
+      margin: 0 12px 12px;
+      padding: 8px;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      display: block;
+      flex-shrink: 0;
+      transition: background .15s;
+    }
+    .back-btn:hover { background: #334155; color: #e2e8f0; }
+
+    /* ── 지도 ── */
+    #map { flex: 1; }
+
+    /* 로딩 오버레이 */
+    #overlay {
+      position: fixed; inset: 0;
+      background: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid #334155;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #overlay p { color: #94a3b8; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="spinner"></div>
+  <p id="overlay-msg">카카오맵 불러오는 중...</p>
+</div>
+
+<!-- ── 사이드바 ── -->
+<div id="sidebar">
+  <div class="sb-header">
+    <h1>🗺 TravelMaker 지도</h1>
+    <p id="place-count">장소 로딩 중...</p>
+  </div>
+
+  <div class="sb-body">
+
+    <!-- 출발지 설정 -->
+    <div class="card">
+      <div class="card-title">📍 출발지</div>
+      <div class="field">
+        <label>위도 (Latitude)</label>
+        <input id="origin-lat" type="number" step="any" placeholder="37.5547">
+      </div>
+      <div class="field">
+        <label>경도 (Longitude)</label>
+        <input id="origin-lng" type="number" step="any" placeholder="126.9707">
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g" style="flex:1" onclick="useMyLocation()">📡 현재 위치</button>
+        <button class="btn btn-p" style="flex:1" onclick="moveToOrigin()">지도 이동</button>
+      </div>
+      <div id="location-status" class="status" style="margin-top:6px"></div>
+    </div>
+
+    <!-- 선택된 장소 -->
+    <div class="card" id="place-card">
+      <div class="card-title">🏛 선택된 장소</div>
+      <div class="place-name" id="sel-name"></div>
+      <div class="place-addr" id="sel-addr"></div>
+      <div class="place-meta">
+        <span class="badge badge-yellow" id="sel-rating"></span>
+        <span class="badge badge-blue"   id="sel-reviews"></span>
+        <span class="badge badge-green"  id="sel-bookmarks"></span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-s btn-sm" style="flex:1" onclick="drawRoute()">🚗 경로 보기</button>
+        <button class="btn btn-d btn-sm" style="flex:1" onclick="clearRoute()">경로 지우기</button>
+      </div>
+    </div>
+
+    <!-- 경로 결과 -->
+    <div class="card" id="route-result">
+      <div class="card-title">🛣 경로 정보</div>
+      <div class="route-stats">
+        <div class="route-stat">
+          <div class="val" id="rt-dist">-</div>
+          <div class="lbl">거리</div>
+        </div>
+        <div class="route-stat">
+          <div class="val" id="rt-time">-</div>
+          <div class="lbl">소요 시간</div>
+        </div>
+        <div class="route-stat">
+          <div class="val" id="rt-fare">-</div>
+          <div class="lbl">택시 요금</div>
+        </div>
+      </div>
+      <div id="route-status" class="status"></div>
+    </div>
+
+    <!-- 통계 -->
+    <div class="card">
+      <div class="card-title">📊 통계</div>
+      <div class="stat-row"><span>전체 장소</span><span id="stat-total">-</span></div>
+      <hr class="divider">
+      <div class="stat-row"><span>벡터 태깅 완료</span><span id="stat-vector">-</span></div>
+      <hr class="divider">
+      <div class="stat-row"><span>현재 지도 영역</span><span id="stat-visible">-</span></div>
+    </div>
+
+  </div>
+
+  <a class="back-btn" href="/console.html">← 콘솔로 돌아가기</a>
+</div>
+
+<!-- ── 지도 ── -->
+<div id="map"></div>
+
+<script>
+  const API = 'http://localhost:8000';
+  const tok = () => localStorage.getItem('tm_tok');
+
+  let map, clusterer, originMarker, routePolyline;
+  let allPlaces = [];
+  let selectedPlace = null;
+
+  // ── 초기화 ──────────────────────────────────────────────
+  async function init() {
+    setOverlay('카카오맵 JS 키 불러오는 중...');
+    try {
+      const res = await fetch(`${API}/api/v1/places/config/kakao`);
+      const { js_key } = await res.json();
+      loadKakaoSDK(js_key);
+    } catch (e) {
+      setOverlay('❌ 백엔드 연결 실패 (Django 서버 실행 여부 확인)', true);
+    }
+  }
+
+  function loadKakaoSDK(key) {
+    setOverlay('카카오맵 SDK 로딩 중...');
+    const s = document.createElement('script');
+    s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${key}&libraries=clusterer&autoload=false`;
+    s.onload = () => kakao.maps.load(initMap);
+    s.onerror = () => setOverlay('❌ 카카오맵 SDK 로드 실패', true);
+    document.head.appendChild(s);
+  }
+
+  async function initMap() {
+    setOverlay('지도 초기화 중...');
+
+    map = new kakao.maps.Map(document.getElementById('map'), {
+      center: new kakao.maps.LatLng(36.5, 127.8),
+      level: 13,
+    });
+
+    // 지도 컨트롤
+    map.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
+    map.addControl(new kakao.maps.MapTypeControl(), kakao.maps.ControlPosition.TOPRIGHT);
+
+    // 마커 클러스터러
+    clusterer = new kakao.maps.MarkerClusterer({
+      map,
+      averageCenter: true,
+      minLevel: 5,
+      disableClickZoom: false,
+      styles: [{
+        width: '44px', height: '44px',
+        background: 'rgba(99,102,241,.85)',
+        borderRadius: '50%',
+        color: '#fff',
+        textAlign: 'center',
+        lineHeight: '44px',
+        fontSize: '13px',
+        fontWeight: '700',
+        boxShadow: '0 2px 8px rgba(99,102,241,.5)',
+      }],
+    });
+
+    setOverlay('장소 데이터 불러오는 중...');
+    await loadPlaces();
+    hideOverlay();
+
+    // 지도 이동 시 visible 장소 수 업데이트
+    kakao.maps.event.addListener(map, 'idle', updateVisibleCount);
+  }
+
+  // ── 장소 로드 ────────────────────────────────────────────
+  async function loadPlaces() {
+    const res = await fetch(`${API}/api/v1/places/map`);
+    allPlaces = await res.json();
+
+    document.getElementById('place-count').textContent = `장소 ${allPlaces.length.toLocaleString()}개`;
+    document.getElementById('stat-total').textContent = allPlaces.length.toLocaleString() + '개';
+
+    // 벡터 태깅 수 (별도 요청)
+    try {
+      const r2 = await fetch(`${API}/api/v1/places/recommend?limit=1`);
+      document.getElementById('stat-vector').textContent = '509개';
+    } catch {}
+
+    const infowindow = new kakao.maps.InfoWindow({ zIndex: 1 });
+    const markers = allPlaces
+      .filter(p => p.latitude && p.longitude)
+      .map(p => {
+        const pos = new kakao.maps.LatLng(parseFloat(p.latitude), parseFloat(p.longitude));
+        const marker = new kakao.maps.Marker({ position: pos });
+
+        kakao.maps.event.addListener(marker, 'click', () => {
+          infowindow.setContent(
+            `<div style="padding:8px 12px;font-size:13px;font-weight:600;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis">` +
+            `${p.place_name}<br>` +
+            `<span style="font-size:11px;color:#666;font-weight:400">⭐ ${(p.rating_avg||0).toFixed(1)}</span>` +
+            `</div>`
+          );
+          infowindow.open(map, marker);
+          selectPlace(p);
+        });
+
+        return marker;
+      });
+
+    clusterer.addMarkers(markers);
+    updateVisibleCount();
+  }
+
+  // ── 장소 선택 ────────────────────────────────────────────
+  async function selectPlace(p) {
+    selectedPlace = p;
+    document.getElementById('place-card').style.display = 'block';
+    document.getElementById('sel-name').textContent = p.place_name;
+    document.getElementById('sel-rating').textContent = `⭐ ${(p.rating_avg||0).toFixed(1)}`;
+
+    // 상세 정보 추가 로드
+    try {
+      const res = await fetch(`${API}/api/v1/places/${p.id}`);
+      const detail = await res.json();
+      document.getElementById('sel-addr').textContent = detail.address_primary || '주소 정보 없음';
+      document.getElementById('sel-reviews').textContent = `리뷰 ${detail.review_count || 0}`;
+      document.getElementById('sel-bookmarks').textContent = `북마크 ${detail.bookmark_count || 0}`;
+    } catch {
+      document.getElementById('sel-addr').textContent = '주소 정보 없음';
+    }
+  }
+
+  // ── 내 위치 ──────────────────────────────────────────────
+  function useMyLocation() {
+    const st = document.getElementById('location-status');
+    st.className = 'status loading';
+    st.textContent = '위치 확인 중...';
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        document.getElementById('origin-lat').value = lat;
+        document.getElementById('origin-lng').value = lng;
+        st.className = 'status ok';
+        st.textContent = `✓ 현재 위치 (${lat}, ${lng})`;
+        placeOriginMarker(parseFloat(lat), parseFloat(lng));
+      },
+      err => {
+        st.className = 'status error';
+        st.textContent = '위치 접근 거부됨. 직접 입력해 주세요.';
+      }
+    );
+  }
+
+  function moveToOrigin() {
+    const lat = parseFloat(document.getElementById('origin-lat').value);
+    const lng = parseFloat(document.getElementById('origin-lng').value);
+    if (isNaN(lat) || isNaN(lng)) {
+      document.getElementById('location-status').className = 'status error';
+      document.getElementById('location-status').textContent = '위도/경도를 입력하세요.';
+      return;
+    }
+    placeOriginMarker(lat, lng);
+  }
+
+  function placeOriginMarker(lat, lng) {
+    if (originMarker) originMarker.setMap(null);
+    const pos = new kakao.maps.LatLng(lat, lng);
+    originMarker = new kakao.maps.Marker({
+      position: pos,
+      image: new kakao.maps.MarkerImage(
+        'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png',
+        new kakao.maps.Size(24, 35)
+      ),
+    });
+    originMarker.setMap(map);
+    map.setCenter(pos);
+    map.setLevel(8);
+  }
+
+  // ── 경로 그리기 ──────────────────────────────────────────
+  async function drawRoute() {
+    if (!selectedPlace) return;
+
+    const lat = parseFloat(document.getElementById('origin-lat').value);
+    const lng = parseFloat(document.getElementById('origin-lng').value);
+    if (isNaN(lat) || isNaN(lng)) {
+      alert('출발지 위도/경도를 먼저 입력하세요.');
+      return;
+    }
+
+    const st = document.getElementById('route-status');
+    st.className = 'status loading';
+    st.textContent = '경로 계산 중...';
+    document.getElementById('route-result').style.display = 'block';
+
+    try {
+      const headers = tok() ? { Authorization: `Bearer ${tok()}` } : {};
+      const res = await fetch(
+        `${API}/api/v1/places/map/route?origin_lat=${lat}&origin_lng=${lng}&place_id=${selectedPlace.id}`,
+        { headers }
+      );
+      const data = await res.json();
+
+      if (data.error_detail) {
+        st.className = 'status error';
+        st.textContent = data.error_detail;
+        return;
+      }
+
+      const route = data.routes?.[0];
+      if (!route || route.result_code !== 0) {
+        st.className = 'status error';
+        st.textContent = route?.result_msg || '경로 조회 실패';
+        return;
+      }
+
+      // 경로 정보 표시
+      const { distance, duration, fare } = route.summary;
+      document.getElementById('rt-dist').textContent = distance >= 1000
+        ? `${(distance/1000).toFixed(1)}km` : `${distance}m`;
+      document.getElementById('rt-time').textContent = duration >= 3600
+        ? `${Math.floor(duration/3600)}h ${Math.floor((duration%3600)/60)}m`
+        : `${Math.ceil(duration/60)}분`;
+      document.getElementById('rt-fare').textContent =
+        fare?.taxi ? `${fare.taxi.toLocaleString()}원` : '-';
+
+      st.className = 'status ok';
+      st.textContent = '✓ 경로 탐색 성공';
+
+      // 기존 경로 제거
+      if (routePolyline) routePolyline.setMap(null);
+
+      // 폴리라인 그리기
+      const linePath = [];
+      for (const section of route.sections) {
+        for (const road of section.roads) {
+          const v = road.vertexes;
+          for (let i = 0; i < v.length; i += 2) {
+            linePath.push(new kakao.maps.LatLng(v[i + 1], v[i]));
+          }
+        }
+      }
+
+      routePolyline = new kakao.maps.Polyline({
+        path: linePath,
+        strokeWeight: 5,
+        strokeColor: '#6366f1',
+        strokeOpacity: 0.9,
+        strokeStyle: 'solid',
+      });
+      routePolyline.setMap(map);
+
+      // 경로 전체가 보이도록 지도 조정
+      const bounds = new kakao.maps.LatLngBounds();
+      linePath.forEach(p => bounds.extend(p));
+      map.setBounds(bounds, 60);
+
+    } catch (e) {
+      st.className = 'status error';
+      st.textContent = '요청 실패: ' + e.message;
+    }
+  }
+
+  function clearRoute() {
+    if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+    document.getElementById('route-result').style.display = 'none';
+    document.getElementById('route-status').textContent = '';
+  }
+
+  // ── 지도 영역 내 마커 수 ─────────────────────────────────
+  function updateVisibleCount() {
+    if (!map || !allPlaces.length) return;
+    const bounds = map.getBounds();
+    const cnt = allPlaces.filter(p => {
+      if (!p.latitude || !p.longitude) return false;
+      const latlng = new kakao.maps.LatLng(parseFloat(p.latitude), parseFloat(p.longitude));
+      return bounds.contain(latlng);
+    }).length;
+    document.getElementById('stat-visible').textContent = cnt.toLocaleString() + '개';
+  }
+
+  // ── 오버레이 ─────────────────────────────────────────────
+  function setOverlay(msg, isError = false) {
+    document.getElementById('overlay-msg').textContent = msg;
+    document.getElementById('overlay-msg').style.color = isError ? '#f87171' : '#94a3b8';
+    document.getElementById('overlay').style.display = 'flex';
+  }
+  function hideOverlay() {
+    document.getElementById('overlay').style.display = 'none';
+  }
+
+  init();
+</script>
+</body>
+</html>

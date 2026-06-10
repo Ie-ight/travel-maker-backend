@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>카카오 로그인 처리 중...</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; }
+    .box { text-align: center; padding: 40px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #64748b; font-size: 14px; }
+    .error { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner"></div>
+    <p id="msg">카카오 인가 코드를 처리하는 중입니다...</p>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const error = params.get('error');
+
+    if (error || !code) {
+      document.getElementById('msg').textContent = '로그인 실패: ' + (error || '인가 코드 없음');
+      document.getElementById('msg').className = 'error';
+      if (window.opener) window.opener.postMessage({ kakaoError: error || 'no_code' }, '*');
+      setTimeout(() => window.close(), 2000);
+    } else {
+      if (window.opener) {
+        window.opener.postMessage({ kakaoCode: code }, '*');
+        window.close();
+      } else {
+        // popup이 아닌 redirect 방식일 때 — code를 localStorage에 저장 후 index로 이동
+        localStorage.setItem('kakao_pending_code', code);
+        window.location.href = '../index.html';
+      }
+    }
+  </script>
+</body>
+</html>

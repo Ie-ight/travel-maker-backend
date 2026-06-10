@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelMaker — API 콘솔</title>
+  <style>
+    :root {
+      --bg: #f1f5f9; --side: #0f172a; --pri: #6366f1; --pri2: #4f46e5;
+      --ok: #10b981; --err: #ef4444; --warn: #f59e0b;
+      --card: #fff; --bdr: #e2e8f0; --tx: #1e293b; --mt: #64748b; --r: 8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--tx); display: flex; min-height: 100vh; font-size: 14px; }
+
+    /* Sidebar */
+    .sb { width: 200px; background: var(--side); display: flex; flex-direction: column; position: fixed; inset: 0 auto 0 0; overflow-y: auto; }
+    .sb-hd { padding: 18px 16px 14px; border-bottom: 1px solid #1e293b; }
+    .sb-hd h1 { color: #fff; font-size: 14px; font-weight: 700; }
+    .sb-hd small { color: #475569; font-size: 11px; }
+    .nl { padding: 10px 0 2px; }
+    .nl-lbl { color: #334155; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; padding: 4px 16px 2px; }
+    .ni { display: flex; align-items: center; gap: 7px; padding: 7px 16px; color: #94a3b8; font-size: 12px; cursor: pointer; border-left: 2px solid transparent; transition: all .15s; }
+    .ni:hover { color: #fff; background: #1e293b; }
+    .ni.on { color: #fff; border-left-color: var(--pri); background: #1e3a5f; }
+    .ni .ic { font-size: 13px; width: 15px; text-align: center; flex-shrink: 0; }
+    .tok-bar { padding: 10px 16px; border-top: 1px solid #1e293b; margin-top: auto; }
+    .tok-row { display: flex; align-items: center; gap: 7px; }
+    .tok-dot { width: 7px; height: 7px; border-radius: 50%; background: #334155; flex-shrink: 0; transition: all .3s; }
+    .tok-dot.on { background: var(--ok); box-shadow: 0 0 6px #10b98166; }
+    .tok-row span { color: #64748b; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tok-clear { margin-top: 5px; font-size: 11px; color: #475569; cursor: pointer; text-decoration: underline; }
+    .tok-clear:hover { color: var(--err); }
+
+    /* Main */
+    .main { margin-left: 200px; flex: 1; padding: 24px 28px; }
+    .sec { display: none; }
+    .sec.on { display: block; }
+
+    /* Banner */
+    .banner { background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--r); padding: 12px 16px; margin-bottom: 20px; }
+    .banner h4 { color: #92400e; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+    .banner ol { color: #78350f; font-size: 11.5px; padding-left: 16px; line-height: 1.9; }
+    .banner code { background: #fff; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 11px; }
+
+    /* Page Header */
+    .ph { margin-bottom: 18px; }
+    .ph h2 { font-size: 19px; font-weight: 700; }
+    .ph p { color: var(--mt); font-size: 12px; margin-top: 3px; }
+
+    /* Card */
+    .card { background: var(--card); border: 1px solid var(--bdr); border-radius: var(--r); margin-bottom: 12px; overflow: hidden; }
+    .chd { padding: 10px 16px; border-bottom: 1px solid var(--bdr); display: flex; align-items: center; justify-content: space-between; background: #fafafa; }
+    .ct { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; }
+    .ep { color: var(--mt); font-size: 11px; font-weight: 400; }
+    .cbd { padding: 14px 16px; }
+
+    /* Badges */
+    .b { font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 3px; letter-spacing: .4px; }
+    .get    { background: #dbeafe; color: #1d4ed8; }
+    .post   { background: #dcfce7; color: #166534; }
+    .patch  { background: #fef9c3; color: #854d0e; }
+    .delete { background: #fee2e2; color: #991b1b; }
+
+    /* Form */
+    .f { margin-bottom: 9px; }
+    .f label { display: block; font-size: 11px; font-weight: 500; color: var(--mt); margin-bottom: 3px; }
+    .f input, .f select, .f textarea {
+      width: 100%; border: 1px solid var(--bdr); border-radius: 6px; padding: 6px 10px; font-size: 12.5px;
+      color: var(--tx); background: #fff; outline: none; transition: border-color .15s; font-family: inherit;
+    }
+    .f input:focus, .f select:focus, .f textarea:focus { border-color: var(--pri); box-shadow: 0 0 0 3px #6366f118; }
+    .f textarea { resize: vertical; min-height: 60px; }
+    .fr2 { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .fr3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9px; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
+    .btn-p { background: var(--pri); color: #fff; }
+    .btn-p:hover { background: var(--pri2); }
+    .btn-d { background: var(--err); color: #fff; }
+    .btn-d:hover { background: #dc2626; }
+    .btn-o { background: transparent; color: var(--pri); border: 1.5px solid var(--pri); }
+    .btn-o:hover { background: var(--pri); color: #fff; }
+    .btn-g { background: #f1f5f9; color: var(--tx); border: 1px solid var(--bdr); }
+    .btn-g:hover { background: var(--bdr); }
+    .btn-kk { background: #FEE500; color: #191919; font-weight: 700; font-size: 13px; padding: 8px 16px; }
+    .btn-kk:hover { background: #f0d800; }
+    .btn-row { display: flex; gap: 7px; flex-wrap: wrap; }
+
+    /* Response */
+    .res { margin-top: 10px; background: #0f172a; border-radius: 6px; padding: 10px 13px; max-height: 260px; overflow-y: auto; display: none; }
+    .res.on { display: block; }
+    .rs { font-size: 11px; font-weight: 700; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #1e293b; }
+    .ok2  { color: var(--ok); }
+    .err2 { color: var(--err); }
+    .wrn2 { color: var(--warn); }
+    .res pre { font-size: 11px; color: #94a3b8; font-family: 'Consolas', monospace; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+
+    /* Sep */
+    hr.sep { border: none; border-top: 1px solid var(--bdr); margin: 12px 0; }
+    .sub-lbl { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+
+    /* Quiz */
+    .qprog { display: flex; gap: 4px; margin-bottom: 16px; }
+    .qpd { flex: 1; height: 4px; background: var(--bdr); border-radius: 2px; transition: background .2s; }
+    .qpd.done { background: var(--pri); }
+    .qpd.cur  { background: #a5b4fc; }
+    .qq { font-size: 14px; font-weight: 600; margin-bottom: 12px; line-height: 1.5; }
+    .qq .qn { color: var(--mt); font-weight: 400; font-size: 12px; margin-right: 6px; }
+    .qopts { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 14px; }
+    .qopt { border: 2px solid var(--bdr); border-radius: 8px; padding: 13px 11px; text-align: center; cursor: pointer; font-size: 13px; transition: all .15s; background: #fff; }
+    .qopt:hover { border-color: var(--pri); background: #eef2ff; }
+    .qopt.sel { border-color: var(--pri); background: #eef2ff; color: var(--pri); font-weight: 600; }
+    .qnav { display: flex; gap: 7px; justify-content: flex-end; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<nav class="sb">
+  <div class="sb-hd">
+    <h1>✈ TravelMaker</h1>
+    <small>API 콘솔</small>
+  </div>
+  <div class="nl">
+    <div class="nl-lbl">인증</div>
+    <div class="ni on" data-s="auth"      onclick="go(this)"><span class="ic">🔑</span>Auth</div>
+  </div>
+  <div class="nl">
+    <div class="nl-lbl">사용자</div>
+    <div class="ni" data-s="user"      onclick="go(this)"><span class="ic">👤</span>프로필</div>
+  </div>
+  <div class="nl">
+    <div class="nl-lbl">장소</div>
+    <div class="ni" data-s="places"    onclick="go(this)"><span class="ic">📍</span>장소</div>
+    <div class="ni" data-s="tags"      onclick="go(this)"><span class="ic">🏷</span>태그</div>
+    <div class="ni" data-s="map"       onclick="go(this)"><span class="ic">🗺</span>지도/추천</div>
+  </div>
+  <div class="nl">
+    <div class="nl-lbl">활동</div>
+    <div class="ni" data-s="bookmarks" onclick="go(this)"><span class="ic">🔖</span>북마크</div>
+    <div class="ni" data-s="reviews"   onclick="go(this)"><span class="ic">⭐</span>리뷰</div>
+  </div>
+  <div class="nl">
+    <div class="nl-lbl">퀴즈</div>
+    <div class="ni" data-s="quiz"      onclick="go(this)"><span class="ic">🧩</span>여행 퀴즈</div>
+  </div>
+  <div class="tok-bar">
+    <div class="tok-row">
+      <div class="tok-dot" id="td"></div>
+      <span id="tl">로그인 필요</span>
+    </div>
+    <div class="tok-clear" onclick="clearTok()">토큰 초기화</div>
+  </div>
+</nav>
+
+<!-- ── Main ── -->
+<main class="main">
+
+  <!-- AUTH -->
+  <section class="sec on" id="s-auth">
+    <div class="banner">
+      <h4>⚙ 실행 방법 (설정 변경 없이 바로 사용 가능)</h4>
+      <ol>
+        <li>프로젝트 루트에서 <code>python -m http.server 3000</code> 실행</li>
+        <li>브라우저에서 <code>http://localhost:3000/console.html</code> 접속</li>
+        <li>Django 서버도 <code>http://localhost:8000</code> 에서 실행 중이어야 합니다</li>
+      </ol>
+    </div>
+    <div class="ph"><h2>🔑 인증</h2><p>카카오 소셜 로그인 · 토큰 관리 · 회원탈퇴 / 복구</p></div>
+
+    <!-- Login -->
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b post">POST</span> 카카오 로그인 <span class="ep">/api/v1/auth/kakao/login</span></div></div>
+      <div class="cbd">
+        <button class="btn btn-kk" onclick="kakaoLogin()">🟡 카카오로 로그인</button>
+        <div class="res" id="r-login"></div>
+      </div>
+    </div>
+
+    <!-- Logout -->
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b post">POST</span> 로그아웃 <span class="ep">/api/v1/auth/logout</span></div></div>
+      <div class="cbd">
+        <button class="btn btn-o" onclick="req('POST','/api/v1/auth/logout',null,'r-logout',onLogout)">로그아웃</button>
+        <div class="res" id="r-logout"></div>
+      </div>
+    </div>
+
+    <!-- Token Refresh -->
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b post">POST</span> 토큰 갱신 <span class="ep">/api/v1/auth/token/refresh</span></div></div>
+      <div class="cbd">
+        <p style="font-size:11.5px;color:var(--mt);margin-bottom:9px">refresh_token 쿠키 자동 전송 (로그인 후 저장됨)</p>
+        <button class="btn btn-g" onclick="doRefresh()">갱신</button>
+        <div class="res" id="r-refresh"></div>
+      </div>
+    </div>
+
+    <!-- Withdraw -->
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b delete">DELETE</span> 회원탈퇴 <span class="ep">/api/v1/auth/withdraw</span></div></div>
+      <div class="cbd">
+        <div class="f"><label>탈퇴 사유</label><input id="w-reason" placeholder="서비스 불만, 개인정보 우려 등"></div>
+        <button class="btn btn-d" onclick="doWithdraw()">회원탈퇴</button>
+        <div class="res" id="r-withdraw"></div>
+      </div>
+    </div>
+
+    <!-- Recovery -->
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b post">POST</span> 계정 복구 <span class="ep">/api/v1/auth/recovery</span></div></div>
+      <div class="cbd">
+        <p style="font-size:11.5px;color:var(--mt);margin-bottom:9px">탈퇴 후 14일 이내 카카오 재인증으로 복구</p>
+        <button class="btn btn-p" onclick="kakaoLogin('recovery')">🟡 카카오로 계정 복구</button>
+        <div class="res" id="r-recovery"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- USER -->
+  <section class="sec" id="s-user">
+    <div class="ph"><h2>👤 프로필</h2><p>프로필 조회/수정 · 내 북마크 · 내 리뷰 · 퀴즈 결과 · 아바타</p></div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 프로필 조회 <span class="ep">/api/v1/users</span></div></div>
+      <div class="cbd">
+        <button class="btn btn-p" onclick="req('GET','/api/v1/users',null,'r-pget')">조회</button>
+        <div class="res" id="r-pget"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b patch">PATCH</span> 프로필 수정 <span class="ep">/api/v1/users</span></div></div>
+      <div class="cbd">
+        <div class="fr2">
+          <div class="f"><label>닉네임</label><input id="p-nick" placeholder="새 닉네임"></div>
+          <div class="f"><label>프로필 이미지 URL</label><input id="p-img" placeholder="https://..."></div>
+        </div>
+        <button class="btn btn-p" onclick="patchProfile()">수정</button>
+        <div class="res" id="r-ppatch"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 내 북마크 <span class="ep">/api/v1/users/bookmarks</span></div></div>
+      <div class="cbd">
+        <div class="fr2">
+          <div class="f"><label>page</label><input id="ub-pg" type="number" value="1" min="1"></div>
+          <div class="f"><label>page_size</label><input id="ub-sz" type="number" value="10" min="1"></div>
+        </div>
+        <button class="btn btn-p" onclick="req('GET',`/api/v1/users/bookmarks?page=${v('ub-pg')}&page_size=${v('ub-sz')}`,null,'r-ubk')">조회</button>
+        <div class="res" id="r-ubk"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 내 리뷰 <span class="ep">/api/v1/users/reviews</span></div></div>
+      <div class="cbd">
+        <div class="fr2">
+          <div class="f"><label>page</label><input id="ur-pg" type="number" value="1" min="1"></div>
+          <div class="f"><label>page_size</label><input id="ur-sz" type="number" value="10" min="1"></div>
+        </div>
+        <button class="btn btn-p" onclick="req('GET',`/api/v1/users/reviews?page=${v('ur-pg')}&page_size=${v('ur-sz')}`,null,'r-urv')">조회</button>
+        <div class="res" id="r-urv"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 퀴즈 결과 <span class="ep">/api/v1/users/quiz/result</span></div></div>
+      <div class="cbd">
+        <button class="btn btn-p" onclick="req('GET','/api/v1/users/quiz/result',null,'r-qres')">조회</button>
+        <div class="res" id="r-qres"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 아바타 <span class="ep">/api/v1/users/avatar</span></div></div>
+      <div class="cbd">
+        <button class="btn btn-p" onclick="req('GET','/api/v1/users/avatar',null,'r-avatar')">조회</button>
+        <div class="res" id="r-avatar"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLACES -->
+  <section class="sec" id="s-places">
+    <div class="ph"><h2>📍 장소</h2><p>목록 · 검색 · 필터 · 상세</p></div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 장소 목록 <span class="ep">/api/v1/places</span></div></div>
+      <div class="cbd">
+        <div class="fr3">
+          <div class="f"><label>page</label><input id="pl-pg" type="number" value="1" min="1"></div>
+          <div class="f"><label>page_size</label><input id="pl-sz" type="number" value="10"></div>
+          <div class="f"><label>ordering</label>
+            <select id="pl-ord">
+              <option value="">기본</option>
+              <option value="-rating_avg">평점 높은순</option>
+              <option value="rating_avg">평점 낮은순</option>
+              <option value="-bookmark_count">북마크 많은순</option>
+              <option value="bookmark_count">북마크 적은순</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-p" onclick="placeList()">조회</button>
+        <div class="res" id="r-plist"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 장소 검색 <span class="ep">/api/v1/places/search</span></div></div>
+      <div class="cbd">
+        <div class="fr2">
+          <div class="f"><label>검색어 (장소명)</label><input id="ps-q" placeholder="경복궁, 해운대..."></div>
+          <div class="f"><label>page</label><input id="ps-pg" type="number" value="1"></div>
+        </div>
+        <div class="fr2">
+          <div class="f"><label>sort</label>
+            <select id="ps-sort">
+              <option value="bookmark">북마크순</option>
+              <option value="review">리뷰순</option>
+              <option value="rating">평점순</option>
+            </select>
+          </div>
+          <div class="f"><label>order</label>
+            <select id="ps-order">
+              <option value="desc">내림차순</option>
+              <option value="asc">오름차순</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-p" onclick="req('GET',`/api/v1/places/search?keyword=${enc(v('ps-q'))}&sort=${v('ps-sort')}&order=${v('ps-order')}&page=${v('ps-pg')}`,null,'r-psrch')">검색</button>
+        <div class="res" id="r-psrch"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 장소 필터 <span class="ep">/api/v1/places/filter</span></div></div>
+      <div class="cbd">
+        <div class="fr2">
+          <div class="f"><label>지역 (region tag)</label>
+            <select id="pf-rgn">
+              <option value="">전체</option>
+              <option value="32">서울</option>
+              <option value="33">인천</option>
+              <option value="34">대전</option>
+              <option value="35">대구</option>
+              <option value="36">광주</option>
+              <option value="37">부산</option>
+              <option value="38">울산</option>
+              <option value="39">세종</option>
+              <option value="40">경기</option>
+              <option value="41">강원</option>
+              <option value="42">충북</option>
+              <option value="43">충남</option>
+              <option value="44">전북</option>
+              <option value="45">전남</option>
+              <option value="46">경북</option>
+              <option value="47">경남</option>
+              <option value="48">제주</option>
+            </select>
+          </div>
+          <div class="f"><label>추가 tag_ids (쉼표 구분)</label><input id="pf-tags" placeholder="1,2,3 (선택)"></div>
+        </div>
+        <div class="fr2">
+          <div class="f"><label>page</label><input id="pf-pg" type="number" value="1"></div>
+          <div class="f"><label>ordering</label>
+            <select id="pf-ord">
+              <option value="">기본</option>
+              <option value="-rating_avg">평점 높은순</option>
+              <option value="-bookmark_count">북마크 많은순</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-p" onclick="placeFilter()">필터 적용</button>
+        <div class="res" id="r-pfilt"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 장소 상세 <span class="ep">/api/v1/places/{id}</span></div></div>
+      <div class="cbd">
+        <div class="f"><label>장소 ID</label><input id="pd-id" type="number" placeholder="1"></div>
+        <button class="btn btn-p" onclick="req('GET',`/api/v1/places/${v('pd-id')}`,null,'r-pdet')">조회</button>
+        <div class="res" id="r-pdet"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAGS -->
+  <section class="sec" id="s-tags">
+    <div class="ph"><h2>🏷 태그</h2><p>전체 태그 목록</p></div>
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 태그 목록 <span class="ep">/api/v1/tags/</span></div></div>
+      <div class="cbd">
+        <button class="btn btn-p" onclick="req('GET','/api/v1/tags/',null,'r-tags')">조회</button>
+        <div class="res" id="r-tags"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP / RECOMMEND -->
+  <section class="sec" id="s-map">
+    <div class="ph">
+      <h2>🗺 지도 / 추천</h2>
+      <p>카카오맵 설정 · 장소 추천 · 지도 장소 · 경로</p>
+      <a href="/map.html" target="_blank" style="display:inline-block;margin-top:10px;padding:8px 16px;background:#6366f1;color:white;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none">🗺 지도 전용 페이지 열기 →</a>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 카카오맵 JS 키 <span class="ep">/api/v1/places/config/kakao</span></div></div>
+      <div class="cbd">
+        <button class="btn btn-p" onclick="req('GET','/api/v1/places/config/kakao',null,'r-kkconf')">조회</button>
+        <div class="res" id="r-kkconf"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 장소 추천 <span class="ep">/api/v1/places/recommend</span></div></div>
+      <div class="cbd">
+        <div class="fr2">
+          <div class="f"><label>지역 (region_tag_id)</label>
+            <select id="rc-rgn">
+              <option value="">전체</option>
+              <option value="32">서울</option>
+              <option value="33">인천</option>
+              <option value="34">대전</option>
+              <option value="35">대구</option>
+              <option value="36">광주</option>
+              <option value="37">부산</option>
+              <option value="38">울산</option>
+              <option value="39">세종</option>
+              <option value="40">경기</option>
+              <option value="41">강원</option>
+              <option value="42">충북</option>
+              <option value="43">충남</option>
+              <option value="44">전북</option>
+              <option value="45">전남</option>
+              <option value="46">경북</option>
+              <option value="47">경남</option>
+              <option value="48">제주</option>
+            </select>
+          </div>
+          <div class="f"><label>tags (쉼표 구분, 선택)</label><input id="rc-tags" placeholder="1,2,3"></div>
+        </div>
+        <div class="f"><label>limit</label><input id="rc-lim" type="number" value="10" min="1"></div>
+        <button class="btn btn-p" onclick="placeRecommend()">추천 받기</button>
+        <div class="res" id="r-rec"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 지도 장소 목록 <span class="ep">/api/v1/places/map</span></div></div>
+      <div class="cbd">
+        <p style="font-size:12px;color:#888;margin:0 0 8px">※ 필터 파라미터 없이 전체 장소 좌표를 반환합니다.</p>
+        <button class="btn btn-p" onclick="req('GET','/api/v1/places/map',null,'r-map')">조회</button>
+        <div class="res" id="r-map"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 경로 조회 <span class="ep">/api/v1/places/map/route</span></div></div>
+      <div class="cbd">
+        <div class="fr3">
+          <div class="f"><label>출발 위도</label><input id="rt-olat" placeholder="37.5665" type="number" step="any"></div>
+          <div class="f"><label>출발 경도</label><input id="rt-olng" placeholder="126.9780" type="number" step="any"></div>
+          <div class="f"><label>도착 장소 ID</label><input id="rt-pid" type="number" placeholder="1"></div>
+        </div>
+        <button class="btn btn-p" onclick="placeRoute()">경로 조회</button>
+        <div class="res" id="r-route"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BOOKMARKS -->
+  <section class="sec" id="s-bookmarks">
+    <div class="ph"><h2>🔖 북마크</h2><p>북마크 목록 · 추가 / 삭제</p></div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> 북마크 목록 <span class="ep">/api/v1/bookmarks/</span></div></div>
+      <div class="cbd">
+        <div class="fr2">
+          <div class="f"><label>page</label><input id="bk-pg" type="number" value="1"></div>
+          <div class="f"><label>page_size</label><input id="bk-sz" type="number" value="10"></div>
+        </div>
+        <button class="btn btn-p" onclick="req('GET',`/api/v1/bookmarks/?page=${v('bk-pg')}&page_size=${v('bk-sz')}`,null,'r-bklist')">조회</button>
+        <div class="res" id="r-bklist"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b post">POST</span> / <span class="b delete">DELETE</span> 북마크 추가/삭제 <span class="ep">/api/v1/places/{id}/bookmarks/</span></div></div>
+      <div class="cbd">
+        <div class="f"><label>장소 ID</label><input id="bk-plid" type="number" placeholder="1"></div>
+        <div class="btn-row">
+          <button class="btn btn-p" onclick="req('POST',`/api/v1/places/${v('bk-plid')}/bookmarks/`,null,'r-bktgl')">추가</button>
+          <button class="btn btn-d" onclick="req('DELETE',`/api/v1/places/${v('bk-plid')}/bookmarks/`,null,'r-bktgl')">삭제</button>
+        </div>
+        <div class="res" id="r-bktgl"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REVIEWS -->
+  <section class="sec" id="s-reviews">
+    <div class="ph"><h2>⭐ 리뷰</h2><p>장소별 리뷰 목록/작성 · 리뷰 수정/삭제</p></div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> / <span class="b post">POST</span> 장소 리뷰 <span class="ep">/api/v1/places/{id}/reviews</span></div></div>
+      <div class="cbd">
+        <div class="f" style="align-items:flex-start">
+          <label>장소 ID</label>
+          <div style="display:flex;gap:8px;align-items:center;flex:1">
+            <input id="rv-plid" type="number" placeholder="1" style="flex:0 0 100px" oninput="fetchPlaceName('rv-plid','rv-plname')">
+            <span id="rv-plname" style="font-size:13px;color:#6366f1;font-weight:600"></span>
+          </div>
+        </div>
+
+        <hr class="sep">
+        <p class="sub-lbl">목록 조회</p>
+        <div class="fr2">
+          <div class="f"><label>page</label><input id="rv-pg" type="number" value="1"></div>
+          <div class="f"><label>page_size</label><input id="rv-sz" type="number" value="10"></div>
+        </div>
+        <button class="btn btn-g" onclick="req('GET',`/api/v1/places/${v('rv-plid')}/reviews?page=${v('rv-pg')}&page_size=${v('rv-sz')}`,null,'r-rvlist')">목록 조회</button>
+        <div class="res" id="r-rvlist"></div>
+
+        <hr class="sep">
+        <p class="sub-lbl">리뷰 작성</p>
+        <div class="fr2">
+          <div class="f"><label>별점 (1~5)</label><input id="rv-rat" type="number" min="1" max="5" value="5"></div>
+          <div class="f"><label>이미지 (선택)</label><input id="rv-img" type="file" accept="image/*"></div>
+        </div>
+        <div class="f"><label>내용</label><textarea id="rv-cont" placeholder="리뷰 내용을 입력하세요..."></textarea></div>
+        <button class="btn btn-p" onclick="createReview()">리뷰 작성</button>
+        <div class="res" id="r-rvcr"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b get">GET</span> / <span class="b patch">PATCH</span> / <span class="b delete">DELETE</span> 리뷰 상세 <span class="ep">/api/v1/reviews/{id}</span></div></div>
+      <div class="cbd">
+        <div class="f"><label>리뷰 ID</label><input id="rvd-id" type="number" placeholder="1"></div>
+        <div class="btn-row" style="margin-bottom:12px">
+          <button class="btn btn-g" onclick="req('GET',`/api/v1/reviews/${v('rvd-id')}`,null,'r-rvdet')">조회</button>
+          <button class="btn btn-d" onclick="req('DELETE',`/api/v1/reviews/${v('rvd-id')}`,null,'r-rvdet')">삭제</button>
+        </div>
+
+        <hr class="sep">
+        <p class="sub-lbl">리뷰 수정</p>
+        <div class="fr2">
+          <div class="f"><label>별점</label><input id="rvd-rat" type="number" min="1" max="5"></div>
+          <div class="f"><label>이미지 (선택)</label><input id="rvd-img" type="file" accept="image/*"></div>
+        </div>
+        <div class="f"><label>내용</label><textarea id="rvd-cont" placeholder="수정할 내용..."></textarea></div>
+        <button class="btn btn-p" onclick="updateReview()">수정</button>
+        <div class="res" id="r-rvdet"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section class="sec" id="s-quiz">
+    <div class="ph"><h2>🧩 여행 퀴즈</h2><p>12문항 완료 → preference_vector 생성 (추천 알고리즘 반영)</p></div>
+    <div class="card">
+      <div class="chd"><div class="ct"><span class="b post">POST</span> 퀴즈 제출 <span class="ep">/api/v1/quiz/submit</span></div></div>
+      <div class="cbd">
+        <div class="qprog" id="qprog"></div>
+        <div id="qbody"></div>
+        <div class="qnav">
+          <button class="btn btn-g"  id="q-prev"   onclick="qPrev()"   style="display:none">← 이전</button>
+          <button class="btn btn-p"  id="q-next"   onclick="qNext()">다음 →</button>
+          <button class="btn btn-p"  id="q-submit" onclick="qSubmit()" style="display:none">제출 🚀</button>
+        </div>
+        <div class="res" id="r-quiz"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// ── Config ──────────────────────────────────────────────
+const BASE = 'http://localhost:8000';
+const KID  = 'aa52a2618c356d5346c98fa3914415c2';
+const CB   = 'http://localhost:3000/social-callback';
+
+// ── Token state ─────────────────────────────────────────
+let tok = localStorage.getItem('tm_tok') || '';
+updateTokUI();
+
+// 페이지 로드 시 social-callback에서 저장한 토큰/메시지 확인
+window.addEventListener('DOMContentLoaded', () => {
+  const msg = localStorage.getItem('tm_cb_msg');
+  if (msg) {
+    localStorage.removeItem('tm_cb_msg');
+    const { rid, status, data } = JSON.parse(msg);
+    if (data?.access_token) {
+      tok = data.access_token;
+      localStorage.setItem('tm_tok', tok);
+      updateTokUI();
+    }
+    showRes(rid, status, data);
+  }
+  initQuiz();
+});
+
+// ── Navigation ───────────────────────────────────────────
+function go(el) {
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('on'));
+  document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('s-' + el.dataset.s).classList.add('on');
+}
+
+// ── Token UI ─────────────────────────────────────────────
+function updateTokUI() {
+  const d = document.getElementById('td'), l = document.getElementById('tl');
+  if (tok) { d.classList.add('on'); l.textContent = `…${tok.slice(-12)}`; }
+  else     { d.classList.remove('on'); l.textContent = '로그인 필요'; }
+}
+function clearTok() { tok = ''; localStorage.removeItem('tm_tok'); updateTokUI(); }
+
+// ── Core request ─────────────────────────────────────────
+async function req(method, path, body, rid, cb) {
+  const el = document.getElementById(rid);
+  el.classList.add('on');
+  el.innerHTML = '<div class="rs wrn2">요청 중...</div>';
+  const hdrs = {};
+  if (tok) hdrs['Authorization'] = `Bearer ${tok}`;
+  if (body && !(body instanceof FormData)) hdrs['Content-Type'] = 'application/json';
+  try {
+    const r = await fetch(BASE + path, {
+      method, headers: hdrs, credentials: 'include',
+      body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
+    });
+    let d; try { d = await r.json(); } catch { d = null; }
+    showRes(rid, r.status, d);
+    if (cb) cb(r.status, d);
+    return { status: r.status, data: d };
+  } catch(e) {
+    showRes(rid, 0, { error: e.message });
+    return null;
+  }
+}
+
+function showRes(id, status, data) {
+  const el = document.getElementById(id);
+  el.classList.add('on');
+  const cls = status === 0 ? 'err2' : status < 300 ? 'ok2' : status < 500 ? 'err2' : 'wrn2';
+  el.innerHTML = `<div class="rs ${cls}">${status || 'Network Error'}</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+const v   = id => document.getElementById(id)?.value?.trim() ?? '';
+const enc = s  => encodeURIComponent(s);
+
+// ── Auth ─────────────────────────────────────────────────
+function kakaoLogin(purpose = 'login') {
+  // social-callback 이 처리 후 어느 응답 박스에 결과를 보여줄지 저장
+  localStorage.setItem('tm_login_purpose', purpose);
+  const state = purpose === 'recovery' ? '&state=recovery' : '';
+  window.location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${KID}&redirect_uri=${enc(CB)}&response_type=code${state}`;
+}
+
+function onLogout(status) {
+  if (status === 204) { tok = ''; localStorage.removeItem('tm_tok'); updateTokUI(); }
+}
+
+async function doRefresh() {
+  const r = await req('POST', '/api/v1/auth/token/refresh', null, 'r-refresh');
+  if (r?.data?.access_token) {
+    tok = r.data.access_token;
+    localStorage.setItem('tm_tok', tok);
+    updateTokUI();
+  }
+}
+
+async function doWithdraw() {
+  const reason = v('w-reason');
+  if (!reason) return alert('탈퇴 사유를 입력하세요');
+  if (!confirm('정말 탈퇴하시겠습니까? (14일 이내 복구 가능)')) return;
+  const r = await req('DELETE', '/api/v1/auth/withdraw', { reason }, 'r-withdraw');
+  if (r?.status === 204) { tok = ''; localStorage.removeItem('tm_tok'); updateTokUI(); }
+}
+
+// ── Profile ──────────────────────────────────────────────
+function patchProfile() {
+  const body = {};
+  const n = v('p-nick'); if (n) body.nickname = n;
+  const i = v('p-img');  if (i) body.profile_image = i;
+  if (!Object.keys(body).length) return alert('수정할 내용을 입력하세요');
+  req('PATCH', '/api/v1/users', body, 'r-ppatch');
+}
+
+// ── Places ───────────────────────────────────────────────
+function placeList() {
+  let url = `/api/v1/places?page=${v('pl-pg')||1}&page_size=${v('pl-sz')||10}`;
+  const o = v('pl-ord'); if (o) url += `&ordering=${o}`;
+  req('GET', url, null, 'r-plist');
+}
+function placeFilter() {
+  let url = `/api/v1/places/filter?page=${v('pf-pg')||1}`;
+  const r = v('pf-rgn');  if (r) url += `&tags=${r}`;
+  const t = v('pf-tags');
+  if (t) t.split(',').map(s=>s.trim()).filter(Boolean).forEach(id => { url += `&tags=${id}`; });
+  const o = v('pf-ord');  if (o) url += `&ordering=${o}`;
+  req('GET', url, null, 'r-pfilt');
+}
+function placeRecommend() {
+  let url = `/api/v1/places/recommend?limit=${v('rc-lim')||10}`;
+  const r = v('rc-rgn'); if (r) url += `&region_tag_id=${r}`;
+  const t = v('rc-tags');
+  if (t) t.split(',').map(s=>s.trim()).filter(Boolean).forEach(id => { url += `&tags=${id}`; });
+  req('GET', url, null, 'r-rec');
+}
+function placeRoute() {
+  const lat = v('rt-olat'), lng = v('rt-olng'), pid = v('rt-pid');
+  if (!lat || !lng || !pid) return alert('출발 좌표와 장소 ID를 모두 입력하세요');
+  req('GET', `/api/v1/places/map/route?origin_lat=${lat}&origin_lng=${lng}&place_id=${pid}`, null, 'r-route');
+}
+
+// ── Place name lookup ─────────────────────────────────────
+const _placeNameCache = {};
+async function fetchPlaceName(inputId, spanId) {
+  const pid = v(inputId);
+  const span = document.getElementById(spanId);
+  if (!pid) { span.textContent = ''; return; }
+  if (_placeNameCache[pid]) { span.textContent = `📍 ${_placeNameCache[pid]}`; return; }
+  try {
+    const res = await fetch(`/api/v1/places/${pid}`, { headers: tok() ? { Authorization: `Bearer ${tok()}` } : {} });
+    if (!res.ok) { span.textContent = '⚠️ 존재하지 않는 장소'; span.style.color='#ef4444'; return; }
+    const data = await res.json();
+    _placeNameCache[pid] = data.place_name;
+    span.textContent = `📍 ${data.place_name}`;
+    span.style.color = '#6366f1';
+  } catch { span.textContent = ''; }
+}
+
+// ── Reviews (항상 FormData — 뷰가 MultiPartParser만 허용) ──
+async function createReview() {
+  const pid = v('rv-plid');
+  if (!pid) return alert('장소 ID를 입력하세요');
+  const fd = new FormData();
+  fd.append('rating', v('rv-rat') || '5');
+  fd.append('content', v('rv-cont'));
+  const img = document.getElementById('rv-img').files[0];
+  if (img) fd.append('image', img);
+  req('POST', `/api/v1/places/${pid}/reviews`, fd, 'r-rvcr');
+}
+async function updateReview() {
+  const rid = v('rvd-id');
+  if (!rid) return alert('리뷰 ID를 입력하세요');
+  const fd = new FormData();
+  const rat = v('rvd-rat'); if (rat) fd.append('rating', rat);
+  const con = v('rvd-cont'); if (con) fd.append('content', con);
+  const img = document.getElementById('rvd-img').files[0];
+  if (img) fd.append('image', img);
+  req('PATCH', `/api/v1/reviews/${rid}`, fd, 'r-rvdet');
+}
+
+// ── Quiz ─────────────────────────────────────────────────
+const QD = [
+  { q: '숙소는 어떤 스타일?',      a: '글램핑·독채',        b: '시티 호텔' },
+  { q: '여행 예산 관리는?',         a: '항목별 예산표',      b: '그냥 카드 긁기' },
+  { q: '아침 일정은?',              a: '일찍 루트대로 출발', b: '알람 없이 뒹굴' },
+  { q: '선호하는 코스는?',          a: '자연·트레킹 코스',   b: '도심 핫플 투어' },
+  { q: '첫날 도착 후?',             a: '바로 첫 스팟 출발',  b: '카페에서 계획 세우기' },
+  { q: '오후 자유 시간엔?',         a: '혼자 골목 산책',     b: '다같이 액티비티' },
+  { q: '취향에 맞는 활동은?',       a: '서핑·트레킹',        b: '미술관·공연' },
+  { q: '여행 동행 스타일은?',       a: '혼자 조용히',        b: '다같이 우르르' },
+  { q: '방문하고 싶은 곳은?',       a: '국립공원 트레킹',    b: '갤러리·파인다이닝' },
+  { q: '현지 경험은?',              a: '로컬 축제·시장',     b: '럭셔리 풀빌라' },
+  { q: '명소 방문 전 준비는?',      a: '미리 공부하고 감상', b: '그냥 가서 느끼기' },
+  { q: '여행 마지막 저녁은?',       a: '혼자 해변 노을',     b: '루프탑 바 칵테일' },
+];
+let qAns = new Array(12).fill(null);
+let qCur = 0;
+
+function initQuiz() {
+  const p = document.getElementById('qprog');
+  p.innerHTML = QD.map((_,i) => `<div class="qpd" id="qpd-${i}"></div>`).join('');
+  renderQ();
+}
+function renderQ() {
+  const i = qCur, q = QD[i];
+  QD.forEach((_,idx) => {
+    const d = document.getElementById(`qpd-${idx}`);
+    d.className = 'qpd' + (idx < i ? ' done' : idx === i ? ' cur' : '');
+  });
+  const sa = qAns[i] === 'a' ? ' sel' : '', sb = qAns[i] === 'b' ? ' sel' : '';
+  document.getElementById('qbody').innerHTML = `
+    <p class="qq"><span class="qn">${i+1} / ${QD.length}</span>${q.q}</p>
+    <div class="qopts">
+      <div class="qopt${sa}" onclick="qSel('a')">A. ${q.a}</div>
+      <div class="qopt${sb}" onclick="qSel('b')">B. ${q.b}</div>
+    </div>`;
+  document.getElementById('q-prev').style.display   = i > 0 ? '' : 'none';
+  document.getElementById('q-next').style.display   = i < QD.length - 1 ? '' : 'none';
+  document.getElementById('q-submit').style.display = i === QD.length - 1 ? '' : 'none';
+}
+function qSel(c) { qAns[qCur] = c; renderQ(); }
+function qPrev() { if (qCur > 0) { qCur--; renderQ(); } }
+function qNext() {
+  if (qAns[qCur] === null) return alert('선택해 주세요!');
+  if (qCur < QD.length - 1) { qCur++; renderQ(); }
+}
+async function qSubmit() {
+  const empty = qAns.filter(a => a === null).length;
+  if (empty) return alert(`아직 ${empty}문항을 선택하지 않았습니다.`);
+  const r = await req('POST', '/api/v1/quiz/submit', { answers: qAns }, 'r-quiz');
+  if (r?.status < 300) { qAns = new Array(12).fill(null); qCur = 0; renderQ(); }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>TravelMaker 플로우차트</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      padding: 24px 32px;
+      box-shadow: 0 2px 12px rgba(99,102,241,.3);
+    }
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+    header p  { font-size: 13px; opacity: .8; margin-top: 4px; }
+
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      padding: 16px 32px 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+      background: #f1f5f9;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+
+    .tab {
+      flex-shrink: 0;
+      padding: 10px 18px;
+      border-radius: 10px 10px 0 0;
+      border: none;
+      background: #e2e8f0;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .tab:hover { background: #cbd5e1; color: #334155; }
+    .tab.active {
+      background: white;
+      color: #6366f1;
+      font-weight: 700;
+      box-shadow: 0 -2px 0 #6366f1 inset;
+    }
+
+    .content { padding: 0 32px 40px; }
+
+    .panel {
+      display: none;
+      background: white;
+      border-radius: 0 12px 12px 12px;
+      padding: 28px 32px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.07);
+    }
+    .panel.active { display: block; }
+
+    .panel-header { margin-bottom: 20px; }
+    .panel-header h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
+    .panel-header p  { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+    .mermaid {
+      display: flex;
+      justify-content: center;
+      overflow-x: auto;
+      padding: 8px 0;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .badge-get    { background: #dbeafe; color: #1d4ed8; }
+    .badge-post   { background: #dcfce7; color: #15803d; }
+    .badge-patch  { background: #fef9c3; color: #a16207; }
+    .badge-delete { background: #fee2e2; color: #b91c1c; }
+    .badge-infra  { background: #f3e8ff; color: #7c3aed; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>TravelMaker 플로우차트</h1>
+  <p>기능 영역별 탭으로 구분된 API 흐름 시각화</p>
+</header>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="show(0)">🗺 전체 개요</button>
+  <button class="tab" onclick="show(1)">🔐 인증</button>
+  <button class="tab" onclick="show(2)">📍 장소</button>
+  <button class="tab" onclick="show(3)">🧭 추천</button>
+  <button class="tab" onclick="show(4)">🧩 여행 퀴즈</button>
+  <button class="tab" onclick="show(5)">⭐ 리뷰</button>
+  <button class="tab" onclick="show(6)">🔖 북마크</button>
+  <button class="tab" onclick="show(7)">👤 프로필</button>
+</div>
+
+<div class="content">
+
+  <!-- 0. 전체 개요 -->
+  <div class="panel active" id="panel-0">
+    <div class="panel-header">
+      <h2>🗺 전체 개요</h2>
+      <p>사용자 관점에서 바라본 서비스 전체 흐름</p>
+    </div>
+    <div class="mermaid">
+flowchart LR
+    User([👤 사용자])
+
+    subgraph A ["🔐 인증"]
+        Login["카카오 로그인\n→ JWT 발급"]
+        Token["토큰 갱신 / 로그아웃\n탈퇴 / 복구"]
+    end
+
+    subgraph B ["📍 장소"]
+        Browse["목록 · 검색 · 필터"]
+        Detail["장소 상세"]
+        Map["지도 · 경로"]
+    end
+
+    subgraph C ["🧭 추천"]
+        Rec["장소 추천\n벡터 기반 or 인기순"]
+    end
+
+    subgraph D ["🧩 퀴즈"]
+        Quiz["12문항 응시\n→ 성향 타입 결정\n→ 장소 3개 추천"]
+    end
+
+    subgraph E ["⭐ 리뷰"]
+        Review["작성 · 수정 · 삭제"]
+    end
+
+    subgraph F ["🔖 북마크"]
+        Bookmark["추가 · 삭제 · 목록"]
+    end
+
+    subgraph G ["👤 프로필"]
+        Profile["조회 · 수정 · 아바타"]
+    end
+
+    User --> A
+    A --> B & C & D & E & F & G
+    D -->|"result_vector 저장"| C
+    B --> E & F
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-infra">PostgreSQL + pgvector</span>
+      <span class="badge badge-infra">Redis (JWT 블랙리스트 · Celery)</span>
+      <span class="badge badge-infra">AWS S3 (이미지)</span>
+      <span class="badge badge-infra">카카오 OAuth2 · 모빌리티 API</span>
+    </div>
+  </div>
+
+  <!-- 1. 인증 -->
+  <div class="panel" id="panel-1">
+    <div class="panel-header">
+      <h2>🔐 인증 플로우</h2>
+      <p>카카오 OAuth2 기반 소셜 로그인 · JWT 토큰 관리</p>
+    </div>
+    <div class="mermaid">
+flowchart TD
+    User([👤 사용자])
+
+    subgraph LOGIN ["로그인"]
+        Redirect["① 카카오 인증 서버\nhttps://kauth.kakao.com/oauth/authorize"]
+        Code["② 인가 코드 수신\n(redirect_uri 콜백)"]
+        LoginAPI["③ POST /auth/kakao/login\n{ code }"]
+        KakaoServer["카카오 API 서버\n유저 정보 조회"]
+        UserUpsert["SocialUser 조회 or 생성\n(provider=kakao)"]
+        Issue["④ JWT 발급\naccess_token → 응답 body\nrefresh_token → HttpOnly Cookie (7일 TTL)"]
+    end
+
+    subgraph TOKEN ["토큰 관리"]
+        Refresh["POST /auth/token/refresh\n쿠키의 refresh_token 사용"]
+        BlacklistCheck{"Redis\nJTI 블랙리스트?"}
+        NewAccess["새 access_token 발급"]
+        Denied["401 Unauthorized"]
+    end
+
+    subgraph LOGOUT ["로그아웃 / 탈퇴 / 복구"]
+        Logout["POST /auth/logout\naccess_token Bearer"]
+        BlacklistAdd["Redis에 JTI 등록\n(남은 TTL 만큼 유지)"]
+        Withdraw["POST /auth/withdraw\nsoft delete\nis_active=False + deleted_at=now()"]
+        Recovery["POST /auth/recovery\n14일 이내만 가능\n카카오 재인증 후 is_active=True"]
+    end
+
+    User -->|"로그인 버튼"| Redirect
+    Redirect --> Code
+    Code --> LoginAPI
+    LoginAPI --> KakaoServer
+    KakaoServer --> UserUpsert
+    UserUpsert --> Issue
+    Issue --> User
+
+    User -->|"access_token 만료"| Refresh
+    Refresh --> BlacklistCheck
+    BlacklistCheck -->|"정상"| NewAccess
+    BlacklistCheck -->|"블랙리스트"| Denied
+    NewAccess --> User
+
+    User -->|"로그아웃"| Logout
+    Logout --> BlacklistAdd
+
+    User -->|"탈퇴"| Withdraw
+    Withdraw -->|"복구 요청"| Recovery
+    Recovery -->|"재인증"| Redirect
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-post">POST /auth/kakao/login</span>
+      <span class="badge badge-post">POST /auth/token/refresh</span>
+      <span class="badge badge-post">POST /auth/logout</span>
+      <span class="badge badge-post">POST /auth/withdraw</span>
+      <span class="badge badge-post">POST /auth/recovery</span>
+    </div>
+  </div>
+
+  <!-- 2. 장소 -->
+  <div class="panel" id="panel-2">
+    <div class="panel-header">
+      <h2>📍 장소 플로우</h2>
+      <p>장소 목록 · 검색 · 필터 · 상세 · 지도 · 경로</p>
+    </div>
+    <div class="mermaid">
+flowchart TD
+    User([👤 사용자])
+
+    subgraph LIST ["목록 / 검색 / 필터"]
+        PlaceList["GET /places\n페이지네이션\nordering 지원"]
+        Search["GET /places/search\n?keyword=제목검색\n&sort=bookmark·review·rating\n&order=asc·desc"]
+        Filter["GET /places/filter\n?tags=32 (지역)\n?tags=8 (테마) 복수 AND 필터"]
+        Tags["GET /tags/\n태그 전체 목록\n지역·세부테마·편의성·동행·여행스타일"]
+    end
+
+    subgraph DETAIL ["상세"]
+        PlaceDetail["GET /places/{id}\n장소명·설명·좌표\n이미지·태그·평점·북마크수"]
+    end
+
+    subgraph MAP ["지도 / 경로"]
+        MapList["GET /places/map\n전체 장소 좌표 목록\n(id·name·lat·lng·rating_avg)"]
+        Route["GET /places/map/route\n?origin_lat= &origin_lng=\n&place_id="]
+        KakaoMobility["🚗 카카오 모빌리티 API\n자동차 경로 탐색\n(REST API Key 인증)"]
+        KakaoKey["GET /places/config/kakao\n프론트용 JS 키 발급"]
+    end
+
+    User --> PlaceList & Search & Filter
+    User --> Tags
+    Filter -.->|"태그 ID 참조"| Tags
+    PlaceList & Search & Filter --> PlaceDetail
+    PlaceDetail --> MapList
+    MapList --> Route
+    Route --> KakaoMobility
+    User --> KakaoKey
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-get">GET /places</span>
+      <span class="badge badge-get">GET /places/search</span>
+      <span class="badge badge-get">GET /places/filter</span>
+      <span class="badge badge-get">GET /places/{id}</span>
+      <span class="badge badge-get">GET /places/map</span>
+      <span class="badge badge-get">GET /places/map/route</span>
+      <span class="badge badge-get">GET /places/config/kakao</span>
+      <span class="badge badge-get">GET /tags/</span>
+    </div>
+  </div>
+
+  <!-- 3. 추천 -->
+  <div class="panel" id="panel-3">
+    <div class="panel-header">
+      <h2>🧭 장소 추천 파이프라인</h2>
+      <p>로그인 여부 · 퀴즈 결과에 따라 벡터 추천 or 인기순 폴백</p>
+    </div>
+    <div class="mermaid">
+flowchart TD
+    User([👤 사용자])
+    API["GET /places/recommend\n?region_tag_id= &tags= &limit="]
+
+    AuthCheck{"로그인 상태?"}
+    QuizCheck{"UserTestResult\n존재?"}
+
+    subgraph VECTOR ["벡터 기반 추천"]
+        direction TB
+        LoadVector["UserTestResult에서\nresult_vector 로드 (6차원)"]
+        PreFilter["사전 필터\n• is_active=True\n• place_feature__isnull=False\n• region_tag_id (선택)\n• tags (선택)"]
+        Cosine["CosineDistance\n(style_vector, user_vector)\nHNSW 인덱스 ANN 검색"]
+        TopN["상위 N개 반환\n(limit 파라미터)"]
+    end
+
+    subgraph FALLBACK ["인기순 폴백"]
+        direction TB
+        Popular["rating_avg DESC\nbookmark_count DESC\n(동일 필터 조건 적용)"]
+    end
+
+    DB[("PostgreSQL\n+ pgvector\nHNSW 인덱스")]
+
+    User --> API
+    API --> AuthCheck
+    AuthCheck -->|"비로그인"| FALLBACK
+    AuthCheck -->|"로그인"| QuizCheck
+    QuizCheck -->|"퀴즈 미완료"| FALLBACK
+    QuizCheck -->|"퀴즈 완료"| VECTOR
+    LoadVector --> PreFilter --> Cosine --> TopN
+    TopN --> DB
+    Popular --> DB
+    DB -->|"결과 반환"| User
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-get">GET /places/recommend</span>
+      <span class="badge badge-infra">pgvector HNSW (m=16, ef=64, cosine)</span>
+      <span class="badge badge-infra">PlaceFeature.style_vector 6차원</span>
+    </div>
+  </div>
+
+  <!-- 4. 여행 퀴즈 -->
+  <div class="panel" id="panel-4">
+    <div class="panel-header">
+      <h2>🧩 여행 퀴즈 플로우</h2>
+      <p>12문항 A/B 선택 → 6차원 벡터 계산 → 성향 타입 결정 → 장소 추천</p>
+    </div>
+    <div class="mermaid">
+flowchart TD
+    User([👤 사용자])
+
+    subgraph SUBMIT ["퀴즈 제출"]
+        Q["POST /quiz/submit\n{ answers: 12문항 A/B }"]
+        Norm["6축 정규화 벡터 계산 0~1\n[액티비티 · 계획성 · 사교성\n자연 · 문화 · 가성비]"]
+    end
+
+    subgraph TYPE ["성향 타입 결정"]
+        Axis["3개 축으로 타입 키 생성\n액티비티(≥0.5 → t) +\n사교성(≥0.5 → t) +\n자연(≥0.5 → t)"]
+        Types["8가지 성향 타입\nttt 새벽을 달리는 늑대\nttf · tft · tff\nftt · ftf · fft\nfff"]
+        Desc["성향 설명 생성\n4개 DetailCard 구성"]
+    end
+
+    subgraph SAVE ["저장 (로그인 시)"]
+        Upsert["UserTestResult\nupdate_or_create\nresult_vector + travel_type"]
+    end
+
+    subgraph REC ["즉시 장소 추천"]
+        Cos["CosineDistance\n(style_vector, result_vector)\n상위 3개 반환"]
+    end
+
+    subgraph RESULT ["결과 조회"]
+        ResultAPI["GET /users/quiz/result\n저장된 성향 타입\n+ result_vector 조회"]
+        AvatarAPI["PATCH /users/avatar\n성향 타입 이미지를\n프로필 사진으로 설정"]
+    end
+
+    User -->|"12문항 응답"| Q
+    Q --> Norm --> Axis --> Types --> Desc
+    Types --> Upsert
+    Upsert -->|"로그인 시 저장"| Cos
+    Desc --> Cos
+    Cos -->|"결과 + 추천 장소 반환"| User
+    User --> ResultAPI
+    ResultAPI --> AvatarAPI
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-post">POST /quiz/submit</span>
+      <span class="badge badge-get">GET /users/quiz/result</span>
+      <span class="badge badge-patch">PATCH /users/avatar</span>
+      <span class="badge badge-infra">TravelType 8종 (ttt~fff)</span>
+    </div>
+  </div>
+
+  <!-- 5. 리뷰 -->
+  <div class="panel" id="panel-5">
+    <div class="panel-header">
+      <h2>⭐ 리뷰 플로우</h2>
+      <p>장소별 리뷰 작성 · 수정 · 삭제 · 이미지 비동기 업로드</p>
+    </div>
+    <div class="mermaid">
+flowchart TD
+    User([👤 사용자])
+
+    subgraph LIST ["목록 조회"]
+        ReviewList["GET /places/{id}/reviews\npage · page_size 파라미터"]
+    end
+
+    subgraph CREATE ["리뷰 작성"]
+        CreateAPI["POST /places/{id}/reviews\nFormData 필수\n(JSON 불가 — MultiPartParser)"]
+        Validate["검증\n• 로그인 필수\n• 장소당 1개 (unique_together)\n• rating 1~5"]
+        SaveText["텍스트·평점 저장\n(PostgreSQL)"]
+        HasImage{"이미지\n첨부?"}
+        Async["Celery 비동기 태스크\n이미지 → S3 업로드\n(max_retries=3, delay=60s)"]
+        S3[("☁️ AWS S3")]
+    end
+
+    subgraph CRUD ["수정 / 삭제"]
+        GetReview["GET /reviews/{id}\n리뷰 상세"]
+        UpdateReview["PATCH /reviews/{id}\nFormData\nrating · content · image 부분 수정"]
+        DeleteReview["DELETE /reviews/{id}\n본인 리뷰만 삭제 가능"]
+    end
+
+    subgraph MYREVIEW ["내 리뷰"]
+        MyReview["GET /users/reviews\n내가 작성한 리뷰 전체"]
+    end
+
+    User --> ReviewList
+    User -->|"로그인 필요"| CreateAPI
+    CreateAPI --> Validate --> SaveText
+    SaveText --> HasImage
+    HasImage -->|"Yes"| Async
+    HasImage -->|"No"| User
+    Async --> S3
+    S3 --> User
+    ReviewList & CreateAPI --> GetReview
+    GetReview --> UpdateReview & DeleteReview
+    User --> MyReview
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-get">GET /places/{id}/reviews</span>
+      <span class="badge badge-post">POST /places/{id}/reviews</span>
+      <span class="badge badge-get">GET /reviews/{id}</span>
+      <span class="badge badge-patch">PATCH /reviews/{id}</span>
+      <span class="badge badge-delete">DELETE /reviews/{id}</span>
+      <span class="badge badge-get">GET /users/reviews</span>
+      <span class="badge badge-infra">Celery 비동기 S3 업로드</span>
+    </div>
+  </div>
+
+  <!-- 6. 북마크 -->
+  <div class="panel" id="panel-6">
+    <div class="panel-header">
+      <h2>🔖 북마크 플로우</h2>
+      <p>장소 북마크 추가 · 삭제 · 목록 조회</p>
+    </div>
+    <div class="mermaid">
+flowchart TD
+    User([👤 사용자])
+
+    subgraph TOGGLE ["북마크 토글"]
+        Add["POST /places/{id}/bookmarks/\n북마크 추가\n(로그인 필수)"]
+        Remove["DELETE /places/{id}/bookmarks/\n북마크 삭제"]
+        Unique["unique_together\n(user, place)\n중복 불가"]
+    end
+
+    subgraph MYLIST ["내 북마크 목록"]
+        UserBM["GET /users/bookmarks\n내 북마크 장소 목록\n(프로필 서브 메뉴)"]
+        GlobalBM["GET /bookmarks/\n전체 북마크 목록\npage · page_size"]
+    end
+
+    DB[("PostgreSQL\nBookmark 테이블")]
+
+    User -->|"로그인 필요"| Add & Remove
+    Add --> Unique --> DB
+    Remove --> DB
+    User --> UserBM & GlobalBM
+    UserBM & GlobalBM --> DB
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-post">POST /places/{id}/bookmarks/</span>
+      <span class="badge badge-delete">DELETE /places/{id}/bookmarks/</span>
+      <span class="badge badge-get">GET /users/bookmarks</span>
+      <span class="badge badge-get">GET /bookmarks/</span>
+    </div>
+  </div>
+
+  <!-- 7. 프로필 -->
+  <div class="panel" id="panel-7">
+    <div class="panel-header">
+      <h2>👤 프로필 플로우</h2>
+      <p>프로필 조회 · 수정 · 아바타 변경</p>
+    </div>
+    <div class="mermaid">
+flowchart TD
+    User([👤 사용자])
+
+    subgraph PROFILE ["프로필"]
+        Get["GET /users\n닉네임 · 소개 · 프로필 이미지\n가입일 · 팔로워 수 등"]
+        Edit["PATCH /users\n닉네임 · 소개 부분 수정"]
+    end
+
+    subgraph AVATAR ["아바타"]
+        AvatarAPI["PATCH /users/avatar\n{ travel_type_id }\n여행 성향 타입 이미지를\n프로필 사진으로 변경"]
+        TravelType["TravelType 이미지 URL\n8가지 성향 타입 중 선택"]
+        S3[("☁️ AWS S3\n이미지 URL 저장")]
+    end
+
+    subgraph ACTIVITY ["활동 내역"]
+        MyReview["GET /users/reviews\n내 리뷰 목록"]
+        MyBookmark["GET /users/bookmarks\n내 북마크 목록"]
+        QuizResult["GET /users/quiz/result\n내 여행 성향 결과"]
+    end
+
+    DB[("PostgreSQL\nUser 테이블")]
+
+    User --> Get & Edit
+    Get & Edit --> DB
+    User --> AvatarAPI
+    AvatarAPI --> TravelType --> S3 --> DB
+    User --> MyReview & MyBookmark & QuizResult
+    </div>
+    <div class="badge-row">
+      <span class="badge badge-get">GET /users</span>
+      <span class="badge badge-patch">PATCH /users</span>
+      <span class="badge badge-patch">PATCH /users/avatar</span>
+      <span class="badge badge-get">GET /users/reviews</span>
+      <span class="badge badge-get">GET /users/bookmarks</span>
+      <span class="badge badge-get">GET /users/quiz/result</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: false, theme: 'default', flowchart: { curve: 'basis', padding: 20 } });
+
+  const rendered = new Set();
+
+  async function show(idx) {
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+    document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+
+    if (!rendered.has(idx)) {
+      rendered.add(idx);
+      const panel = document.getElementById(`panel-${idx}`);
+      await mermaid.run({ nodes: panel.querySelectorAll('.mermaid') });
+    }
+  }
+
+  // 첫 탭(전체 개요) 초기 렌더링
+  show(0);
+</script>
+</body>
+</html>
