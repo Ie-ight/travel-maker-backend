@@ -234,6 +234,9 @@ SPECTACULAR_SETTINGS = {
             }
         }
     },
+    "DEFAULT_AUTHENTICATION_EXTENSIONS": [
+        "drf_spectacular.extensions.OpenApiAuthenticationExtension",
+    ],
 }
 
 # Simple JWT
