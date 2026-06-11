@@ -107,6 +107,12 @@ class SocialUser(TimeStampModel):
         db_table = "social_users"
         verbose_name = "소셜 유저"
         verbose_name_plural = "소셜 유저 목록"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "provider_id"],
+                name="unique_provider_account",
+            )
+        ]
 
 
 class Follow(models.Model):
