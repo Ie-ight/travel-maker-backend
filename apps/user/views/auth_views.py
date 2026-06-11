@@ -14,6 +14,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.user.schemas.auth_schemas import (
+    admin_login_schema,
     kakao_callback_schema,
     kakao_login_schema,
     logout_schema,
@@ -21,7 +22,7 @@ from apps.user.schemas.auth_schemas import (
     token_refresh_schema,
     withdraw_schema,
 )
-from apps.user.serializers.auth_serializer import KakaoLoginSerializer, WithdrawSerializer
+from apps.user.serializers.auth_serializer import AdminLoginSerializer, KakaoLoginSerializer, WithdrawSerializer
 from apps.user.services.auth_service import KakaoAuthService
 from apps.user.utils.auth_exceptions import (
     AuthBaseException,
@@ -52,6 +53,36 @@ def _set_refresh_cookie(response: HttpResponseBase, refresh_token: str) -> None:
 
 def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=REFRESH_COOKIE, path="/")
+
+
+class AdminLoginView(APIView):
+    """POST /api/v1/auth/admin/login — Swagger 테스트용 (is_staff 전용)"""
+
+    permission_classes = []
+
+    @admin_login_schema
+    def post(self, request: Request) -> Response:
+        from django.contrib.auth import authenticate
+
+        serializer = AdminLoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"error_detail": "이메일 또는 패스워드가 올바르지 않습니다."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        email: str = serializer.validated_data["email"]
+        password: str = serializer.validated_data["password"]
+
+        user = authenticate(request, username=email, password=password)
+        if user is None or not user.is_active:
+            return Response(
+                {"error_detail": "이메일 또는 패스워드가 올바르지 않습니다."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
+        response = Response({"access_token": access_token}, status=status.HTTP_200_OK)
+        _set_refresh_cookie(response, refresh_token)
+        return response
 
 
 class KakaoLoginView(APIView):
