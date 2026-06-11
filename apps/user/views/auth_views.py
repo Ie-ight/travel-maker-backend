@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.user.models import User
 from apps.user.schemas.auth_schemas import (
     admin_login_schema,
     kakao_callback_schema,
@@ -180,10 +181,14 @@ class TokenRefreshView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        return Response(
-            {"access_token": str(token.access_token)},
-            status=status.HTTP_200_OK,
-        )
+        # Rotate: 기존 refresh token 폐기 후 새 token pair 발급
+        KakaoAuthService.blacklist_token(refresh_token_str)
+        user = User.objects.get(pk=token.payload["user_id"])
+        access_token, new_refresh_token = KakaoAuthService.generate_token_pair(user)
+
+        response = Response({"access_token": access_token}, status=status.HTTP_200_OK)
+        _set_refresh_cookie(response, new_refresh_token)
+        return response
 
 
 class WithdrawView(APIView):
