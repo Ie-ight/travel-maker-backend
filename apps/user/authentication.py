@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
-from drf_spectacular.openapi import AutoSchema
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.request import Request
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 
+if TYPE_CHECKING:
+    from drf_spectacular.openapi import AutoSchema
 
-class BlacklistAwareJWTAuthentication(OpenApiAuthenticationExtension):  # type: ignore[misc]
+
+class BlacklistAwareJWTAuthentication(JWTAuthentication):
     """로그아웃/탈퇴 처리된 access token의 JTI를 블랙리스트에서 검사하는 인증 클래스.
 
     SimpleJWT 기본 클래스는 refresh token 갱신 시에만 블랙리스트를 확인하므로,
@@ -19,16 +24,6 @@ class BlacklistAwareJWTAuthentication(OpenApiAuthenticationExtension):  # type: 
     동작은 동일하다. permission_classes = [] 인 공개 뷰에서는 토큰 만료로 인한 오탐 401을 방지한다.
     블랙리스트 토큰은 명시적 InvalidToken(401)을 유지한다.
     """
-
-    target_class = "apps.user.authentication.BlacklistAwareJWTAuthentication"
-    name = "BearerAuth"
-
-    def get_security_definition(self, auto_schema: AutoSchema) -> dict[str, str]:
-        return {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-        }
 
     def authenticate(self, request: Request) -> tuple[object, object] | None:  # type: ignore[override]
         try:
@@ -48,3 +43,15 @@ class BlacklistAwareJWTAuthentication(OpenApiAuthenticationExtension):  # type: 
         if jti and KakaoAuthService.is_jti_blacklisted(jti):
             raise InvalidToken("Token has been blacklisted")
         return result
+
+
+class BlacklistAwareJWTAuthenticationScheme(OpenApiAuthenticationExtension):  # type: ignore[misc, no-untyped-call]
+    target_class = "apps.user.authentication.BlacklistAwareJWTAuthentication"
+    name = "BearerAuth"
+
+    def get_security_definition(self, auto_schema: AutoSchema) -> dict[str, str]:
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
