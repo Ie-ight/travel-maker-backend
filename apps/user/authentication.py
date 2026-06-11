@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.request import Request
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
+
+if TYPE_CHECKING:
+    from drf_spectacular.openapi import AutoSchema
 
 
 class BlacklistAwareJWTAuthentication(JWTAuthentication):
@@ -37,3 +43,15 @@ class BlacklistAwareJWTAuthentication(JWTAuthentication):
         if jti and KakaoAuthService.is_jti_blacklisted(jti):
             raise InvalidToken("Token has been blacklisted")
         return result
+
+
+class BlacklistAwareJWTAuthenticationScheme(OpenApiAuthenticationExtension):  # type: ignore[misc, no-untyped-call]
+    target_class = "apps.user.authentication.BlacklistAwareJWTAuthentication"
+    name = "BearerAuth"
+
+    def get_security_definition(self, auto_schema: AutoSchema) -> dict[str, str]:
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
