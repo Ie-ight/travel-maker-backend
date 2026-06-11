@@ -74,7 +74,7 @@ class AdminLoginView(APIView):
         password: str = serializer.validated_data["password"]
 
         user = authenticate(request, username=email, password=password)
-        if user is None or not user.is_active:
+        if user is None or not user.is_staff:
             return Response(
                 {"error_detail": "이메일 또는 패스워드가 올바르지 않습니다."}, status=status.HTTP_401_UNAUTHORIZED
             )
