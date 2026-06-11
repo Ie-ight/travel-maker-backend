@@ -19,6 +19,16 @@ class BlacklistAwareJWTAuthentication(JWTAuthentication):
     블랙리스트 토큰은 명시적 InvalidToken(401)을 유지한다.
     """
 
+    target_class = "apps.user.authentication.BlacklistAwareJWTAuthentication"
+    name = "BearerAuth"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+
     def authenticate(self, request: Request) -> tuple[object, object] | None:  # type: ignore[override]
         try:
             result = super().authenticate(request)
