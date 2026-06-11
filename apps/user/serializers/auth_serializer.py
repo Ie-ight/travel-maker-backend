@@ -36,3 +36,14 @@ class RecoveryResponseSerializer(serializers.Serializer[Any]):
 
     access_token = serializers.CharField()
     message = serializers.CharField()
+
+
+class AdminLoginSerializer(serializers.Serializer[Any]):
+    """POST /api/v1/auth/admin/login"""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+
+class AdminLoginResponseSerializer(serializers.Serializer[Any]):
+    access_token = serializers.CharField()
