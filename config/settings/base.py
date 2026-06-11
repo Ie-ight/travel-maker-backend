@@ -95,6 +95,7 @@ DATABASES = {
         "PASSWORD": config("DB_PASSWORD", default="postgres"),
         "HOST": config("DB_HOST", default="localhost"),
         "PORT": config("DB_PORT", default="5432"),
+        "CONN_MAX_AGE": 60,  # 커넥션을 60초간 재사용하여 매 요청 TCP 연결 비용 제거
     }
 }
 
