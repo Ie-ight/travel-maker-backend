@@ -51,7 +51,11 @@ class PlaceReviewListCreateView(APIView):
             page_size, page = 4, 1
 
         offset = (page - 1) * page_size
-        serializer = ReviewListItemSerializer(reviews[offset : offset + page_size], many=True)
+        serializer = ReviewListItemSerializer(
+            reviews[offset : offset + page_size],
+            many=True,
+            context={"request": request},
+        )
         return Response({"count": count, "avg_rating": avg_rating, "results": serializer.data})
 
     @review_create_schema
@@ -68,7 +72,10 @@ class PlaceReviewListCreateView(APIView):
             content=data["content"],
             image=data.get("image"),
         )
-        return Response(ReviewCreateResponseSerializer(review).data, status=status.HTTP_201_CREATED)
+        return Response(
+            ReviewCreateResponseSerializer(review, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class ReviewDetailView(APIView):
@@ -81,7 +88,7 @@ class ReviewDetailView(APIView):
         user = request.user
         assert isinstance(user, AbstractBaseUser)
         review = update_review(user=user, review_id=review_id, data=serializer.validated_data)
-        return Response(ReviewUpdateResponseSerializer(review).data)
+        return Response(ReviewUpdateResponseSerializer(review, context={"request": request}).data)
 
     @review_delete_schema
     def delete(self, request: Request, review_id: int) -> Response:
