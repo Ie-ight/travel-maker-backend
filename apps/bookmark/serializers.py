@@ -3,7 +3,6 @@ from typing import Any
 from rest_framework import serializers
 
 from apps.bookmark.models import Bookmark
-from apps.place.models import PlaceImage
 
 
 class PlaceSimpleSerializer(serializers.Serializer[Any]):
@@ -13,8 +12,10 @@ class PlaceSimpleSerializer(serializers.Serializer[Any]):
     main_image = serializers.SerializerMethodField()
 
     def get_main_image(self, obj: Any) -> str | None:
-        image = PlaceImage.objects.filter(place=obj, is_main=True).first()
-        return image.image_url if image else None
+        for image in obj.images.all():
+            if image.is_main:
+                return image.image_url
+        return None
 
 
 class BookmarkSerializer(serializers.ModelSerializer[Bookmark]):
