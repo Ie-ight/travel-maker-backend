@@ -1,7 +1,10 @@
 # apps/core/exceptions.py
 
+from typing import Never
+
 from rest_framework import status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, NotAuthenticated
+from rest_framework.request import Request
 
 
 class Conflict(APIException):
@@ -20,3 +23,14 @@ class BadRequest(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "잘못된 요청입니다."
     default_code = "bad_request"
+
+
+class ServiceUnavailable(APIException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    default_detail = "일시적으로 서비스를 이용할 수 없습니다."
+    default_code = "service_unavailable"
+
+
+class AuthRequiredMixin:
+    def permission_denied(self, request: Request, message: str | None = None, code: str | None = None) -> Never:
+        raise NotAuthenticated("자격 인증 데이터가 제공되지 않았습니다.")
