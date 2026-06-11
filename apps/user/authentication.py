@@ -7,7 +7,7 @@ from rest_framework.request import Request
 from rest_framework_simplejwt.exceptions import InvalidToken
 
 
-class BlacklistAwareJWTAuthentication(OpenApiAuthenticationExtension):
+class BlacklistAwareJWTAuthentication(OpenApiAuthenticationExtension):  # type: ignore[misc]
     """로그아웃/탈퇴 처리된 access token의 JTI를 블랙리스트에서 검사하는 인증 클래스.
 
     SimpleJWT 기본 클래스는 refresh token 갱신 시에만 블랙리스트를 확인하므로,
