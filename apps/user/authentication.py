@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
+from drf_spectacular.openapi import AutoSchema
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.request import Request
-from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 
 
-class BlacklistAwareJWTAuthentication(JWTAuthentication):
+class BlacklistAwareJWTAuthentication(OpenApiAuthenticationExtension):
     """로그아웃/탈퇴 처리된 access token의 JTI를 블랙리스트에서 검사하는 인증 클래스.
 
     SimpleJWT 기본 클래스는 refresh token 갱신 시에만 블랙리스트를 확인하므로,
@@ -22,7 +23,7 @@ class BlacklistAwareJWTAuthentication(JWTAuthentication):
     target_class = "apps.user.authentication.BlacklistAwareJWTAuthentication"
     name = "BearerAuth"
 
-    def get_security_definition(self, auto_schema):
+    def get_security_definition(self, auto_schema: AutoSchema) -> dict[str, str]:
         return {
             "type": "http",
             "scheme": "bearer",
