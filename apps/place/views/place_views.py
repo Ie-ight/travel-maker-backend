@@ -29,7 +29,8 @@ class PlaceListView(APIView):
 
     @place_list_schema
     def get(self, request: Request) -> Response:
-        queryset = get_place_list()
+        user_id = request.user.id if request.user.is_authenticated else None
+        queryset = get_place_list(user_id=user_id)
         paginator = CustomPagination()
         page = paginator.paginate_queryset(queryset, self.request)
         serializer = PlaceListSerializer(page, many=True, context={"request": self.request})
@@ -44,8 +45,9 @@ class PlaceSearchView(APIView):
         keyword = request.query_params.get("keyword", "").strip()
         sort = request.query_params.get("sort", "bookmark")
         order = request.query_params.get("order", "desc")
+        user_id = request.user.id if request.user.is_authenticated else None
 
-        queryset = get_place_list(keyword=keyword, sort=sort, order=order)
+        queryset = get_place_list(keyword=keyword, sort=sort, order=order, user_id=user_id)
         paginator = CustomPagination()
         page = paginator.paginate_queryset(queryset, self.request)
         serializer = PlaceListSerializer(page, many=True, context={"request": self.request})
@@ -68,7 +70,8 @@ class PlaceFilterView(APIView):
             if part.strip().isdigit()
         ]
 
-        queryset = get_place_list(keyword=keyword, sort=sort, order=order, tags=tag_ids)
+        user_id = request.user.id if request.user.is_authenticated else None
+        queryset = get_place_list(keyword=keyword, sort=sort, order=order, tags=tag_ids, user_id=user_id)
         paginator = CustomPagination()
         page = paginator.paginate_queryset(queryset, self.request)
         serializer = PlaceListSerializer(page, many=True, context={"request": self.request})
@@ -80,7 +83,8 @@ class PlaceDetailView(APIView):
 
     @place_detail_schema
     def get(self, request: Request, place_id: int) -> Response:
-        place = get_place_detail(place_id)
+        user_id = request.user.id if request.user.is_authenticated else None
+        place = get_place_detail(place_id, user_id=user_id)
         if place is None:
             raise NotFound("존재하지 않는 장소입니다.")
         return Response(PlaceDetailSerializer(place).data)

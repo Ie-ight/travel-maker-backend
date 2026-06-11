@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>로그인 처리 중...</title>
+  <style>
+    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f1f5f9; }
+    .box { text-align: center; padding: 32px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    p { color: #64748b; font-size: 14px; margin-top: 10px; }
+    .err { color: #ef4444; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <div id="msg">⏳ 로그인 처리 중...</div>
+  <p id="sub"></p>
+</div>
+<script>
+const API = 'http://localhost:8000';
+
+(async () => {
+  const params = new URLSearchParams(window.location.search);
+  const code  = params.get('code');
+  const error = params.get('error');
+  const state = params.get('state');  // 'recovery' 또는 undefined
+
+  if (error || !code) {
+    document.getElementById('msg').innerHTML = '<span class="err">❌ 로그인 취소됨</span>';
+    document.getElementById('sub').textContent = '잠시 후 콘솔로 돌아갑니다...';
+    setTimeout(() => window.location.href = '/console.html', 1500);
+    return;
+  }
+
+  const endpoint = state === 'recovery'
+    ? '/api/v1/auth/recovery'
+    : '/api/v1/auth/kakao/login';
+  const rid = state === 'recovery' ? 'r-recovery' : 'r-login';
+
+  try {
+    const res = await fetch(API + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+
+    localStorage.setItem('tm_cb_msg', JSON.stringify({ rid, status: res.status, data }));
+    document.getElementById('msg').textContent = '✅ 완료! 콘솔로 이동합니다...';
+  } catch (e) {
+    localStorage.setItem('tm_cb_msg', JSON.stringify({ rid, status: 0, data: { error: e.message } }));
+    document.getElementById('msg').innerHTML = '<span class="err">❌ 네트워크 오류</span>';
+  }
+
+  window.location.href = '/console.html';
+})();
+</script>
+</body>
+</html>

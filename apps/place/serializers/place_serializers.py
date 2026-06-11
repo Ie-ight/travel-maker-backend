@@ -31,6 +31,7 @@ class PlaceInfoSerializer(serializers.ModelSerializer[PlaceInfo]):
 class PlaceListSerializer(serializers.ModelSerializer[Place]):
     image_url = serializers.SerializerMethodField()
     bookmark_count = serializers.IntegerField(read_only=True)
+    is_bookmarked = serializers.BooleanField(read_only=True)
     rating_avg = serializers.FloatField()  # DecimalField 기본(문자열) 대신 숫자로 (미평가=0)
     tags = TagSerializer(many=True, read_only=True)
 
@@ -48,6 +49,7 @@ class PlaceListSerializer(serializers.ModelSerializer[Place]):
             "image_url",
             "description",
             "bookmark_count",
+            "is_bookmarked",
             "rating_avg",
             "tags",
         ]
@@ -58,6 +60,7 @@ class PlaceDetailSerializer(serializers.ModelSerializer[Place]):
     longitude = serializers.FloatField()
     rating_avg = serializers.FloatField()  # 목록과 동일 (리뷰 없으면 0)
     review_count = serializers.IntegerField(source="rating_count", read_only=True)  # 비정규화 컬럼(= 리뷰 수)
+    is_bookmarked = serializers.BooleanField(read_only=True)
     images = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)  # 기존 TagSerializer 재사용 (id, tag_name)
     # PlaceInfo 운영정보(역방향 1:1, obj.info). 없는 장소(14%)는 allow_null로 null 직렬화.
@@ -82,6 +85,7 @@ class PlaceDetailSerializer(serializers.ModelSerializer[Place]):
             "address_detail",
             "rating_avg",
             "review_count",
+            "is_bookmarked",
             "images",
             "tags",
             "info",
