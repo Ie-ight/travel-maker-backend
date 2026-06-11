@@ -1,6 +1,8 @@
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 
 from apps.user.serializers.auth_serializer import (
+    AdminLoginResponseSerializer,
+    AdminLoginSerializer,
     ErrorDetailSerializer,
     KakaoLoginResponseSerializer,
     KakaoLoginSerializer,
@@ -141,6 +143,30 @@ withdraw_schema = extend_schema(
             response=ErrorDetailSerializer,
             description="이미 탈퇴한 계정",
             examples=[OpenApiExample("409", value={"error_detail": "이미 탈퇴한 계정입니다."})],
+        ),
+    },
+)
+
+admin_login_schema = extend_schema(
+    tags=["auth"],
+    summary="어드민 로그인 (Swagger 테스트용)",
+    description=(
+        "이메일 + 패스워드로 JWT Access Token을 발급합니다.\n"
+        "**비밀번호가 설정된 활성 계정만 사용 가능합니다.**\n\n"
+        "Swagger 테스트 목적으로만 사용하세요. "
+        "카카오 소셜 로그인 유저는 비밀번호가 없으므로 사용 불가합니다."
+    ),
+    request=AdminLoginSerializer,
+    responses={
+        200: OpenApiResponse(
+            response=AdminLoginResponseSerializer,
+            description="로그인 성공",
+            examples=[OpenApiExample("200", value={"access_token": "eyJhbG..."})],
+        ),
+        401: OpenApiResponse(
+            response=ErrorDetailSerializer,
+            description="이메일/패스워드 불일치 또는 staff 권한 없음",
+            examples=[OpenApiExample("401", value={"error_detail": "이메일 또는 패스워드가 올바르지 않습니다."})],
         ),
     },
 )
