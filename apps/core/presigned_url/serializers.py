@@ -26,6 +26,6 @@ class PresignedUrlRequestSerializer(serializers.Serializer):  # type: ignore[typ
 
 class PresignedUrlResponseSerializer(serializers.Serializer):  # type: ignore[type-arg]
     presigned_url = serializers.CharField()
-    img_url = serializers.CharField(max_length=255)
+    img_url = serializers.CharField()
     key = serializers.CharField()
     content_type = serializers.CharField()
