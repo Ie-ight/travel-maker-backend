@@ -6,7 +6,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.exceptions import NotFound
+from apps.core.exceptions import AuthRequiredMixin, NotFound
 from apps.core.presigned_url.views import PresignedUrlView
 from apps.user.models import User
 from apps.user.schemas.profile_schema import (
@@ -34,7 +34,6 @@ from apps.user.services.profile_service import (
     UserBookmarkService,
     UserReviewService,
 )
-from apps.user.views.mixins import AuthRequiredMixin
 
 
 class ProfileView(AuthRequiredMixin, APIView):

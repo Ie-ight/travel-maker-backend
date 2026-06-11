@@ -1,4 +1,4 @@
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 
 from apps.core.presigned_url.serializers import (
     PresignedUrlRequestSerializer,
@@ -28,8 +28,25 @@ profile_get_schema = extend_schema(
 profile_patch_schema = extend_schema(
     tags=["User"],
     summary="내 프로필 수정",
-    description="닉네임, 한줄소개, 프로필 이미지를 수정합니다.",
+    description=(
+        "닉네임, 한줄소개, 관심 태그, 프로필 이미지를 수정합니다.\n\n"
+        "tags는 `place.Tag`의 id 목록이며, 보낸 목록으로 관심 태그 전체를 교체합니다. "
+        "`GET /api/v1/tags?tag_type=세부 테마`로 전체 목록을 조회할 수 있고, "
+        "현재 id는 다음과 같습니다.\n\n"
+        "8: 해수욕·해안, 9: 수상레저, 10: 캠핑·글램핑, 11: 산·숲·계곡, 12: 자연생태, "
+        "13: 자연공원·트레킹, 14: 랜드마크, 15: 공원·거리, 16: 쇼핑, 17: 역사·유적, "
+        "18: 박물관·전시, 19: 전통체험, 20: 음식점, 21: 카페·디저트, 22: 시장·먹거리, "
+        "23: 육상스포츠, 24: 항공·익스트림, 25: 테마파크·시설, 26: 스파·웰니스, 27: 숙박·리조트"
+    ),
     request=ProfileUpdateSerializer,
+    examples=[
+        OpenApiExample(
+            "요청 예시",
+            value={"nickname": "여행러버", "bio": "혼자 여행 다니는 걸 좋아해요", "tags": [8, 9, 21]},
+            description="tags: 8=해수욕·해안, 9=수상레저, 21=카페·디저트",
+            request_only=True,
+        ),
+    ],
     responses={
         200: ProfileUpdateResponseSerializer,
         400: OpenApiResponse(description="이 필드는 필수 항목입니다."),
