@@ -61,9 +61,30 @@ class TestPlaceListView:
         assert result["place_name"] == "서울 타워"
         assert result["description"] == "멋진 전망대"
         assert result["bookmark_count"] == 0
+        assert result["is_bookmarked"] is False
         assert result["rating_avg"] == 4.5
         assert result["image_url"] == "main.jpg"
         assert len(result["tags"]) == 2
+
+    def test_is_bookmarked_true_for_authenticated_user(self, api_client: APIClient) -> None:
+        user = UserFactory()
+        place = PlaceFactory()
+        Bookmark.objects.create(user=user, place=place)
+        api_client.force_authenticate(user=user)
+        response = api_client.get(PLACE_LIST_URL)
+        assert response.data["results"][0]["is_bookmarked"] is True
+
+    def test_is_bookmarked_false_for_other_user(self, api_client: APIClient) -> None:
+        place = PlaceFactory()
+        Bookmark.objects.create(user=UserFactory(), place=place)
+        api_client.force_authenticate(user=UserFactory())
+        response = api_client.get(PLACE_LIST_URL)
+        assert response.data["results"][0]["is_bookmarked"] is False
+
+    def test_is_bookmarked_false_for_anonymous(self, api_client: APIClient) -> None:
+        PlaceFactory()
+        response = api_client.get(PLACE_LIST_URL)
+        assert response.data["results"][0]["is_bookmarked"] is False
 
     def test_inactive_place_excluded(self, api_client: APIClient) -> None:
         # 소프트삭제(is_active=False) 장소는 목록에서 제외 (단계 7)
@@ -205,6 +226,7 @@ class TestPlaceSearchView:
             "image_url",
             "description",
             "bookmark_count",
+            "is_bookmarked",
             "rating_avg",
             "tags",
         }
@@ -521,6 +543,7 @@ class TestPlaceFilterView:
             "image_url",
             "description",
             "bookmark_count",
+            "is_bookmarked",
             "rating_avg",
             "tags",
         }
@@ -584,6 +607,7 @@ class TestPlaceDetailView:
         assert data["review_count"] == 0
         assert data["tags"][0]["tag_name"] == "바다"
         assert isinstance(data["images"], list)
+        assert data["is_bookmarked"] is False
         assert set(data.keys()) == {
             "id",
             "place_name",
@@ -596,6 +620,7 @@ class TestPlaceDetailView:
             "address_detail",
             "rating_avg",
             "review_count",
+            "is_bookmarked",
             "images",
             "tags",
             "info",

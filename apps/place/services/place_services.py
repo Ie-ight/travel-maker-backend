@@ -1,5 +1,6 @@
-from django.db.models import Count, F, QuerySet
+from django.db.models import BooleanField, Count, Exists, F, OuterRef, QuerySet, Value
 
+from apps.bookmark.models import Bookmark
 from apps.place.models import Place
 
 # review는 비정규화 컬럼 rating_count(= 리뷰 수, 리뷰 생성/수정/삭제마다 갱신)로 정렬한다.
@@ -12,6 +13,7 @@ def get_place_list(
     sort: str = "bookmark",
     order: str = "desc",
     tags: list[int] | None = None,
+    user_id: int | None = None,
 ) -> QuerySet[Place]:
     # is_active=False는 증분 동기화(단계 7)에서 소프트삭제된 장소 → 목록에서 제외
     queryset = (
@@ -19,6 +21,12 @@ def get_place_list(
         .prefetch_related("images", "tags")
         .annotate(bookmark_count=Count("bookmarks", distinct=True))
     )
+    if user_id is not None:
+        queryset = queryset.annotate(
+            is_bookmarked=Exists(Bookmark.objects.filter(place=OuterRef("pk"), user_id=user_id))
+        )
+    else:
+        queryset = queryset.annotate(is_bookmarked=Value(False, output_field=BooleanField()))
     if keyword:
         queryset = queryset.filter(place_name__icontains=keyword)
     if tags:
@@ -32,13 +40,19 @@ def get_place_list(
     return queryset.order_by(ordering, "-id")
 
 
-def get_place_detail(place_id: int) -> Place | None:
+def get_place_detail(place_id: int, user_id: int | None = None) -> Place | None:
     # 없으면 None 반환(순수 데이터 접근). "없으면 404" 판단은 뷰가 한다.
     # review_count는 비정규화 rating_count 컬럼에서 직접 읽고(시리얼라이저 source), bookmark_count는
     # 상세에서 노출하지 않으므로 런타임 집계(JOIN)가 전혀 없다.
+    is_bookmarked_annotation = (
+        Exists(Bookmark.objects.filter(place=OuterRef("pk"), user_id=user_id))
+        if user_id is not None
+        else Value(False, output_field=BooleanField())
+    )
     return (
         Place.objects.select_related("info")  # 운영정보(PlaceInfo, 역방향 1:1) — 상세 detail용
         .prefetch_related("images", "tags")
+        .annotate(is_bookmarked=is_bookmarked_annotation)
         .filter(id=place_id, is_active=True)  # 소프트삭제 장소는 상세도 미노출(뷰에서 404)
         .first()
     )
