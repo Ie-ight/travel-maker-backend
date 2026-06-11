@@ -14,7 +14,7 @@ class PlaceSimpleSerializer(serializers.Serializer[Any]):
     def get_main_image(self, obj: Any) -> str | None:
         for image in obj.images.all():
             if image.is_main:
-                return image.image_url
+                return str(image.image_url)
         return None
 
 
