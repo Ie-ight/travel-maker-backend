@@ -1,12 +1,40 @@
 import re
 from typing import Any
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.user.models import User
 
 
-class ProfileSerializer(serializers.ModelSerializer[User]):
+class _UserTagSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    """프로필 응답의 tags 항목 스키마 문서용 (id, name)"""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class _UserProfileFieldsMixin:
+    """ProfileSerializer / PublicUserSerializer가 공유하는 필드 계산 로직."""
+
+    def get_follower_count(self, obj: User) -> int:
+        # Follow.following == obj 인 행 = obj를 팔로우하는 사람들 = obj의 팔로워
+        return obj.followings.count()
+
+    def get_following_count(self, obj: User) -> int:
+        # Follow.follower == obj 인 행 = obj가 팔로우하는 사람들 = obj의 팔로잉
+        return obj.followers.count()
+
+    @extend_schema_field(_UserTagSerializer(many=True))
+    def get_tags(self, obj: User) -> list[dict[str, Any]]:
+        return [{"id": tag.id, "name": tag.tag_name} for tag in obj.tags.all()]
+
+    def get_travel_type_name(self, obj: User) -> str | None:
+        result = getattr(obj, "usertestresult", None)
+        return result.travel_type.name if result else None
+
+
+class ProfileSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[User]):
     """프로필 조회 응답"""
 
     follower_count = serializers.SerializerMethodField()
@@ -14,6 +42,7 @@ class ProfileSerializer(serializers.ModelSerializer[User]):
     bookmark_count = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
+    travel_type_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -28,16 +57,11 @@ class ProfileSerializer(serializers.ModelSerializer[User]):
             "following_count",
             "bookmark_count",
             "review_count",
+            "travel_type_name",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
-
-    def get_follower_count(self, obj: User) -> int:
-        return obj.followers.count()
-
-    def get_following_count(self, obj: User) -> int:
-        return obj.followings.count()
 
     def get_bookmark_count(self, obj: User) -> int:
         return obj.bookmarks.count()
@@ -45,20 +69,19 @@ class ProfileSerializer(serializers.ModelSerializer[User]):
     def get_review_count(self, obj: User) -> int:
         return obj.reviews.count()
 
-    def get_tags(self, obj: User) -> list[dict[str, Any]]:
-        return []
-
 
 class ProfileUpdateSerializer(serializers.ModelSerializer[User]):
     """프로필 수정 요청"""
+
+    profile_image = serializers.ImageField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = User
         fields = [
             "nickname",
             "bio",
-            "profile_img_url",
             "tags",
+            "profile_image",
         ]
 
     def validate_nickname(self, value: str) -> str:
@@ -67,7 +90,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer[User]):
         return value
 
 
-class ProfileUpdateResponseSerializer(serializers.ModelSerializer[User]):
+class ProfileUpdateResponseSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[User]):
     """프로필 수정 응답"""
 
     tags = serializers.SerializerMethodField()
@@ -84,8 +107,38 @@ class ProfileUpdateResponseSerializer(serializers.ModelSerializer[User]):
         ]
         read_only_fields = fields
 
-    def get_tags(self, obj: User) -> list[dict[str, Any]]:
-        return []
+
+class PublicUserSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[User]):
+    """공개 프로필 조회 응답 (email, bookmark_count, review_count 미포함)"""
+
+    follower_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
+    travel_type_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "nickname",
+            "bio",
+            "profile_img_url",
+            "tags",
+            "follower_count",
+            "following_count",
+            "travel_type_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class NicknameCheckSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    nickname = serializers.CharField(required=True)
+
+
+class NicknameCheckResponseSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    detail = serializers.CharField()
 
 
 class UserBookmarkSerializer(serializers.ModelSerializer[Any]):
