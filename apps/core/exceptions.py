@@ -14,3 +14,9 @@ class NotFound(APIException):
     status_code = status.HTTP_404_NOT_FOUND
     default_detail = "찾을 수 없습니다."
     default_code = "not_found"
+
+
+class BadRequest(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "잘못된 요청입니다."
+    default_code = "bad_request"

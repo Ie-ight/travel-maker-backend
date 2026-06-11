@@ -17,7 +17,6 @@ class PlaceImageInline(admin.TabularInline):  # type: ignore[type-arg]
     extra = 1
     fields = ["thumb", "image_url", "thumbnail_url", "is_main", "order"]
     readonly_fields = ["thumb"]
-    classes = ["collapse"]
 
     @admin.display(description="미리보기")
     def thumb(self, obj: PlaceImage) -> SafeString | str:
@@ -28,7 +27,6 @@ class PlaceInfoInline(admin.StackedInline):  # type: ignore[type-arg]
     model = PlaceInfo
     extra = 0
     can_delete = True
-    classes = ["collapse"]
 
 
 class PlaceFeatureInline(admin.StackedInline):  # type: ignore[type-arg]
@@ -37,7 +35,6 @@ class PlaceFeatureInline(admin.StackedInline):  # type: ignore[type-arg]
     can_delete = True
     fields = ["style_vector", "style_vector_readable", "updated_at"]
     readonly_fields = ["style_vector_readable", "updated_at"]
-    classes = ["collapse"]
 
     def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
         formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
@@ -54,7 +51,6 @@ class ReviewInline(admin.TabularInline):  # type: ignore[type-arg]
     fields = ["user", "rating", "content", "image_url", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
-    classes = ["collapse"]
     show_change_link = True
 
 
@@ -66,7 +62,6 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
     fields = ["user", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
-    classes = ["collapse"]
     verbose_name = "북마크"
     verbose_name_plural = "북마크 (이 장소를 저장한 유저)"
 
@@ -102,15 +97,14 @@ class PlaceAdmin(BaseAdmin):
     fieldsets = [
         # 기본 섹션만 펼쳐두고, 나머지는 접어서 스크롤을 줄인다.
         (None, {"fields": ["place_name", "description", "is_active", "tags"]}),
-        ("평점", {"fields": ["rating_avg", "rating_count"], "classes": ["collapse"]}),
+        ("평점", {"fields": ["rating_avg", "rating_count"]}),
         (
             "위치",
             {
                 "fields": ["address_primary", "address_detail", "zipcode", "latitude", "longitude"],
-                "classes": ["collapse"],
             },
         ),
-        ("연락처", {"fields": ["tel", "homepage"], "classes": ["collapse"]}),
+        ("연락처", {"fields": ["tel", "homepage"]}),
         (
             "분류 · Tour API",
             {
@@ -122,10 +116,9 @@ class PlaceAdmin(BaseAdmin):
                     "lcls_systm3",
                     "source_modified_at",
                 ],
-                "classes": ["collapse"],
             },
         ),
-        ("메타", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+        ("메타", {"fields": ["created_at", "updated_at"]}),
     ]
 
     @admin.action(description="선택한 장소 활성화")
