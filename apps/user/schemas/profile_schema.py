@@ -1,5 +1,9 @@
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 
+from apps.core.presigned_url.serializers import (
+    PresignedUrlRequestSerializer,
+    PresignedUrlResponseSerializer,
+)
 from apps.user.serializers.profile_serializer import (
     NicknameCheckResponseSerializer,
     NicknameCheckSerializer,
@@ -95,5 +99,21 @@ nickname_check_schema = extend_schema(
         200: NicknameCheckResponseSerializer,
         400: OpenApiResponse(description="이 필드는 필수 항목입니다."),
         409: OpenApiResponse(description="중복된 닉네임이 존재합니다."),
+    },
+)
+
+profile_image_presigned_url_schema = extend_schema(
+    tags=["User"],
+    summary="프로필 이미지 업로드용 presigned URL 발급",
+    description=(
+        "프로필 이미지를 S3에 직접 업로드할 수 있는 presigned URL을 발급합니다. "
+        "발급과 동시에 내 프로필의 profile_img_url이 응답의 img_url로 갱신됩니다."
+    ),
+    request=PresignedUrlRequestSerializer,
+    responses={
+        200: PresignedUrlResponseSerializer,
+        400: OpenApiResponse(description="지원하지 않는 파일 형식입니다."),
+        401: OpenApiResponse(description="자격 인증 데이터가 제공되지 않았습니다."),
+        503: OpenApiResponse(description="이미지 업로드 URL 발급에 실패했습니다."),
     },
 )

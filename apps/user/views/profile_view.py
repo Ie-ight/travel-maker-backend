@@ -1,17 +1,18 @@
-from typing import Never, cast
+from typing import cast
 
 from rest_framework import status
-from rest_framework.exceptions import NotAuthenticated
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.exceptions import NotFound
+from apps.core.presigned_url.views import PresignedUrlView
 from apps.user.models import User
 from apps.user.schemas.profile_schema import (
     nickname_check_schema,
     profile_get_schema,
+    profile_image_presigned_url_schema,
     profile_patch_schema,
     public_profile_get_schema,
     public_user_review_get_schema,
@@ -33,13 +34,11 @@ from apps.user.services.profile_service import (
     UserBookmarkService,
     UserReviewService,
 )
+from apps.user.views.mixins import AuthRequiredMixin
 
 
-class ProfileView(APIView):
+class ProfileView(AuthRequiredMixin, APIView):
     permission_classes = [IsAuthenticated]
-
-    def permission_denied(self, request: Request, message: str | None = None, code: str | None = None) -> Never:
-        raise NotAuthenticated("자격 인증 데이터가 제공되지 않았습니다.")
 
     @profile_get_schema
     def get(self, request: Request) -> Response:
@@ -82,11 +81,8 @@ class NicknameCheckView(APIView):
         return Response({"detail": "사용가능한 닉네임 입니다."}, status=status.HTTP_200_OK)
 
 
-class UserBookmarkView(APIView):
+class UserBookmarkView(AuthRequiredMixin, APIView):
     permission_classes = [IsAuthenticated]
-
-    def permission_denied(self, request: Request, message: str | None = None, code: str | None = None) -> Never:
-        raise NotAuthenticated("자격 인증 데이터가 제공되지 않았습니다.")
 
     @user_bookmark_get_schema
     def get(self, request: Request) -> Response:
@@ -95,11 +91,8 @@ class UserBookmarkView(APIView):
         return Response(paginator.get_paginated_response(serializer.data).data, status=status.HTTP_200_OK)
 
 
-class UserReviewView(APIView):
+class UserReviewView(AuthRequiredMixin, APIView):
     permission_classes = [IsAuthenticated]
-
-    def permission_denied(self, request: Request, message: str | None = None, code: str | None = None) -> Never:
-        raise NotAuthenticated("자격 인증 데이터가 제공되지 않았습니다.")
 
     @user_review_get_schema
     def get(self, request: Request) -> Response:
@@ -135,3 +128,14 @@ class PublicUserReviewView(APIView):
         page, paginator = UserReviewService.get_reviews(target_user, request)
         serializer = UserReviewSerializer(page, many=True)
         return Response(paginator.get_paginated_response(serializer.data).data, status=status.HTTP_200_OK)
+
+
+class ProfileImagePresignedUrlView(AuthRequiredMixin, PresignedUrlView):
+    permission_classes = [IsAuthenticated]
+    path = "profiles"
+
+    @profile_image_presigned_url_schema
+    def patch(self, request: Request) -> Response:
+        response = self.handle_request(request)
+        ProfileImageService.set_profile_image_url(cast(User, request.user), response.data["img_url"])
+        return response
