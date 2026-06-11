@@ -62,6 +62,32 @@ class TestReviewList:
         response = client.get("/api/v1/places/99999/reviews")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_리뷰_목록_조회_시_본인_리뷰_is_owner_필드_확인(
+        self, auth_client: APIClient, user: User, place: Place
+    ) -> None:
+        other_user = UserFactory()  # type: ignore[misc]
+        my_review = ReviewFactory(user=user, place=place)  # type: ignore[misc]
+        other_review = ReviewFactory(user=other_user, place=place)  # type: ignore[misc]
+
+        response = auth_client.get(f"/api/v1/places/{place.id}/reviews")
+        assert response.status_code == status.HTTP_200_OK
+
+        results = response.data["results"]
+        assert len(results) == 2
+
+        my_res = next(r for r in results if r["review_id"] == my_review.id)
+        other_res = next(r for r in results if r["review_id"] == other_review.id)
+
+        assert my_res["is_owner"] is True
+        assert other_res["is_owner"] is False
+
+    def test_리뷰_목록_조회_시_비로그인_is_owner_모두_false(self, client: APIClient, place: Place) -> None:
+        ReviewFactory.create_batch(2, place=place)  # type: ignore[misc]
+        response = client.get(f"/api/v1/places/{place.id}/reviews")
+        assert response.status_code == status.HTTP_200_OK
+        for result in response.data["results"]:
+            assert result["is_owner"] is False
+
 
 @pytest.mark.django_db
 class TestReviewCreate:
@@ -81,6 +107,7 @@ class TestReviewCreate:
             )
 
         assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["is_owner"] is True
 
     def test_리뷰_비인증_등록_실패(self, client: APIClient, place: Place) -> None:
         response = client.post(
@@ -122,6 +149,7 @@ class TestReviewUpdate:
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.data["rating"] == 3
+        assert response.data["is_owner"] is True
 
     def test_리뷰_수정_비인증_실패(self, client: APIClient) -> None:
         response = client.patch("/api/v1/reviews/1", {"rating": 3})

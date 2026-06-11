@@ -4,14 +4,35 @@ from rest_framework import serializers
 from apps.review.models import Review
 
 
+# 응답에 본인 작성 여부(is_owner)를 추가하는 믹스인
+class IsOwnerMixin(serializers.Serializer[Review]):
+    is_owner = serializers.SerializerMethodField()
+
+    def get_is_owner(self, obj: Review) -> bool:
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return bool(obj.user_id == request.user.id)
+        return False
+
+
 # 리뷰 목록 응답(닉네임 포함)
-class ReviewListItemSerializer(serializers.ModelSerializer[Review]):
+class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]):
     review_id = serializers.IntegerField(source="id")
     user_nickname = serializers.CharField(source="user.nickname")
 
     class Meta:
         model = Review
-        fields = ["review_id", "user_id", "user_nickname", "rating", "content", "image_url", "created_at", "updated_at"]
+        fields = [
+            "review_id",
+            "user_id",
+            "user_nickname",
+            "rating",
+            "content",
+            "image_url",
+            "created_at",
+            "updated_at",
+            "is_owner",
+        ]
 
 
 # 리뷰 등록 요청 검증
@@ -22,12 +43,12 @@ class ReviewCreateSerializer(serializers.Serializer[None]):
 
 
 # 리뷰 등록 응답
-class ReviewCreateResponseSerializer(serializers.ModelSerializer[Review]):
+class ReviewCreateResponseSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]):
     review_id = serializers.IntegerField(source="id")
 
     class Meta:
         model = Review
-        fields = ["user_id", "review_id", "rating", "content", "image_url", "created_at"]
+        fields = ["user_id", "review_id", "rating", "content", "image_url", "created_at", "is_owner"]
 
 
 # 리뷰 수정 요청 검증
@@ -48,9 +69,9 @@ class ReviewUpdateSerializer(serializers.Serializer[None]):
 
 
 # 리뷰 수정 응답
-class ReviewUpdateResponseSerializer(serializers.ModelSerializer[Review]):
+class ReviewUpdateResponseSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]):
     review_id = serializers.IntegerField(source="id")
 
     class Meta:
         model = Review
-        fields = ["user_id", "review_id", "rating", "content", "image_url", "updated_at"]
+        fields = ["user_id", "review_id", "rating", "content", "image_url", "updated_at", "is_owner"]
