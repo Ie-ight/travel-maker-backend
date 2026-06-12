@@ -84,6 +84,11 @@ class TestRouteCreate:
         assert response.status_code == status.HTTP_201_CREATED
         assert "route_id" in response.data
         assert response.data["title"] == "제주 1박 2일"
+        assert len(response.data["days"]) == 2
+        day1 = response.data["days"][0]
+        assert day1["day_index"] == 1
+        assert day1["places"][0]["place_id"] == place.id  # type: ignore[attr-defined]
+        assert day1["places"][0]["place_name"] == place.place_name  # type: ignore[attr-defined]
 
     def test_경로_생성_비인증_실패(self, client: APIClient, tag: object, place: object) -> None:
         response = client.post("/api/v1/routes", _route_payload(tag.id, place.id), format="json")  # type: ignore[attr-defined]
@@ -147,6 +152,14 @@ class TestRouteUpdate:
         response = auth_client.patch(f"/api/v1/routes/{route.id}", {"title": "수정된 경로"}, format="json")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["title"] == "수정된 경로"
+        assert response.data["days"] == []
+
+    def test_경로_수정으로_장소_정보_포함_성공(self, auth_client: APIClient, route: Route, place: object) -> None:
+        payload = {"days": [{"day_index": 1, "place_ids": [place.id]}]}  # type: ignore[attr-defined]
+        response = auth_client.patch(f"/api/v1/routes/{route.id}", payload, format="json")
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["days"]) == 1
+        assert response.data["days"][0]["places"][0]["place_id"] == place.id  # type: ignore[attr-defined]
 
     def test_타인_경로_수정_실패(self, auth_client: APIClient, other_user: User) -> None:
         other_route = RouteFactory(user=other_user)

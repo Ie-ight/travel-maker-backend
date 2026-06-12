@@ -62,21 +62,51 @@ class RouteUpdateSerializer(serializers.Serializer[None]):
         return attrs
 
 
+class RouteDayPlaceDetailSerializer(serializers.ModelSerializer[RouteDayPlace]):
+    place_id = serializers.IntegerField(source="place.id")
+    place_name = serializers.CharField(source="place.place_name")
+    # latitude/longitude: 지도에서 장소 간 선(경로)을 그리는 핵심 좌표 데이터
+    # order 순서대로 정렬되어 있어 프론트가 순서대로 선을 연결하면 됨
+    latitude = serializers.FloatField(source="place.latitude")
+    longitude = serializers.FloatField(source="place.longitude")
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RouteDayPlace
+        fields = ["order", "place_id", "place_name", "latitude", "longitude", "image_url"]
+        read_only_fields = fields
+
+    def get_image_url(self, obj: RouteDayPlace) -> str | None:
+        return _get_main_image_url(obj.place.images.all())
+
+
+class RouteDayDetailSerializer(serializers.ModelSerializer[RouteDay]):
+    # source="day_places": RouteDay → RouteDayPlace 역방향 related_name
+    places = RouteDayPlaceDetailSerializer(source="day_places", many=True)
+
+    class Meta:
+        model = RouteDay
+        fields = ["day_index", "places"]
+        read_only_fields = fields
+
+
 class RouteCreateResponseSerializer(serializers.ModelSerializer[Route]):
     route_id = serializers.IntegerField(source="id")
+    days = RouteDayDetailSerializer(many=True)
 
     class Meta:
         model = Route
-        fields = ["route_id", "title", "created_at"]
+        fields = ["route_id", "title", "created_at", "days"]
         read_only_fields = fields
 
 
 class RouteUpdateResponseSerializer(serializers.ModelSerializer[Route]):
     route_id = serializers.IntegerField(source="id")
+    days = RouteDayDetailSerializer(many=True)
 
     class Meta:
         model = Route
-        fields = ["route_id", "title", "updated_at"]
+        fields = ["route_id", "title", "updated_at", "days"]
         read_only_fields = fields
 
 
@@ -138,34 +168,6 @@ class RouteLikeResponseSerializer(serializers.Serializer[dict[str, str | int]]):
     message = serializers.CharField()
     like_id = serializers.IntegerField()
     like_count = serializers.IntegerField()
-
-
-class RouteDayPlaceDetailSerializer(serializers.ModelSerializer[RouteDayPlace]):
-    place_id = serializers.IntegerField(source="place.id")
-    place_name = serializers.CharField(source="place.place_name")
-    # latitude/longitude: 지도에서 장소 간 선(경로)을 그리는 핵심 좌표 데이터
-    # order 순서대로 정렬되어 있어 프론트가 순서대로 선을 연결하면 됨
-    latitude = serializers.FloatField(source="place.latitude")
-    longitude = serializers.FloatField(source="place.longitude")
-    image_url = serializers.SerializerMethodField()
-
-    class Meta:
-        model = RouteDayPlace
-        fields = ["order", "place_id", "place_name", "latitude", "longitude", "image_url"]
-        read_only_fields = fields
-
-    def get_image_url(self, obj: RouteDayPlace) -> str | None:
-        return _get_main_image_url(obj.place.images.all())
-
-
-class RouteDayDetailSerializer(serializers.ModelSerializer[RouteDay]):
-    # source="day_places": RouteDay → RouteDayPlace 역방향 related_name
-    places = RouteDayPlaceDetailSerializer(source="day_places", many=True)
-
-    class Meta:
-        model = RouteDay
-        fields = ["day_index", "places"]
-        read_only_fields = fields
 
 
 class RouteDetailSerializer(RouteListSerializer):

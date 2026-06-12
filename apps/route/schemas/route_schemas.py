@@ -17,7 +17,8 @@ route_create_schema = extend_schema(
     description=(
         "여행 경로를 생성합니다. 시작일~종료일은 최대 4박 5일까지 설정할 수 있습니다.\n"
         "days는 일차별 방문 장소 목록으로, day_index는 1~5 사이의 일차 번호이고 "
-        "place_ids는 해당 일차에 방문할 장소 ID를 1~5개까지 순서대로 담습니다."
+        "place_ids는 해당 일차에 방문할 장소 ID를 1~5개까지 순서대로 담습니다.\n"
+        "응답의 days에는 생성된 일차별 장소 정보(place_id, place_name, latitude, longitude, image_url)가 포함됩니다."
     ),
     request=RouteCreateSerializer,
     responses={201: RouteCreateResponseSerializer},
@@ -40,7 +41,8 @@ route_update_schema = extend_schema(
     description=(
         "본인이 작성한 경로를 수정합니다. 모든 필드는 선택 입력이며 보낸 필드만 수정됩니다.\n"
         "days를 보내면 기존 일차/장소 목록은 모두 삭제되고 새로 보낸 내용으로 통째로 교체됩니다.\n"
-        "존재하지 않는 경로 ID면 404, 본인이 작성한 경로가 아니면 403 에러가 발생합니다."
+        "존재하지 않는 경로 ID면 404, 본인이 작성한 경로가 아니면 403 에러가 발생합니다.\n"
+        "응답의 days에는 수정 후 일차별 장소 정보(place_id, place_name, latitude, longitude, image_url)가 포함됩니다."
     ),
     request=RouteUpdateSerializer,
     responses={200: RouteUpdateResponseSerializer},

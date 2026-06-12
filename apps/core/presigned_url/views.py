@@ -38,9 +38,3 @@ class PresignedUrlView(APIView):
         )
         response_serializer = PresignedUrlResponseSerializer(instance=urls)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
-
-    def put(self, request: Request) -> Response:
-        return self.handle_request(request)
-
-    def post(self, request: Request) -> Response:
-        return self.handle_request(request)

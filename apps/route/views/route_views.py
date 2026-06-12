@@ -61,7 +61,8 @@ class RouteListCreateView(APIView):
         serializer = RouteCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         route = create_route(cast(User, request.user), dict(serializer.validated_data))
-        return Response(RouteCreateResponseSerializer(route).data, status=status.HTTP_201_CREATED)
+        detail_route = get_route_detail(route.id)
+        return Response(RouteCreateResponseSerializer(detail_route).data, status=status.HTTP_201_CREATED)
 
 
 class RouteDetailView(APIView):
@@ -80,7 +81,8 @@ class RouteDetailView(APIView):
         serializer = RouteUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         route = update_route(cast(User, request.user), route_id, dict(serializer.validated_data))
-        return Response(RouteUpdateResponseSerializer(route).data)
+        detail_route = get_route_detail(route.id)
+        return Response(RouteUpdateResponseSerializer(detail_route).data)
 
     @route_delete_schema
     def delete(self, request: Request, route_id: int) -> Response:

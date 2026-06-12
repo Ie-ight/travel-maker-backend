@@ -4,6 +4,7 @@ from typing import Any
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.core.utils import validate_s3_image_url
 from apps.user.models import User
 
 
@@ -73,21 +74,24 @@ class ProfileSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[Use
 class ProfileUpdateSerializer(serializers.ModelSerializer[User]):
     """프로필 수정 요청"""
 
-    profile_image = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    profile_image_url = serializers.URLField(required=False)
 
     class Meta:
         model = User
         fields = [
             "nickname",
             "bio",
+            "profile_image_url",
             "tags",
-            "profile_image",
         ]
 
     def validate_nickname(self, value: str) -> str:
         if not re.match(r"^[a-z가-힣]+$", value):
             raise serializers.ValidationError("닉네임은 영소문자와 한글만 허용됩니다.")
         return value
+
+    def validate_profile_image_url(self, value: str) -> str:
+        return validate_s3_image_url(value)
 
 
 class ProfileUpdateResponseSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[User]):
