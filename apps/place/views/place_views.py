@@ -5,6 +5,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.place.models import Place
 from apps.place.schemas.place_schemas import (
     place_detail_schema,
     place_filter_schema,
@@ -15,7 +16,7 @@ from apps.place.serializers.place_serializers import (
     PlaceDetailSerializer,
     PlaceListSerializer,
 )
-from apps.place.services.place_services import get_place_detail, get_place_list
+from apps.place.services.place_services import get_place_detail, get_place_list, get_place_list_recommend
 
 
 class CustomPagination(PageNumberPagination):
@@ -47,9 +48,12 @@ class PlaceSearchView(APIView):
         order = request.query_params.get("order", "desc")
         user_id = request.user.id if request.user.is_authenticated else None
 
-        queryset = get_place_list(keyword=keyword, sort=sort, order=order, user_id=user_id)
+        if sort == "recommend":
+            data = get_place_list_recommend(user_id=user_id, keyword=keyword)
+        else:
+            data = get_place_list(keyword=keyword, sort=sort, order=order, user_id=user_id)  # type: ignore[assignment]
         paginator = CustomPagination()
-        page = paginator.paginate_queryset(queryset, self.request)
+        page: list[Place] | None = paginator.paginate_queryset(data, self.request)  # type: ignore[arg-type]
         serializer = PlaceListSerializer(page, many=True, context={"request": self.request})
         return paginator.get_paginated_response(serializer.data)
 
@@ -71,9 +75,13 @@ class PlaceFilterView(APIView):
         ]
 
         user_id = request.user.id if request.user.is_authenticated else None
-        queryset = get_place_list(keyword=keyword, sort=sort, order=order, tags=tag_ids, user_id=user_id)
+
+        if sort == "recommend":
+            data = get_place_list_recommend(user_id=user_id, keyword=keyword, tags=tag_ids or None)
+        else:
+            data = get_place_list(keyword=keyword, sort=sort, order=order, tags=tag_ids, user_id=user_id)  # type: ignore[assignment]
         paginator = CustomPagination()
-        page = paginator.paginate_queryset(queryset, self.request)
+        page: list[Place] | None = paginator.paginate_queryset(data, self.request)  # type: ignore[arg-type]
         serializer = PlaceListSerializer(page, many=True, context={"request": self.request})
         return paginator.get_paginated_response(serializer.data)
 

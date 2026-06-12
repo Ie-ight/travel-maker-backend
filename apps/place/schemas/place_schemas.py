@@ -87,9 +87,12 @@ place_search_schema = extend_schema(
     tags=["Place"],
     summary="장소 검색",
     description=(
-        "키워드를 통해 장소명(place_name)을 부분 검색합니다.\n\n"
-        "- 키워드가 주어지지 않으면 전체 목록을 반환합니다.\n"
-        "- 정렬 기준(`sort`)과 정렬 방향(`order`)을 조합하여 결과를 정렬할 수 있습니다."
+        "장소명 키워드로 검색합니다. 키워드 없이 호출하면 전체 목록과 동일합니다.\n\n"
+        "**sort 옵션:**\n"
+        "- `bookmark` (기본): 북마크 수 많은 순\n"
+        "- `review`: 리뷰 수 많은 순\n"
+        "- `rating`: 평점 높은 순\n"
+        "- `recommend`: 내 여행 성향과 가장 비슷한 순 (퀴즈 미완료/비로그인 시 북마크 수 순으로 대체)"
     ),
     parameters=[
         OpenApiParameter(
@@ -104,8 +107,8 @@ place_search_schema = extend_schema(
             name="sort",
             type=OpenApiTypes.STR,
             location=OpenApiParameter.QUERY,
-            description="정렬 기준",
-            enum=["bookmark", "review", "rating"],
+            description="정렬 기준. recommend 선택 시 order 파라미터는 무시됩니다.",
+            enum=["bookmark", "review", "rating", "recommend"],
             default="bookmark",
             examples=[OpenApiExample(name="북마크순 정렬", value="bookmark")],
         ),
@@ -151,9 +154,13 @@ place_filter_schema = extend_schema(
     tags=["Place"],
     summary="장소 태그 필터",
     description=(
-        "태그 ID를 기반으로 장소를 필터링합니다.\n\n"
-        "- 여러 개의 태그를 전달하면 해당 태그를 **모두 포함(AND)**한 장소만 반환합니다.\n"
-        "- 예: `?tags=1&tags=3` (태그 1번과 3번을 모두 가진 장소 검색)"
+        "태그 ID로 AND 필터링합니다. 선택한 태그를 모두 포함한 장소만 반환합니다.\n\n"
+        "**sort 옵션:**\n"
+        "- `bookmark` (기본): 북마크 수 많은 순\n"
+        "- `review`: 리뷰 수 많은 순\n"
+        "- `rating`: 평점 높은 순\n"
+        "- `recommend`: 내 여행 성향과 가장 비슷한 순 (퀴즈 미완료/비로그인 시 북마크 수 순으로 대체)\n\n"
+        "**recommend 테스트 방법:** 상단 Authorize 버튼으로 로그인 → sort에 `recommend` 입력 → Execute"
     ),
     parameters=[
         OpenApiParameter(
@@ -175,8 +182,8 @@ place_filter_schema = extend_schema(
             name="sort",
             type=OpenApiTypes.STR,
             location=OpenApiParameter.QUERY,
-            description="정렬 기준",
-            enum=["bookmark", "review", "rating"],
+            description="정렬 기준. recommend 선택 시 order 파라미터는 무시됩니다.",
+            enum=["bookmark", "review", "rating", "recommend"],
             default="bookmark",
             examples=[OpenApiExample(name="평점순 정렬", value="rating")],
         ),
