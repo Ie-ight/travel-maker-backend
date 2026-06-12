@@ -59,6 +59,7 @@ place_list_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             description="페이지 번호 (예: 1). 0보다 작거나 없는 페이지를 요청하면 404 에러가 발생합니다.",
             default=1,
+            examples=[OpenApiExample(name="1페이지 조회", value=1)],
         ),
         OpenApiParameter(
             name="page_size",
@@ -66,6 +67,7 @@ place_list_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             description="목록 출력 개수. 기본 8, 최대 100",
             default=8,
+            examples=[OpenApiExample(name="8개씩 출력", value=8)],
         ),
     ],
     responses={
@@ -96,6 +98,7 @@ place_search_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             description="장소명 부분 검색어. (예: '해수욕장')",
             required=False,
+            examples=[OpenApiExample(name="해수욕장 검색", value="해수욕장")],
         ),
         OpenApiParameter(
             name="sort",
@@ -104,6 +107,7 @@ place_search_schema = extend_schema(
             description="정렬 기준",
             enum=["bookmark", "review", "rating"],
             default="bookmark",
+            examples=[OpenApiExample(name="북마크순 정렬", value="bookmark")],
         ),
         OpenApiParameter(
             name="order",
@@ -112,6 +116,7 @@ place_search_schema = extend_schema(
             description="정렬 방향",
             enum=["desc", "asc"],
             default="desc",
+            examples=[OpenApiExample(name="내림차순", value="desc")],
         ),
         OpenApiParameter(
             name="page",
@@ -119,6 +124,7 @@ place_search_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             description="페이지 번호",
             default=1,
+            examples=[OpenApiExample(name="1페이지 조회", value=1)],
         ),
         OpenApiParameter(
             name="page_size",
@@ -126,6 +132,7 @@ place_search_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             description="목록 출력 개수 (최대 100)",
             default=8,
+            examples=[OpenApiExample(name="8개씩 출력", value=8)],
         ),
     ],
     responses={
@@ -155,12 +162,14 @@ place_filter_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             many=True,
             description="필터링할 태그 ID 리스트 (AND 조건)",
+            examples=[OpenApiExample(name="해변(1)과 부산(37) 동시 포함", value=[1, 37])],
         ),
         OpenApiParameter(
             name="keyword",
             type=OpenApiTypes.STR,
             location=OpenApiParameter.QUERY,
             description="장소명 부분 검색어",
+            examples=[OpenApiExample(name="광안리 검색", value="광안리")],
         ),
         OpenApiParameter(
             name="sort",
@@ -169,6 +178,7 @@ place_filter_schema = extend_schema(
             description="정렬 기준",
             enum=["bookmark", "review", "rating"],
             default="bookmark",
+            examples=[OpenApiExample(name="평점순 정렬", value="rating")],
         ),
         OpenApiParameter(
             name="order",
@@ -177,6 +187,7 @@ place_filter_schema = extend_schema(
             description="정렬 방향",
             enum=["desc", "asc"],
             default="desc",
+            examples=[OpenApiExample(name="내림차순", value="desc")],
         ),
         OpenApiParameter(
             name="page",
@@ -184,6 +195,7 @@ place_filter_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             description="페이지 번호",
             default=1,
+            examples=[OpenApiExample(name="1페이지 조회", value=1)],
         ),
         OpenApiParameter(
             name="page_size",
@@ -191,6 +203,7 @@ place_filter_schema = extend_schema(
             location=OpenApiParameter.QUERY,
             description="목록 출력 개수",
             default=8,
+            examples=[OpenApiExample(name="8개씩 출력", value=8)],
         ),
     ],
     responses={
