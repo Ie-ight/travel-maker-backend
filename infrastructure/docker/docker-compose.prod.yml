@@ -95,6 +95,7 @@ services:
       dockerfile: infrastructure/docker/Dockerfile
     container_name: travel-maker-flower-prod
     command: uv run celery -A config flower --port=5555 --basic_auth=$${FLOWER_BASIC_AUTH}
+
     ports:
       - "5555:5555"
     env_file:

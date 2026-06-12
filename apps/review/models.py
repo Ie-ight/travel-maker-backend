@@ -19,6 +19,14 @@ class Review(TimeStampModel):
     )
     content = models.TextField(max_length=200, verbose_name="내용")
     image_url = models.URLField(max_length=512, null=True, blank=True, verbose_name="이미지 URL")
+    route = models.ForeignKey(
+        "route.Route",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviews",
+        verbose_name="연결된 경로",
+    )
 
     class Meta:
         unique_together = ("user", "place")

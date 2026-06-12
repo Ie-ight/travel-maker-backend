@@ -1,15 +1,21 @@
-from io import BytesIO
-from unittest.mock import MagicMock, patch
-
 import pytest
-from PIL import Image as PILImage
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.place.models import Place
 from apps.review.models import Review
 from apps.review.tests.factories import PlaceFactory, ReviewFactory, UserFactory
+from apps.route.models import Route, RouteDay, RouteDayPlace
+from apps.route.tests.factories import RouteFactory
 from apps.user.models import User
+
+
+def _create_route_with_place(user: User, place: Place) -> Route:
+    route = RouteFactory(user=user)  # type: ignore[misc]
+    day = RouteDay.objects.create(route=route, day_index=1)
+    RouteDayPlace.objects.create(route_day=day, place=place, order=1)
+    return route  # type: ignore[no-any-return]
 
 
 @pytest.fixture
@@ -91,23 +97,17 @@ class TestReviewList:
 
 @pytest.mark.django_db
 class TestReviewCreate:
+    @override_settings(AWS_STORAGE_BUCKET_NAME="test-bucket")
     def test_이미지_포함_리뷰_등록_성공(self, auth_client: APIClient, place: Place) -> None:
-        img = PILImage.new("RGB", (100, 100), color="red")
-        img_bytes = BytesIO()
-        img.save(img_bytes, format="JPEG")
-        img_bytes.name = "test.jpg"
-        img_bytes.seek(0)
-
-        with patch("apps.review.services.review_services.upload_review_image") as mock_task:
-            mock_task.delay = MagicMock()
-            response = auth_client.post(
-                f"/api/v1/places/{place.id}/reviews",
-                {"rating": 5, "content": "좋아요!", "image": img_bytes},
-                format="multipart",
-            )
+        image_url = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/reviews/test.jpg"
+        response = auth_client.post(
+            f"/api/v1/places/{place.id}/reviews",
+            {"rating": 5, "content": "좋아요!", "image_url": image_url},
+        )
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["is_owner"] is True
+        assert response.data["image_url"] == image_url
 
     def test_리뷰_비인증_등록_실패(self, client: APIClient, place: Place) -> None:
         response = client.post(
@@ -193,3 +193,56 @@ class TestReviewDelete:
     def test_존재하지_않는_리뷰_삭제_실패(self, auth_client: APIClient) -> None:
         response = auth_client.delete("/api/v1/reviews/99999")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+class TestReviewRoute:
+    def test_경로_연결하여_리뷰_등록_성공(self, auth_client: APIClient, user: User, place: Place) -> None:
+        route = _create_route_with_place(user, place)
+        response = auth_client.post(
+            f"/api/v1/places/{place.id}/reviews",
+            {"rating": 5, "content": "이 경로로 다녀왔어요!", "route_id": route.id},
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["route"]["route_id"] == route.id
+        assert response.data["route"]["title"] == route.title
+
+    def test_타인_소유_경로_연결_등록_실패_404(self, auth_client: APIClient, other_user: User, place: Place) -> None:
+        route = _create_route_with_place(other_user, place)
+        response = auth_client.post(
+            f"/api/v1/places/{place.id}/reviews",
+            {"rating": 5, "content": "좋아요!", "route_id": route.id},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_장소가_포함되지_않은_경로_연결_등록_실패_400(
+        self, auth_client: APIClient, user: User, place: Place
+    ) -> None:
+        other_place = PlaceFactory()  # type: ignore[misc]
+        route = _create_route_with_place(user, other_place)
+        response = auth_client.post(
+            f"/api/v1/places/{place.id}/reviews",
+            {"rating": 5, "content": "좋아요!", "route_id": route.id},
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_리뷰_수정으로_경로_연결_성공(self, auth_client: APIClient, user: User, place: Place) -> None:
+        review = ReviewFactory(user=user, place=place)  # type: ignore[misc]
+        route = _create_route_with_place(user, place)
+        response = auth_client.patch(
+            f"/api/v1/reviews/{review.id}",
+            {"route_id": route.id},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["route"]["route_id"] == route.id
+
+    def test_리뷰_수정으로_경로_연결_해제_성공(self, auth_client: APIClient, user: User, place: Place) -> None:
+        route = _create_route_with_place(user, place)
+        review = ReviewFactory(user=user, place=place, route=route)  # type: ignore[misc]
+        response = auth_client.patch(
+            f"/api/v1/reviews/{review.id}",
+            {"route_id": None},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["route"] is None
