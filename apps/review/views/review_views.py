@@ -71,6 +71,7 @@ class PlaceReviewListCreateView(APIView):
             rating=data["rating"],
             content=data["content"],
             image_url=data.get("image_url"),
+            route_id=data.get("route_id"),
         )
         return Response(
             ReviewCreateResponseSerializer(review, context={"request": request}).data,
