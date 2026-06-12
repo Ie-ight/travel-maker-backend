@@ -13,8 +13,6 @@ from apps.route.tests.factories import (
 )
 from apps.user.models import User
 
-# ── 공통 픽스처 ──────────────────────────────────────────────────────────────
-
 
 @pytest.fixture
 def client() -> APIClient:
@@ -79,9 +77,6 @@ def _route_payload(tag_id: int, place_id: int, **kwargs: object) -> dict:
     return base
 
 
-# ── 경로 생성 ────────────────────────────────────────────────────────────────
-
-
 @pytest.mark.django_db
 class TestRouteCreate:
     def test_경로_생성_성공(self, auth_client: APIClient, tag: object, place: object) -> None:
@@ -129,9 +124,6 @@ class TestRouteCreate:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
-# ── 경로 상세 조회 ────────────────────────────────────────────────────────────
-
-
 @pytest.mark.django_db
 class TestRouteDetail:
     def test_경로_상세_조회_성공(self, client: APIClient, route: Route) -> None:
@@ -147,9 +139,6 @@ class TestRouteDetail:
     def test_비인증_상세_조회_성공(self, client: APIClient, route: Route) -> None:
         response = client.get(f"/api/v1/routes/{route.id}")
         assert response.status_code == status.HTTP_200_OK
-
-
-# ── 경로 수정 ────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.django_db
@@ -173,9 +162,6 @@ class TestRouteUpdate:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-# ── 경로 삭제 ────────────────────────────────────────────────────────────────
-
-
 @pytest.mark.django_db
 class TestRouteDelete:
     def test_경로_삭제_성공(self, auth_client: APIClient, route: Route) -> None:
@@ -195,9 +181,6 @@ class TestRouteDelete:
     def test_존재하지_않는_경로_삭제_실패(self, auth_client: APIClient) -> None:
         response = auth_client.delete("/api/v1/routes/99999")
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-# ── 경로 목록 조회 ────────────────────────────────────────────────────────────
 
 
 @pytest.mark.django_db
@@ -228,9 +211,6 @@ class TestRouteList:
         assert response.data["results"][0]["like_count"] == 10
 
 
-# ── 마이페이지 경로 조회 ──────────────────────────────────────────────────────
-
-
 @pytest.mark.django_db
 class TestUserRouteList:
     def test_내_경로_목록_조회_성공(self, auth_client: APIClient, user: User) -> None:
@@ -246,9 +226,6 @@ class TestUserRouteList:
     def test_존재하지_않는_유저_404(self, auth_client: APIClient) -> None:
         response = auth_client.get("/api/v1/users/없는유저/routes")
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-# ── 좋아요 ───────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.django_db
@@ -284,9 +261,6 @@ class TestRouteLike:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-# ── 좋아요한 경로 목록 ────────────────────────────────────────────────────────
-
-
 @pytest.mark.django_db
 class TestUserLikedRoutes:
     def test_좋아요한_경로_목록_성공(self, auth_client: APIClient, user: User) -> None:
@@ -300,9 +274,6 @@ class TestUserLikedRoutes:
     def test_비인증_좋아요_목록_실패(self, client: APIClient) -> None:
         response = client.get("/api/v1/users/routes/likes")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-# ── 관리자 경로 삭제 ──────────────────────────────────────────────────────────
 
 
 @pytest.mark.django_db
