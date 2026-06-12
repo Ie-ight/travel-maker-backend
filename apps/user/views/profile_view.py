@@ -57,7 +57,11 @@ class ProfileView(AuthRequiredMixin, APIView):
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
+        profile_image_url = serializer.validated_data.pop("profile_image_url", None)
         serializer.save()
+
+        if profile_image_url is not None:
+            ProfileImageService.set_profile_image_url(user, profile_image_url)
 
         response_serializer = ProfileUpdateResponseSerializer(user)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
@@ -131,6 +135,4 @@ class ProfileImagePresignedUrlView(AuthRequiredMixin, PresignedUrlView):
 
     @profile_image_presigned_url_schema
     def patch(self, request: Request) -> Response:
-        response = self.handle_request(request)
-        ProfileImageService.set_profile_image_url(cast(User, request.user), response.data["img_url"])
-        return response
+        return self.handle_request(request)

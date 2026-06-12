@@ -1,14 +1,8 @@
-from django.conf import settings
 from rest_framework import serializers
 
+from apps.core.utils import validate_s3_image_url
 from apps.review.models import Review
 from apps.route.models import Route
-
-
-def _validate_image_url(value: str) -> str:
-    if value and not value.startswith(f"https://{settings.AWS_STORAGE_BUCKET_NAME}"):
-        raise serializers.ValidationError("유효하지 않은 이미지 URL입니다.")
-    return value
 
 
 # 응답에 본인 작성 여부(is_owner)를 추가하는 믹스인
@@ -62,7 +56,7 @@ class ReviewCreateSerializer(serializers.Serializer[None]):
     route_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_image_url(self, value: str) -> str:
-        return _validate_image_url(value)
+        return validate_s3_image_url(value)
 
 
 # 리뷰 등록 응답
@@ -83,7 +77,7 @@ class ReviewUpdateSerializer(serializers.Serializer[None]):
     route_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_image_url(self, value: str) -> str:
-        return _validate_image_url(value)
+        return validate_s3_image_url(value)
 
     def validate(self, attrs: dict[str, object]) -> dict[str, object]:
         if not attrs:

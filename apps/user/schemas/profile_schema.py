@@ -53,20 +53,26 @@ profile_patch_schema = extend_schema(
     tags=["User"],
     summary="내 프로필 수정",
     description=(
-        "닉네임, 한줄소개, 관심 태그를 수정합니다.\n\n"
+        "닉네임, 한줄소개, 관심 태그, 프로필 이미지를 수정합니다.\n\n"
         "tags는 `place.Tag`의 id 목록이며, 보낸 목록으로 관심 태그 전체를 교체합니다. "
         "`GET /api/v1/tags?tag_type=세부 테마`로 전체 목록을 조회할 수 있고, "
         "현재 id는 다음과 같습니다.\n\n"
         "8: 해수욕·해안, 9: 수상레저, 10: 캠핑·글램핑, 11: 산·숲·계곡, 12: 자연생태, "
         "13: 자연공원·트레킹, 14: 랜드마크, 15: 공원·거리, 16: 쇼핑, 17: 역사·유적, "
         "18: 박물관·전시, 19: 전통체험, 20: 음식점, 21: 카페·디저트, 22: 시장·먹거리, "
-        "23: 육상스포츠, 24: 항공·익스트림, 25: 테마파크·시설, 26: 스파·웰니스, 27: 숙박·리조트"
+        "23: 육상스포츠, 24: 항공·익스트림, 25: 테마파크·시설, 26: 스파·웰니스, 27: 숙박·리조트\n\n"
+        "profile_image_url은 `/users/profile-image/presigned-url`로 발급받은 img_url을 그대로 담아 보내세요."
     ),
     request=ProfileUpdateSerializer,
     examples=[
         OpenApiExample(
             "요청 예시",
-            value={"nickname": "여행러버", "bio": "혼자 여행 다니는 걸 좋아해요", "tags": [8, 9, 21]},
+            value={
+                "nickname": "여행러버",
+                "bio": "혼자 여행 다니는 걸 좋아해요",
+                "tags": [8, 9, 21],
+                "profile_image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/profiles/uuid_avatar.jpg",
+            },
             description="tags: 8=해수욕·해안, 9=수상레저, 21=카페·디저트",
             request_only=True,
         ),
@@ -255,8 +261,8 @@ profile_image_presigned_url_schema = extend_schema(
     tags=["User"],
     summary="프로필 이미지 업로드용 presigned URL 발급",
     description=(
-        "프로필 이미지를 S3에 직접 업로드할 수 있는 presigned URL을 발급합니다. "
-        "발급과 동시에 내 프로필의 profile_img_url이 응답의 img_url로 갱신됩니다."
+        "프로필 이미지를 S3에 직접 업로드할 수 있는 presigned URL을 발급합니다.\n"
+        "응답으로 받은 img_url을 `PATCH /api/v1/users` 요청의 profile_image_url 필드에 담아 전달하세요."
     ),
     request=PresignedUrlRequestSerializer,
     examples=[
