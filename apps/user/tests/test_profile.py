@@ -214,6 +214,7 @@ class TestProfilePatch:
         mock_handler.key_from_img_url.assert_called_once_with(old_url)
         mock_handler.delete_object.assert_called_once_with("profiles/old_avatar.jpg")
 
+    @override_settings(AWS_STORAGE_BUCKET_NAME="test-bucket")
     def test_프로필_이미지_URL_S3_버킷_아니면_400(self, auth_client: APIClient) -> None:
         response = auth_client.patch("/api/v1/users", {"profile_image_url": "https://evil.example.com/x.png"})
 
