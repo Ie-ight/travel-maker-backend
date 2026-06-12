@@ -53,7 +53,7 @@ profile_patch_schema = extend_schema(
     tags=["User"],
     summary="내 프로필 수정",
     description=(
-        "닉네임, 한줄소개, 관심 태그, 프로필 이미지를 수정합니다.\n\n"
+        "닉네임, 한줄소개, 관심 태그를 수정합니다.\n\n"
         "tags는 `place.Tag`의 id 목록이며, 보낸 목록으로 관심 태그 전체를 교체합니다. "
         "`GET /api/v1/tags?tag_type=세부 테마`로 전체 목록을 조회할 수 있고, "
         "현재 id는 다음과 같습니다.\n\n"

@@ -57,11 +57,7 @@ class ProfileView(AuthRequiredMixin, APIView):
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        profile_image = serializer.validated_data.pop("profile_image", None)
         serializer.save()
-
-        if profile_image is not None:
-            ProfileImageService.queue_upload(user, profile_image)
 
         response_serializer = ProfileUpdateResponseSerializer(user)
         return Response(response_serializer.data, status=status.HTTP_200_OK)

@@ -1,10 +1,8 @@
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import factory
 import pytest
 from factory.django import DjangoModelFactory
-from PIL import Image as PILImage
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -179,26 +177,6 @@ class TestProfilePatch:
     def test_프로필_수정_비로그인_실패(self, client: APIClient) -> None:
         response = client.patch("/api/v1/users", {"nickname": "테스트"})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_프로필_이미지_업로드_큐잉(self, auth_client: APIClient, user: User) -> None:
-        img = PILImage.new("RGB", (100, 100), color="blue")
-        img_bytes = BytesIO()
-        img.save(img_bytes, format="JPEG")
-        img_bytes.name = "profile.jpg"
-        img_bytes.seek(0)
-
-        with patch("apps.user.services.profile_service.upload_profile_image") as mock_task:
-            mock_task.delay = MagicMock()
-            response = auth_client.patch(
-                "/api/v1/users",
-                {"profile_image": img_bytes},
-                format="multipart",
-            )
-
-        assert response.status_code == status.HTTP_200_OK
-        mock_task.delay.assert_called_once()
-        called_user_id = mock_task.delay.call_args[0][0]
-        assert called_user_id == user.id
 
     def test_프로필_수정_응답에_profile_img_url_쓰기_불가(self, auth_client: APIClient) -> None:
         response = auth_client.patch("/api/v1/users", {"profile_img_url": "https://evil.example.com/x.png"})

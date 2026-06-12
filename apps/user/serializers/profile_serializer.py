@@ -73,15 +73,12 @@ class ProfileSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[Use
 class ProfileUpdateSerializer(serializers.ModelSerializer[User]):
     """프로필 수정 요청"""
 
-    profile_image = serializers.ImageField(write_only=True, required=False, allow_null=True)
-
     class Meta:
         model = User
         fields = [
             "nickname",
             "bio",
             "tags",
-            "profile_image",
         ]
 
     def validate_nickname(self, value: str) -> str:
