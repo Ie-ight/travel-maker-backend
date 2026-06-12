@@ -105,3 +105,5 @@ infrastructure/docker/docker-compose.override.yml
 dumps/*.dump
 
 .claude/now.md
+
+logs/*.log

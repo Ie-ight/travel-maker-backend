@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import cast
 
 from rest_framework import status
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
@@ -7,11 +7,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.permissions import IsAdminRole
-from apps.route.exceptions import RouteAlreadyLiked, RouteForbidden, RouteLikeNotFound, RouteNotFound
 from apps.route.schemas.route_schemas import (
     admin_route_delete_schema,
     route_create_schema,
     route_delete_schema,
+    route_detail_schema,
     route_like_schema,
     route_list_schema,
     route_unlike_schema,
@@ -22,6 +22,7 @@ from apps.route.schemas.route_schemas import (
 from apps.route.serializers.route_serializers import (
     RouteCreateResponseSerializer,
     RouteCreateSerializer,
+    RouteDetailSerializer,
     RouteLikeResponseSerializer,
     RouteListSerializer,
     RouteMyListSerializer,
@@ -33,6 +34,7 @@ from apps.route.services.route_services import (
     create_route,
     delete_route,
     get_liked_routes,
+    get_route_detail,
     get_routes,
     get_user_routes,
     like_route,
@@ -63,32 +65,26 @@ class RouteListCreateView(APIView):
 
 
 class RouteDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    def get_permissions(self) -> list[BasePermission]:
+        if self.request.method == "GET":
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    @route_detail_schema
+    def get(self, request: Request, route_id: int) -> Response:
+        route = get_route_detail(route_id)
+        return Response(RouteDetailSerializer(route).data)
 
     @route_update_schema
     def patch(self, request: Request, route_id: int) -> Response:
         serializer = RouteUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            route = update_route(cast(User, request.user), route_id, dict(serializer.validated_data))
-        except RouteNotFound as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except RouteForbidden:
-            return Response(
-                {"error_detail": "본인이 작성한 경로만 수정할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN
-            )
+        route = update_route(cast(User, request.user), route_id, dict(serializer.validated_data))
         return Response(RouteUpdateResponseSerializer(route).data)
 
     @route_delete_schema
     def delete(self, request: Request, route_id: int) -> Response:
-        try:
-            delete_route(cast(User, request.user), route_id)
-        except RouteNotFound as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except RouteForbidden:
-            return Response(
-                {"error_detail": "본인이 작성한 경로만 삭제할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN
-            )
+        delete_route(cast(User, request.user), route_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -97,10 +93,7 @@ class UserRouteListView(APIView):
 
     @user_route_list_schema
     def get(self, request: Request, nickname: str) -> Response:
-        try:
-            page, paginator = get_user_routes(nickname, request)
-        except RouteNotFound as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        page, paginator = get_user_routes(nickname, request)
         serializer = RouteMyListSerializer(page, many=True)
         return Response(paginator.get_paginated_response(serializer.data).data)
 
@@ -110,13 +103,8 @@ class RouteLikeView(APIView):
 
     @route_like_schema
     def post(self, request: Request, route_id: int) -> Response:
-        try:
-            like = like_route(cast(User, request.user), route_id)
-        except RouteNotFound as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except RouteAlreadyLiked as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_409_CONFLICT)
-        data: dict[str, Any] = {
+        like = like_route(cast(User, request.user), route_id)
+        data: dict[str, str | int] = {
             "message": "좋아요가 추가되었습니다.",
             "like_id": like.id,
             "like_count": like.route.like_count,
@@ -125,12 +113,7 @@ class RouteLikeView(APIView):
 
     @route_unlike_schema
     def delete(self, request: Request, route_id: int) -> Response:
-        try:
-            unlike_route(cast(User, request.user), route_id)
-        except RouteNotFound as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except RouteLikeNotFound as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        unlike_route(cast(User, request.user), route_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -149,8 +132,5 @@ class AdminRouteDetailView(APIView):
 
     @admin_route_delete_schema
     def delete(self, request: Request, route_id: int) -> Response:
-        try:
-            admin_delete_route(route_id)
-        except RouteNotFound as e:
-            return Response({"error_detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        admin_delete_route(route_id)
         return Response(status=status.HTTP_204_NO_CONTENT)

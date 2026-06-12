@@ -327,14 +327,35 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
+        "file": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "filename": os.path.join(BASE_DIR, "logs", "django.log"),
+            "when": "midnight",
+            "backupCount": 7,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        "celery_file": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "filename": os.path.join(BASE_DIR, "logs", "celery.log"),
+            "when": "midnight",
+            "backupCount": 7,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
     },
     "root": {
-        "handlers": ["console"],
+        "handlers": ["console", "file"],
         "level": "INFO",
     },
     "loggers": {
         "django": {
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "celery": {
+            "handlers": ["console", "celery_file"],
             "level": "INFO",
             "propagate": False,
         },
