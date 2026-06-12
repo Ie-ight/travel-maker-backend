@@ -89,6 +89,24 @@ services:
     networks:
       - travel_maker_network
 
+  flower:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
+    container_name: travel-maker-flower-prod
+    command: uv run celery -A config flower --port=5555 --basic_auth=admin:admin1234!
+    ports:
+      - "5555:5555"
+    env_file:
+      - ../../envs/.env.prod
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.prod
+    depends_on:
+      - redis
+    restart: always
+    networks:
+      - travel_maker_network
+
 volumes:
   postgres_data:
   static_volume:
