@@ -15,6 +15,12 @@ class ReviewAdmin(BaseAdmin):
     readonly_fields = ["image_preview", "created_at", "updated_at"]
     date_hierarchy = "created_at"
     list_select_related = ["user", "place"]
+    save_on_top = True
+    fieldsets = [
+        (None, {"fields": ["user", "place", "rating", "content"]}),
+        ("이미지", {"classes": ["collapse"], "fields": ["image_url", "image_preview"]}),
+        ("메타", {"classes": ["collapse"], "fields": ["created_at", "updated_at"]}),
+    ]
 
     @admin.display(description="내용")
     def content_preview(self, obj: Review) -> str:

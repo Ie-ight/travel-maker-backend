@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from django.db.models import Avg, Count, QuerySet
 
@@ -12,9 +11,11 @@ from apps.review.exceptions import (
     ForbiddenReviewEdit,
     PlaceNotFound,
     ReviewNotFound,
+    RouteNotFound,
+    RouteNotIncluded,
 )
 from apps.review.models import Review
-from apps.review.tasks import upload_review_image
+from apps.route.models import Route
 
 
 def _get_place_or_404(place_id: int) -> Place:
@@ -22,6 +23,18 @@ def _get_place_or_404(place_id: int) -> Place:
         return Place.objects.get(pk=place_id)
     except Place.DoesNotExist:
         raise PlaceNotFound() from None
+
+
+def _get_review_route(user: AbstractBaseUser, place_id: int, route_id: int | None) -> Route | None:
+    if route_id is None:
+        return None
+    try:
+        route = Route.objects.get(pk=route_id, user_id=user.pk)
+    except Route.DoesNotExist:
+        raise RouteNotFound() from None
+    if not route.days.filter(day_places__place_id=place_id).exists():
+        raise RouteNotIncluded()
+    return route
 
 
 def get_reviews(place_id: int) -> QuerySet[Review]:
@@ -48,20 +61,21 @@ def create_review(
     place_id: int,
     rating: int,
     content: str,
-    image: InMemoryUploadedFile | None = None,
+    image_url: str | None = None,
+    route_id: int | None = None,
 ) -> Review:
     _get_place_or_404(place_id)
     if Review.objects.filter(user_id=user.pk, place_id=place_id).exists():
         raise AlreadyReviewed()
+    route = _get_review_route(user, place_id, route_id)
     review = Review.objects.create(
         user_id=user.pk,
         place_id=place_id,
         rating=rating,
         content=content,
-        image_url=None,
+        image_url=image_url,
+        route=route,
     )
-    if image is not None:
-        upload_review_image.delay(review.id, image.read(), image.content_type or "image/jpeg")
     _update_place_rating(place_id)
     return review
 
@@ -83,6 +97,13 @@ def update_review(user: AbstractBaseUser, review_id: int, data: dict[str, object
             setattr(review, field, value)
 
     fields_to_update = [f for f in data.keys() if f in _REVIEW_UPDATABLE_FIELDS]
+
+    if "route_id" in data:
+        route_id = data["route_id"]
+        assert route_id is None or isinstance(route_id, int)
+        review.route = _get_review_route(user, review.place_id, route_id)
+        fields_to_update.append("route")
+
     review.save(update_fields=[*fields_to_update, "updated_at"])  # 변경된 필드 + update_at만 UPDATE
     _update_place_rating(review.place_id)
     return review

@@ -2,12 +2,17 @@
 
 태그 택소노미의 단일 소스다. `seed_tags` 명령이 이 정의로 Tag를 적재하고,
 5단계 AI는 `여행 스타일`·`세부 테마`·`동행` 후보를 여기서 가져온다.
+tag_type/content_type 코드는 모델 enum(Tag.TagType / Place.ContentType)을 단일 소스로 참조한다.
 """
+
+from apps.place.models import Place, Tag
+
+TagType = Tag.TagType
 
 #: tag_type → tag_name 목록 (§8). 5개 타입 전부 시드한다(AI 타입은 5단계에서 부여).
 TAG_SEEDS: dict[str, list[str]] = {
-    "여행 스타일": ["해변", "산악", "도시", "문화", "미식", "액티비티", "로맨틱"],
-    "세부 테마": [
+    TagType.TRAVEL_STYLE: ["해변", "산악", "도시", "문화", "미식", "액티비티", "로맨틱"],
+    TagType.SUB_THEME: [
         "해수욕·해안",
         "수상레저",
         "캠핑·글램핑",
@@ -29,8 +34,8 @@ TAG_SEEDS: dict[str, list[str]] = {
         "스파·웰니스",
         "숙박·리조트",
     ],
-    "동행": ["혼자", "커플", "가족", "친구"],
-    "지역": [
+    TagType.COMPANION: ["혼자", "커플", "가족", "친구"],
+    TagType.REGION: [
         "서울",
         "인천",
         "대전",
@@ -49,7 +54,7 @@ TAG_SEEDS: dict[str, list[str]] = {
         "경남",
         "제주",
     ],
-    "편의성": [
+    TagType.FACILITY: [
         "주차",
         "반려동물",
         "무료",
@@ -58,19 +63,19 @@ TAG_SEEDS: dict[str, list[str]] = {
     ],
 }
 
-REGION_TAG_TYPE = "지역"
-FACILITY_TAG_TYPE = "편의성"
+REGION_TAG_TYPE = TagType.REGION
+FACILITY_TAG_TYPE = TagType.FACILITY
 
 #: AI(5단계)가 부여하는 tag_type. 후보는 TAG_SEEDS의 해당 항목에서만 고른다(§9 가드레일 #1).
-AI_TAG_TYPES = ("여행 스타일", "세부 테마", "동행")
+AI_TAG_TYPES = (TagType.TRAVEL_STYLE, TagType.SUB_THEME, TagType.COMPANION)
 
 #: 음식 계열 AI 태그. 공식 분류상 음식 장소가 아니면 후처리로 제거한다(모델이 '식사 가능' 등으로 과다부여 → 보정).
 FOOD_TAG_NAMES = frozenset({"미식", "음식점", "카페·디저트", "시장·먹거리"})
 #: lclsSystm1 음식 대분류 코드 / §2 음식점 contenttypeid — 둘 중 하나면 음식 장소로 본다.
-FOOD_LCLS1_CODE = "FD"
-FOOD_CONTENT_TYPE_ID = 39
+FOOD_LCLS1_CODE = Place.LclsLarge.FOOD
+FOOD_CONTENT_TYPE_ID = Place.ContentType.FOOD
 #: §2 축제공연행사 contenttypeid. 음식 축제(김치·디저트·맥주 페스타 등)가 있어 음식 필터에서 제외한다.
-FESTIVAL_CONTENT_TYPE_ID = 15
+FESTIVAL_CONTENT_TYPE_ID = Place.ContentType.FESTIVAL
 
 #: addr1 첫 토큰(시·도) → `지역` tag_name. 행정구역 개편 전/후 명칭을 모두 포함한다.
 REGION_PREFIX_MAP: dict[str, str] = {

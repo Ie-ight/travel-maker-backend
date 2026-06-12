@@ -14,6 +14,7 @@ from apps.user.models import Follow, SocialUser, User
 class SocialUserInline(admin.TabularInline):  # type: ignore[type-arg]
     model = SocialUser
     extra = 0
+    classes = ["collapse"]
     fields = ["provider", "provider_id", "created_at"]
     readonly_fields = ["created_at"]
 
@@ -22,6 +23,7 @@ class UserTestResultInline(admin.StackedInline):  # type: ignore[type-arg]
     model = UserTestResult
     extra = 0
     can_delete = True
+    classes = ["collapse"]
     autocomplete_fields = ["travel_type"]
     fields = ["travel_type", "result_vector", "vector_readable", "updated_at"]
     readonly_fields = ["vector_readable", "updated_at"]
@@ -41,6 +43,7 @@ class FollowingInline(admin.TabularInline):  # type: ignore[type-arg]
     model = Follow
     fk_name = "follower"
     extra = 0
+    classes = ["collapse"]
     fields = ["following", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["following"]
@@ -58,6 +61,7 @@ class FollowerInline(admin.TabularInline):  # type: ignore[type-arg]
     model = Follow
     fk_name = "following"
     extra = 0
+    classes = ["collapse"]
     fields = ["follower", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["follower"]
@@ -74,6 +78,7 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
     model = Bookmark
     extra = 0
+    classes = ["collapse"]
     fields = ["place", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["place"]
@@ -104,10 +109,16 @@ class UserAdmin(BaseAdmin):
     list_filter = ["is_active", "role", "gender", "tags"]
     search_fields = ["nickname", "email"]
     date_hierarchy = "created_at"
-    readonly_fields = ["created_at", "updated_at", "last_login"]
+    readonly_fields = ["created_at", "updated_at", "last_login", "deleted_at"]
     exclude = ["password"]
-    filter_horizontal = ["tags"]
+    autocomplete_fields = ["tags"]
+    save_on_top = True
     inlines = [SocialUserInline, UserTestResultInline, FollowingInline, FollowerInline, BookmarkInline]
+    fieldsets = [
+        (None, {"fields": ["nickname", "email", "role", "is_active", "is_staff"]}),
+        ("프로필", {"classes": ["collapse"], "fields": ["bio", "gender", "birthday", "profile_img_url", "tags"]}),
+        ("메타", {"classes": ["collapse"], "fields": ["last_login", "deleted_at", "created_at", "updated_at"]}),
+    ]
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[User]:
         qs: QuerySet[User] = super().get_queryset(request)

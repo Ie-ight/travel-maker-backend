@@ -12,6 +12,11 @@ class TravelTypeAdmin(BaseAdmin):
     list_display = ["id", "type_key", "name", "avatar", "user_count"]
     list_display_links = ["id", "type_key"]
     search_fields = ["type_key", "name"]
+    save_on_top = True
+    fieldsets = [
+        (None, {"fields": ["type_key", "name"]}),
+        ("이미지", {"classes": ["collapse"], "fields": ["image_url"]}),
+    ]
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[TravelType]:
         qs: QuerySet[TravelType] = super().get_queryset(request)

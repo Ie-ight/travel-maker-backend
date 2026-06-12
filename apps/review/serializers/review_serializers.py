@@ -2,6 +2,13 @@ from django.conf import settings
 from rest_framework import serializers
 
 from apps.review.models import Review
+from apps.route.models import Route
+
+
+def _validate_image_url(value: str) -> str:
+    if value and not value.startswith(f"https://{settings.AWS_STORAGE_BUCKET_NAME}"):
+        raise serializers.ValidationError("유효하지 않은 이미지 URL입니다.")
+    return value
 
 
 # 응답에 본인 작성 여부(is_owner)를 추가하는 믹스인
@@ -15,10 +22,21 @@ class IsOwnerMixin(serializers.Serializer[Review]):
         return False
 
 
+# 리뷰에 연결된 경로 응답
+class ReviewRouteSerializer(serializers.ModelSerializer[Route]):
+    route_id = serializers.IntegerField(source="id")
+
+    class Meta:
+        model = Route
+        fields = ["route_id", "title"]
+        read_only_fields = fields
+
+
 # 리뷰 목록 응답(닉네임 포함)
 class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]):
     review_id = serializers.IntegerField(source="id")
     user_nickname = serializers.CharField(source="user.nickname")
+    route = ReviewRouteSerializer(read_only=True)
 
     class Meta:
         model = Review
@@ -32,6 +50,7 @@ class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]
             "created_at",
             "updated_at",
             "is_owner",
+            "route",
         ]
 
 
@@ -39,16 +58,21 @@ class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]
 class ReviewCreateSerializer(serializers.Serializer[None]):
     rating = serializers.IntegerField(min_value=1, max_value=5)
     content = serializers.CharField(max_length=200)
-    image = serializers.ImageField(required=False, allow_null=True)
+    image_url = serializers.URLField(required=False, allow_null=True)
+    route_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_image_url(self, value: str) -> str:
+        return _validate_image_url(value)
 
 
 # 리뷰 등록 응답
 class ReviewCreateResponseSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]):
     review_id = serializers.IntegerField(source="id")
+    route = ReviewRouteSerializer(read_only=True)
 
     class Meta:
         model = Review
-        fields = ["user_id", "review_id", "rating", "content", "image_url", "created_at", "is_owner"]
+        fields = ["user_id", "review_id", "rating", "content", "image_url", "created_at", "is_owner", "route"]
 
 
 # 리뷰 수정 요청 검증
@@ -56,11 +80,10 @@ class ReviewUpdateSerializer(serializers.Serializer[None]):
     rating = serializers.IntegerField(min_value=1, max_value=5, required=False)
     content = serializers.CharField(max_length=200, required=False)
     image_url = serializers.URLField(required=False, allow_null=True)
+    route_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_image_url(self, value: str) -> str:
-        if value and not value.startswith(f"https://{settings.AWS_STORAGE_BUCKET_NAME}"):
-            raise serializers.ValidationError("유효하지 않은 이미지 URL입니다.")
-        return value
+        return _validate_image_url(value)
 
     def validate(self, attrs: dict[str, object]) -> dict[str, object]:
         if not attrs:
@@ -71,7 +94,8 @@ class ReviewUpdateSerializer(serializers.Serializer[None]):
 # 리뷰 수정 응답
 class ReviewUpdateResponseSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]):
     review_id = serializers.IntegerField(source="id")
+    route = ReviewRouteSerializer(read_only=True)
 
     class Meta:
         model = Review
-        fields = ["user_id", "review_id", "rating", "content", "image_url", "updated_at", "is_owner"]
+        fields = ["user_id", "review_id", "rating", "content", "image_url", "updated_at", "is_owner", "route"]

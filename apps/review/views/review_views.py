@@ -1,15 +1,17 @@
 from django.contrib.auth.models import AbstractBaseUser
 from django.db.models import Avg, Count
 from rest_framework import status
-from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.exceptions import AuthRequiredMixin
+from apps.core.presigned_url.views import PresignedUrlView
 from apps.review.schemas.review_schemas import (
     review_create_schema,
     review_delete_schema,
+    review_image_presigned_url_schema,
     review_list_schema,
     review_update_schema,
 )
@@ -29,8 +31,6 @@ from apps.review.services.review_services import (
 
 
 class PlaceReviewListCreateView(APIView):
-    parser_classes = [MultiPartParser, FormParser]
-
     def get_permissions(self) -> list[BasePermission]:
         if self.request.method == "GET":
             return [AllowAny()]
@@ -70,7 +70,8 @@ class PlaceReviewListCreateView(APIView):
             place_id=place_id,
             rating=data["rating"],
             content=data["content"],
-            image=data.get("image"),
+            image_url=data.get("image_url"),
+            route_id=data.get("route_id"),
         )
         return Response(
             ReviewCreateResponseSerializer(review, context={"request": request}).data,
@@ -96,3 +97,12 @@ class ReviewDetailView(APIView):
         assert isinstance(user, AbstractBaseUser)
         delete_review(user=user, review_id=review_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ReviewImagePresignedUrlView(AuthRequiredMixin, PresignedUrlView):
+    permission_classes = [IsAuthenticated]
+    path = "reviews"
+
+    @review_image_presigned_url_schema
+    def post(self, request: Request) -> Response:
+        return self.handle_request(request)

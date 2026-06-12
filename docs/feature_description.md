@@ -1,6 +1,6 @@
 # TravelMaker 기능 명세서
 
-전체 API 엔드포인트 **29개** 기준으로 구현된 기능을 정리합니다.
+전체 API 엔드포인트 **30개** 기준으로 구현된 기능을 정리합니다.
 
 ---
 
@@ -229,6 +229,7 @@
 |--------|-----------|:---:|------|
 | GET    | `/api/v1/places/<id>/reviews` | ✗ | 장소별 리뷰 목록 |
 | POST   | `/api/v1/places/<id>/reviews` | ✓ | 리뷰 작성 |
+| POST   | `/api/v1/reviews/presigned-url` | ✓ | 리뷰 이미지 업로드용 presigned URL 발급 |
 | PATCH  | `/api/v1/reviews/<id>` | ✓ | 리뷰 수정 |
 | DELETE | `/api/v1/reviews/<id>` | ✓ | 리뷰 삭제 |
 
@@ -237,17 +238,26 @@
 #### 리뷰 목록 `GET /api/v1/places/<id>/reviews`
 - 쿼리 파라미터: `?page=1&page_size=4`
 - 응답: `{"count": N, "avg_rating": 4.2, "results": [...]}`
+- 각 리뷰에 연결된 경로가 있으면 `route: {"route_id": N, "title": "..."}`, 없으면 `route: null`
+
+#### 리뷰 이미지 업로드 `POST /api/v1/reviews/presigned-url`
+- 이미지를 S3에 직접 업로드할 수 있는 presigned URL을 발급
+- 응답으로 받은 `img_url`을 리뷰 작성/수정 요청의 `image_url` 필드에 담아 전달
 
 #### 리뷰 작성 `POST /api/v1/places/<id>/reviews`
-- **반드시 FormData로 전송** (JSON 불가 — `MultiPartParser` 전용)
-- 요청 필드: `rating`(1~5, 필수), `content`(최대 200자), `image`(파일, 선택)
+- **JSON으로 전송**
+- 요청 필드: `rating`(1~5, 필수), `content`(최대 200자, 필수), `image_url`(선택), `route_id`(선택)
+- `image_url`은 presigned URL 발급 API로 받은 `img_url`을 그대로 전달 (서버에서 도메인 검증)
 - **동일 사용자는 같은 장소에 리뷰 1개만 작성 가능** (중복 시 409 Conflict)
-- 이미지 첨부 시 Celery 비동기 태스크로 S3 업로드 (재시도 3회, 60초 간격)
+- `route_id`를 전달하면 본인의 경로 중 **이 장소가 포함된 경로**를 리뷰에 연결 (다녀온 경로를 함께 보여줌)
+  - 본인 소유가 아니거나 존재하지 않는 경로 → 404
+  - 해당 장소가 포함되지 않은 경로 → 400
 - 리뷰 저장 후 해당 장소의 `rating_avg`, `rating_count` 자동 갱신 (select_for_update 락)
 
 #### 리뷰 수정 `PATCH /api/v1/reviews/<id>`
-- **FormData로 전송**
-- 수정 가능 필드: `rating`, `content`, `image_url` (부분 수정 가능)
+- **JSON으로 전송**
+- 수정 가능 필드: `rating`, `content`, `image_url`, `route_id` (부분 수정 가능, 최소 1개 이상 필요)
+- `route_id`에 이 장소가 포함된 내 경로 ID를 전달하면 연결, `null`을 전달하면 연결 해제 (생략 시 기존 연결 유지)
 - 작성자 본인만 수정 가능 (403)
 
 #### 리뷰 삭제 `DELETE /api/v1/reviews/<id>`
