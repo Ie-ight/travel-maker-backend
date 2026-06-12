@@ -8,6 +8,8 @@
 None으로 남는다. `BOOLEAN_FIELDS`는 "불가"/값 유무로 정규화하는 boolean 필드다(§4).
 """
 
+from apps.place.models import Place
+
 PLACE_INFO_FIELD_MAP: dict[int, dict[str, str]] = {
     12: {  # 관광지 (usefee/spendtime/discountinfo 없음)
         "operating_hours": "usetime",
@@ -77,6 +79,6 @@ INFOCENTER_KEY: dict[int, str] = {
 }
 
 #: 숙박은 운영시간이 단일 필드가 아니라 체크인/체크아웃으로 분리돼 온다(place_sync에서 합친다).
-LODGING_TYPE_ID = 32
+LODGING_TYPE_ID = Place.ContentType.LODGING
 LODGING_CHECKIN_KEY = "checkintime"
 LODGING_CHECKOUT_KEY = "checkouttime"

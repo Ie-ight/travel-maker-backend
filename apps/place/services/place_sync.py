@@ -30,8 +30,17 @@ from apps.place.services.tour_api import AllKeysExhaustedError, TourApiClient, T
 
 logger = logging.getLogger("place.sync")
 
-#: 대량 적재 대상 타입(§2). 25 여행코스는 PlaceInfo 스키마와 안 맞고 사용 안 해 제외.
-DEFAULT_CONTENT_TYPE_IDS: tuple[int, ...] = (12, 14, 15, 28, 32, 38, 39)
+#: 대량 적재 대상 타입(§2). 25 여행코스(COURSE)는 PlaceInfo 스키마와 안 맞고 사용 안 해 제외.
+_CT = Place.ContentType
+DEFAULT_CONTENT_TYPE_IDS: tuple[int, ...] = (
+    _CT.TOURIST,
+    _CT.CULTURE,
+    _CT.FESTIVAL,
+    _CT.LEPORTS,
+    _CT.LODGING,
+    _CT.SHOPPING,
+    _CT.FOOD,
+)
 
 _HREF_RE = re.compile(r"""href=["']([^"']+)["']""", re.IGNORECASE)
 _URL_RE = re.compile(r"https?://\S+")

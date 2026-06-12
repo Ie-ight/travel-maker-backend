@@ -30,17 +30,14 @@ from apps.place.services.tagging import assign_ai_tags
 
 STYLE_VECTOR_DIM = 6
 
-#: §2 contenttypeid → 타입명 (AI 입력 맥락용)
-CONTENT_TYPE_NAMES: dict[int, str] = {
-    12: "관광지",
-    14: "문화시설",
-    15: "축제공연행사",
-    25: "여행코스",
-    28: "레포츠",
-    32: "숙박",
-    38: "쇼핑",
-    39: "음식점",
-}
+
+def content_type_label(content_type_id: int) -> str:
+    """contenttypeid → 타입명 라벨(AI 입력 맥락·리포트용). enum에 없는 값은 코드 문자열로 폴백."""
+    try:
+        return Place.ContentType(content_type_id).label
+    except ValueError:
+        return str(content_type_id)
+
 
 #: §4 6축 정의 (프롬프트용). 각 축은 양극단 + 앵커 예시로 폴라리티를 못 헷갈리게 한다.
 _AXES = [
@@ -60,7 +57,7 @@ _AXES = [
     "0.0=럭셔리형(고가·프리미엄, 예: 특급호텔·고급 레스토랑)",
 ]
 
-_CANDIDATES = "\n".join(f"- {ttype}: {', '.join(TAG_SEEDS[ttype])}" for ttype in AI_TAG_TYPES)
+_CANDIDATES = "\n".join(f"- {ttype.label}: {', '.join(TAG_SEEDS[ttype])}" for ttype in AI_TAG_TYPES)
 
 SYSTEM_PROMPT = (
     "너는 한국 여행지의 성향을 분석해 태그와 6차원 성향 벡터를 산출하는 분류기다. "
@@ -109,7 +106,7 @@ class AIResult:
 
 
 def _build_user_text(place: Place) -> str:
-    type_name = CONTENT_TYPE_NAMES.get(place.content_type_id, str(place.content_type_id))
+    type_name = content_type_label(place.content_type_id)
     # 원시 코드(VE/VE07/...) 대신 분류명("문화관광 > 전시시설 > 박물관")을 줘 모델이 음식/자연 등 범주를 직접 판단하게 한다
     lcls = lcls_label(place.lcls_systm1, place.lcls_systm2, place.lcls_systm3) or "-"
     return (
@@ -158,15 +155,31 @@ def _drop_non_food_tags(place: Place, tags: dict[str, list[str]]) -> dict[str, l
 
 
 #: 여행 스타일이 비었을 때 채울 폴백. content_type(타입이 성향을 강하게 규정) → lcls1 → 기본값 순.
-_STYLE_BY_CTYPE: dict[int, str] = {39: "미식", 28: "액티비티", 14: "문화", 15: "문화", 38: "도시", 32: "도시"}
-_STYLE_BY_LCLS1: dict[str, str] = {"FD": "미식", "EX": "액티비티", "VE": "문화", "HS": "문화"}
+_CT = Place.ContentType
+_STYLE_BY_CTYPE: dict[int, str] = {
+    _CT.FOOD: "미식",
+    _CT.LEPORTS: "액티비티",
+    _CT.CULTURE: "문화",
+    _CT.FESTIVAL: "문화",
+    _CT.SHOPPING: "도시",
+    _CT.LODGING: "도시",
+}
+_LCLS = Place.LclsLarge
+_STYLE_BY_LCLS1: dict[str, str] = {
+    _LCLS.FOOD: "미식",
+    _LCLS.EXPERIENCE: "액티비티",
+    _LCLS.CULTURE: "문화",
+    _LCLS.HISTORY: "문화",
+}
 _DEFAULT_STYLE = "도시"
+#: 자연관광 중 해양 계열(해수욕장·섬 등) 중분류 접두 — 해변/산악 분기용(systm2는 enum화하지 않아 상수로 둔다).
+_BEACH_LCLS2_PREFIX = "NA02"
 
 
 def _fallback_style(place: Place) -> str:
     """여행 스타일 폴백 1개를 결정론으로 고른다(자연=해변/산악, 타입·분류 우선순위)."""
-    if place.lcls_systm1 == "NA":  # 자연관광: 해양이면 해변, 그 외(산·숲)는 산악
-        return "해변" if (place.lcls_systm2 or "").startswith("NA02") else "산악"
+    if place.lcls_systm1 == _LCLS.NATURE:  # 자연관광: 해양이면 해변, 그 외(산·숲)는 산악
+        return "해변" if (place.lcls_systm2 or "").startswith(_BEACH_LCLS2_PREFIX) else "산악"
     return (
         _STYLE_BY_CTYPE.get(place.content_type_id) or _STYLE_BY_LCLS1.get(place.lcls_systm1 or "", "") or _DEFAULT_STYLE
     )

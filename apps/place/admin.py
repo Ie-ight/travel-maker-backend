@@ -15,6 +15,7 @@ from apps.review.models import Review
 class PlaceImageInline(admin.TabularInline):  # type: ignore[type-arg]
     model = PlaceImage
     extra = 1
+    classes = ["collapse"]
     fields = ["thumb", "image_url", "thumbnail_url", "is_main", "order"]
     readonly_fields = ["thumb"]
 
@@ -27,12 +28,14 @@ class PlaceInfoInline(admin.StackedInline):  # type: ignore[type-arg]
     model = PlaceInfo
     extra = 0
     can_delete = True
+    classes = ["collapse"]
 
 
 class PlaceFeatureInline(admin.StackedInline):  # type: ignore[type-arg]
     model = PlaceFeature
     extra = 0
     can_delete = True
+    classes = ["collapse"]
     fields = ["style_vector", "style_vector_readable", "updated_at"]
     readonly_fields = ["style_vector_readable", "updated_at"]
 
@@ -48,6 +51,7 @@ class PlaceFeatureInline(admin.StackedInline):  # type: ignore[type-arg]
 class ReviewInline(admin.TabularInline):  # type: ignore[type-arg]
     model = Review
     extra = 0
+    classes = ["collapse"]
     fields = ["user", "rating", "content", "image_url", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
@@ -59,6 +63,7 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
     model = Bookmark
     extra = 0
+    classes = ["collapse"]
     fields = ["user", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
@@ -89,25 +94,45 @@ class PlaceAdmin(BaseAdmin):
     list_filter = ["is_active", "content_type_id", "lcls_systm1"]
     search_fields = ["place_name", "address_primary"]
     date_hierarchy = "created_at"
-    filter_horizontal = ["tags"]
+    autocomplete_fields = ["tags"]
     inlines = [PlaceImageInline, PlaceInfoInline, PlaceFeatureInline, ReviewInline, BookmarkInline]
     readonly_fields = ["rating_avg", "rating_count", "created_at", "updated_at"]
     save_on_top = True
+
+    def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
+        # DecimalField는 Django가 vDecimalField(width:12em)를 붙여 Bootstrap form-control이 적용 안 됨.
+        # 위도·경도에 한해 Bootstrap 호환 위젯으로 교체한다.
+        if db_field.name in ("latitude", "longitude") and formfield is not None:
+            formfield.widget = forms.NumberInput(attrs={"class": "form-control", "step": "any"})
+        return formfield
+
     actions = ["activate", "deactivate"]
     fieldsets = [
-        # 기본 섹션만 펼쳐두고, 나머지는 접어서 스크롤을 줄인다.
-        (None, {"fields": ["place_name", "description", "is_active", "tags"]}),
-        ("평점", {"fields": ["rating_avg", "rating_count"]}),
         (
-            "위치",
+            None,
             {
-                "fields": ["address_primary", "address_detail", "zipcode", "latitude", "longitude"],
+                "fields": [
+                    "place_name",
+                    "description",
+                    "is_active",
+                    "tags",
+                    "rating_avg",
+                    "rating_count",
+                    "address_primary",
+                    "address_detail",
+                    "zipcode",
+                    "latitude",
+                    "longitude",
+                    "tel",
+                    "homepage",
+                ]
             },
         ),
-        ("연락처", {"fields": ["tel", "homepage"]}),
         (
-            "분류 · Tour API",
+            "Tour API",
             {
+                "classes": ["collapse"],
                 "fields": [
                     "content_id",
                     "content_type_id",
@@ -118,7 +143,7 @@ class PlaceAdmin(BaseAdmin):
                 ],
             },
         ),
-        ("메타", {"fields": ["created_at", "updated_at"]}),
+        ("메타", {"classes": ["collapse"], "fields": ["created_at", "updated_at"]}),
     ]
 
     @admin.action(description="선택한 장소 활성화")

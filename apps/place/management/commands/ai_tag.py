@@ -19,10 +19,10 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.place.models import Place
 from apps.place.services.ai_tagging import (
-    CONTENT_TYPE_NAMES,
     AIResult,
     AITaggingError,
     analyze_place,
+    content_type_label,
     persist_ai_result,
 )
 from apps.place.services.lcls_codes import lcls_label
@@ -76,7 +76,7 @@ def _row(place: Place, result: AIResult) -> dict[str, Any]:
     return {
         "id": place.id,
         "name": place.place_name,
-        "type": CONTENT_TYPE_NAMES.get(place.content_type_id, str(place.content_type_id)),
+        "type": content_type_label(place.content_type_id),
         "lcls": lcls_label(place.lcls_systm1, place.lcls_systm2, place.lcls_systm3) or "-",
         "tags": result.tags,
         "vector": result.style_vector,
