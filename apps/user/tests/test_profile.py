@@ -226,6 +226,71 @@ class TestNicknameCheck:
 
 
 @pytest.mark.django_db
+class TestProfileImagePresignedUrl:
+    def test_presigned_url_발급_및_프로필_이미지_갱신(self, auth_client: APIClient, user: User) -> None:
+        mock_handler = MagicMock()
+        mock_handler.presigned_url_for_upload.return_value = "https://example.com/presigned-put-url"
+        mock_handler.img_url.return_value = "https://example.com/profile-images/new.jpg"
+
+        with patch("apps.core.presigned_url.services.get_s3_handler", return_value=mock_handler):
+            response = auth_client.patch(
+                "/api/v1/users/profile-image/presigned-url",
+                {"file_name": "avatar.jpg"},
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["presigned_url"] == "https://example.com/presigned-put-url"
+        assert response.data["img_url"] == "https://example.com/profile-images/new.jpg"
+        assert response.data["key"].startswith("profiles/")
+        assert response.data["content_type"] == "image/jpeg"
+
+        user.refresh_from_db()
+        assert user.profile_img_url == "https://example.com/profile-images/new.jpg"
+        mock_handler.delete_object.assert_not_called()
+
+    def test_기존_프로필_이미지가_S3_객체면_교체시_삭제됨(self, auth_client: APIClient, user: User) -> None:
+        user.profile_img_url = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/profiles/old_avatar.jpg"
+        user.save(update_fields=["profile_img_url"])
+
+        mock_handler = MagicMock()
+        mock_handler.presigned_url_for_upload.return_value = "https://example.com/presigned-put-url"
+        mock_handler.img_url.return_value = "https://example.com/profile-images/new.jpg"
+        mock_handler.key_from_img_url.return_value = "profiles/old_avatar.jpg"
+
+        with patch("apps.core.presigned_url.services.get_s3_handler", return_value=mock_handler):
+            response = auth_client.patch(
+                "/api/v1/users/profile-image/presigned-url",
+                {"file_name": "avatar.jpg"},
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+
+        user.refresh_from_db()
+        assert user.profile_img_url == "https://example.com/profile-images/new.jpg"
+        mock_handler.key_from_img_url.assert_called_once_with(
+            "https://example-bucket.s3.ap-northeast-2.amazonaws.com/profiles/old_avatar.jpg"
+        )
+        mock_handler.delete_object.assert_called_once_with("profiles/old_avatar.jpg")
+
+    def test_지원하지_않는_파일_형식_400(self, auth_client: APIClient) -> None:
+        response = auth_client.patch(
+            "/api/v1/users/profile-image/presigned-url",
+            {"file_name": "avatar.exe"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error_detail"] == "지원하지 않는 파일 형식입니다."
+
+    def test_비로그인_401(self, client: APIClient) -> None:
+        response = client.patch(
+            "/api/v1/users/profile-image/presigned-url",
+            {"file_name": "avatar.jpg"},
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
 class TestUserBookmarkList:
     def test_북마크_목록_조회_성공(self, auth_client: APIClient, user: User) -> None:
         BookmarkFactory.create_batch(3, user=user)  # type: ignore[misc]
