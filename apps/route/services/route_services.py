@@ -6,7 +6,13 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 
 from apps.place.models import Tag
-from apps.route.exceptions import RouteAlreadyLiked, RouteForbidden, RouteLikeNotFound, RouteNotFound
+from apps.route.exceptions import (
+    RouteAlreadyLiked,
+    RouteForbidden,
+    RouteLikeNotFound,
+    RouteNotFound,
+    RouteValidationError,
+)
 from apps.route.models import Route, RouteDay, RouteDayPlace, RouteLike
 from apps.user.models import User
 
@@ -17,7 +23,7 @@ class RoutePagination(PageNumberPagination):
     max_page_size = 50
 
 
-def _build_prefetch() -> list[Any]:
+def _build_prefetch() -> list[str | Prefetch]:
     # days → day_places → place → images 중첩 prefetch.
     # day_index·order 정렬로 지도 선 그리기 순서를 보장하며, 추가 쿼리 없이 좌표·이미지 접근 가능.
     return [
@@ -58,17 +64,17 @@ def _validate_days(days_data: list[dict[str, Any]], start_date: object, end_date
     # → 미리 차단해서 400으로 처리
     day_indexes = [day["day_index"] for day in days_data]
     if len(day_indexes) != len(set(day_indexes)):
-        raise ValueError("day_index가 중복됩니다.")
+        raise RouteValidationError(detail="day_index가 중복됩니다.")
 
     for day in days_data:
         day_index = day["day_index"]
         place_ids = day["place_ids"]
         # 날짜 범위를 벗어난 일차 차단 (당일치기=1일, 4박5일=5일)
         if day_index < 1 or day_index > total_days:
-            raise ValueError(f"{day_index}일차는 유효하지 않습니다. (총 {total_days}일)")
+            raise RouteValidationError(detail=f"{day_index}일차는 유효하지 않습니다. (총 {total_days}일)")
         # 일당 장소 1~5개 제한
         if len(place_ids) < 1 or len(place_ids) > 5:
-            raise ValueError(f"{day_index}일차 장소는 1~5개여야 합니다.")
+            raise RouteValidationError(detail=f"{day_index}일차 장소는 1~5개여야 합니다.")
 
 
 def _validate_region_tag(region_tag_id: int) -> None:
@@ -76,7 +82,7 @@ def _validate_region_tag(region_tag_id: int) -> None:
     from apps.place.models import Tag
 
     if not Tag.objects.filter(pk=region_tag_id).exists():
-        raise ValueError("존재하지 않는 지역 태그입니다.")
+        raise RouteValidationError(detail="존재하지 않는 지역 태그입니다.")
 
 
 def _validate_place_ids(days_data: list[dict[str, Any]]) -> None:
@@ -88,7 +94,7 @@ def _validate_place_ids(days_data: list[dict[str, Any]]) -> None:
     existing_ids = set(Place.objects.filter(pk__in=all_place_ids).values_list("id", flat=True))
     missing = set(all_place_ids) - existing_ids
     if missing:
-        raise ValueError(f"존재하지 않는 장소입니다: {sorted(missing)}")
+        raise RouteValidationError(detail=f"존재하지 않는 장소입니다: {sorted(missing)}")
 
 
 def _create_days(route: Route, days_data: list[dict[str, Any]]) -> None:

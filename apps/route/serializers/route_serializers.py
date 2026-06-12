@@ -1,11 +1,13 @@
 from typing import Any
 
+from django.db.models import QuerySet
 from rest_framework import serializers
 
+from apps.place.models import PlaceImage
 from apps.route.models import Route, RouteDay, RouteDayPlace
 
 
-def _get_main_image_url(images: Any) -> str | None:
+def _get_main_image_url(images: QuerySet[PlaceImage]) -> str | None:
     # 장소 대표 이미지(is_main=True) URL 반환. 목록·상세 모두 동일 로직이라 공통 헬퍼로 추출.
     # prefetch된 캐시를 활용하므로 추가 쿼리 없음.
     for image in images:
@@ -132,7 +134,7 @@ class RouteMyListSerializer(RouteListSerializer):
         read_only_fields = fields
 
 
-class RouteLikeResponseSerializer(serializers.Serializer[Any]):
+class RouteLikeResponseSerializer(serializers.Serializer[dict[str, str | int]]):
     message = serializers.CharField()
     like_id = serializers.IntegerField()
     like_count = serializers.IntegerField()

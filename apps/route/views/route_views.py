@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import cast
 
 from rest_framework import status
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
@@ -104,7 +104,7 @@ class RouteLikeView(APIView):
     @route_like_schema
     def post(self, request: Request, route_id: int) -> Response:
         like = like_route(cast(User, request.user), route_id)
-        data: dict[str, Any] = {
+        data: dict[str, str | int] = {
             "message": "좋아요가 추가되었습니다.",
             "like_id": like.id,
             "like_count": like.route.like_count,
