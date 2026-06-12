@@ -48,6 +48,8 @@ class PlaceListSerializer(serializers.ModelSerializer[Place]):
             "place_name",
             "image_url",
             "description",
+            "latitude",
+            "longitude",
             "bookmark_count",
             "is_bookmarked",
             "rating_avg",
