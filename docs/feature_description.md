@@ -1,6 +1,6 @@
 # TravelMaker 기능 명세서
 
-전체 API 엔드포인트 **30개** 기준으로 구현된 기능을 정리합니다.
+전체 API 엔드포인트 **40개** 기준으로 구현된 기능을 정리합니다.
 
 ---
 
@@ -16,6 +16,7 @@
 8. [북마크 (Bookmark)](#8-북마크-bookmark)
 9. [여행 퀴즈 (Travel Quiz)](#9-여행-퀴즈-travel-quiz)
 10. [어드민 (Admin)](#10-어드민-admin)
+11. [여행 경로 (Route)](#11-여행-경로-route)
 
 ---
 
@@ -365,6 +366,65 @@
 | DELETE | `/api/v1/admin/places/<id>` | 장소 삭제 |
 | GET    | `/api/v1/admin/reviews` | 전체 리뷰 목록 조회 (페이징) |
 | DELETE | `/api/v1/admin/reviews/<id>` | 리뷰 강제 삭제 |
+| DELETE | `/api/v1/admin/routes/<id>` | 경로 강제 삭제 (작성자 본인이 아니어도 삭제 가능) |
+
+---
+
+## 11. 여행 경로 (Route)
+
+여행 일정(경로)을 일자별로 짜고 저장/공유하는 기능. 하나의 경로는 1~5일(`days`)로 구성되고, 각 일차는 1~5개의 장소(`place_ids`)를 방문 순서대로 가집니다.
+
+| 메서드 | 엔드포인트 | 인증 | 설명 |
+|--------|-----------|:---:|------|
+| GET    | `/api/v1/routes` | ✗ | 경로 목록 조회 |
+| POST   | `/api/v1/routes` | ✓ | 경로 생성 |
+| GET    | `/api/v1/routes/<id>` | ✗ | 경로 상세 조회 |
+| PATCH  | `/api/v1/routes/<id>` | ✓ | 경로 수정 (본인만) |
+| DELETE | `/api/v1/routes/<id>` | ✓ | 경로 삭제 (본인만) |
+| GET    | `/api/v1/users/<nickname>/routes` | ✓ | 마이페이지 경로 목록 |
+| GET    | `/api/v1/users/routes/likes` | ✓ | 내가 좋아요한 경로 목록 |
+| POST   | `/api/v1/routes/<id>/like` | ✓ | 경로 좋아요 등록 |
+| DELETE | `/api/v1/routes/<id>/like` | ✓ | 경로 좋아요 취소 |
+
+### 상세
+
+#### 경로 생성 `POST /api/v1/routes`
+- 요청 필드: `title`(최대 20자), `description`(선택), `region_tag_id`, `theme_tag_ids`(선택, 배열), `start_date`, `end_date`, `days`
+- `days`: 일차별 방문 장소 배열. `day_index`(1~5, 날짜 범위 내), `place_ids`(1~5개, 방문 순서대로)
+- 시작일~종료일은 최대 4박 5일(5일)까지
+- `region_tag_id`나 `place_ids`에 존재하지 않는 ID가 있으면 400
+- **응답에 장소 정보 포함**: `route_id`, `title`, `created_at`, `days`
+  - `days[].day_index`, `days[].places[]` — 각 장소의 `place_id`, `place_name`, `latitude`, `longitude`, `image_url`
+  - 생성 직후 별도 조회 없이 지도에 경로(좌표/이미지)를 그릴 수 있도록 제공
+
+#### 경로 상세 조회 `GET /api/v1/routes/<id>`
+- 응답: `route_id`, `title`, `description`, `region_tag`, `theme_tags`, `start_date`, `end_date`, `like_count`, `created_at`, `days`
+- `days`는 `day_index` 오름차순, 각 일차의 `places`는 방문 순서(`order`) 오름차순
+- 존재하지 않는 경로 ID면 404
+
+#### 경로 수정 `PATCH /api/v1/routes/<id>`
+- 모든 필드 선택 입력이며 보낸 필드만 수정됨 (부분 수정)
+- `days`를 보내면 기존 일차/장소 전체가 삭제되고 새로 보낸 내용으로 통째로 교체됨 (부분 수정 불가)
+- **응답에 장소 정보 포함**: `route_id`, `title`, `updated_at`, `days` (경로 생성과 동일한 형식 — 수정 후 최신 장소 정보)
+- 본인이 작성한 경로가 아니면 403, 존재하지 않으면 404
+
+#### 경로 삭제 `DELETE /api/v1/routes/<id>`
+- 본인이 작성한 경로만 삭제 가능 (403)
+
+#### 경로 목록 `GET /api/v1/routes`
+- 쿼리 파라미터: `ordering`(`latest` 기본값 | `popular`), `region_tag_id`, `theme_tag_ids`(복수 지정 시 AND 조건), `page`, `page_size`(기본 10, 최대 50)
+- 응답 각 항목: `route_id`, `title`, `description`, `image_url`(1일차 첫 장소의 대표 이미지), `place_count`, `like_count`, `created_at`, `region_tag`, `theme_tags`
+
+#### 마이페이지 경로 목록 `GET /api/v1/users/<nickname>/routes`
+- 해당 닉네임 유저가 작성한 경로 목록을 최신순으로 페이징 조회
+- 존재하지 않는 닉네임이면 404
+
+#### 경로 좋아요 `POST /api/v1/routes/<id>/like` · `DELETE /api/v1/routes/<id>/like`
+- 이미 좋아요한 경로에 다시 좋아요 시 409, 좋아요한 적 없는 경로를 취소하면 404
+- `like_count`는 원자적 증감(F 표현식)으로 처리되어 동시 요청에도 정합성 보장
+
+#### 내가 좋아요한 경로 목록 `GET /api/v1/users/routes/likes`
+- 로그인 유저가 좋아요를 누른 경로 목록을 최신순으로 페이징 조회
 
 ---
 
