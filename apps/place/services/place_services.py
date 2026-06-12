@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from django.db.models import BooleanField, Count, Exists, F, OuterRef, QuerySet, Value
 from django.db.models.expressions import Combinable
 
@@ -40,6 +42,50 @@ def get_place_list(
     ordering = field.asc() if order == "asc" else field.desc()
     # 정렬 기준이 동률일 때 페이지네이션이 결정적이도록 id 보조키 추가
     return queryset.order_by(ordering, "-id")
+
+
+def get_place_list_recommend(
+    user_id: int | None,
+    keyword: str = "",
+    tags: list[int] | None = None,
+) -> Sequence[Place]:
+    """유저 성향 벡터 기반 추천순. 벡터 없으면 인기순 폴백."""
+    from apps.place.services.sort_algorithm_service import get_places_sorted_by_vector, get_popular_places
+    from apps.travel_quiz.models import UserTestResult
+
+    user_vector: list[float] | None = None
+    if user_id is not None:
+        try:
+            result = UserTestResult.objects.get(user_id=user_id)
+            user_vector = list(result.result_vector)
+        except UserTestResult.DoesNotExist:
+            pass
+
+    # 키워드 필터가 있으면 in-memory 필터링을 위해 넉넉히 가져온다
+    fetch_limit = 100 if keyword else 20
+    if user_vector is not None:
+        places = list(get_places_sorted_by_vector(user_vector, tag_ids=tags or [], limit=fetch_limit))
+    else:
+        places = list(get_popular_places(tag_ids=tags or [], limit=fetch_limit))
+
+    if keyword:
+        kw = keyword.lower()
+        places = [p for p in places if kw in p.place_name.lower()]
+
+    # PlaceListSerializer의 is_bookmarked 필드 요구에 맞게 Python 레벨에서 채운다 (쿼리 1회)
+    if user_id is not None and places:
+        bookmarked_ids = set(
+            Bookmark.objects.filter(user_id=user_id, place_id__in=[p.id for p in places]).values_list(
+                "place_id", flat=True
+            )
+        )
+        for place in places:
+            place.is_bookmarked = place.id in bookmarked_ids  # type: ignore[attr-defined]
+    else:
+        for place in places:
+            place.is_bookmarked = False  # type: ignore[attr-defined]
+
+    return places
 
 
 def get_place_detail(place_id: int, user_id: int | None = None) -> Place | None:
