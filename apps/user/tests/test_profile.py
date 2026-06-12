@@ -1,10 +1,9 @@
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import factory
 import pytest
+from django.test import override_settings
 from factory.django import DjangoModelFactory
-from PIL import Image as PILImage
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -180,30 +179,47 @@ class TestProfilePatch:
         response = client.patch("/api/v1/users", {"nickname": "테스트"})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_프로필_이미지_업로드_큐잉(self, auth_client: APIClient, user: User) -> None:
-        img = PILImage.new("RGB", (100, 100), color="blue")
-        img_bytes = BytesIO()
-        img.save(img_bytes, format="JPEG")
-        img_bytes.name = "profile.jpg"
-        img_bytes.seek(0)
-
-        with patch("apps.user.services.profile_service.upload_profile_image") as mock_task:
-            mock_task.delay = MagicMock()
-            response = auth_client.patch(
-                "/api/v1/users",
-                {"profile_image": img_bytes},
-                format="multipart",
-            )
-
-        assert response.status_code == status.HTTP_200_OK
-        mock_task.delay.assert_called_once()
-        called_user_id = mock_task.delay.call_args[0][0]
-        assert called_user_id == user.id
-
     def test_프로필_수정_응답에_profile_img_url_쓰기_불가(self, auth_client: APIClient) -> None:
         response = auth_client.patch("/api/v1/users", {"profile_img_url": "https://evil.example.com/x.png"})
         assert response.status_code == status.HTTP_200_OK
         assert response.data["profile_img_url"] != "https://evil.example.com/x.png"
+
+    @override_settings(AWS_STORAGE_BUCKET_NAME="test-bucket")
+    def test_프로필_이미지_URL_수정_성공(self, auth_client: APIClient, user: User) -> None:
+        profile_image_url = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/profiles/new_avatar.jpg"
+
+        response = auth_client.patch("/api/v1/users", {"profile_image_url": profile_image_url})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["profile_img_url"] == profile_image_url
+        user.refresh_from_db()
+        assert user.profile_img_url == profile_image_url
+
+    @override_settings(AWS_STORAGE_BUCKET_NAME="test-bucket")
+    def test_프로필_이미지_URL_수정시_기존_이미지_삭제됨(self, auth_client: APIClient, user: User) -> None:
+        old_url = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/profiles/old_avatar.jpg"
+        new_url = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/profiles/new_avatar.jpg"
+        user.profile_img_url = old_url
+        user.save(update_fields=["profile_img_url"])
+
+        mock_handler = MagicMock()
+        mock_handler.key_from_img_url.return_value = "profiles/old_avatar.jpg"
+
+        with patch("apps.core.presigned_url.services.get_s3_handler", return_value=mock_handler):
+            response = auth_client.patch("/api/v1/users", {"profile_image_url": new_url})
+
+        assert response.status_code == status.HTTP_200_OK
+        user.refresh_from_db()
+        assert user.profile_img_url == new_url
+        mock_handler.key_from_img_url.assert_called_once_with(old_url)
+        mock_handler.delete_object.assert_called_once_with("profiles/old_avatar.jpg")
+
+    @override_settings(AWS_STORAGE_BUCKET_NAME="test-bucket")
+    def test_프로필_이미지_URL_S3_버킷_아니면_400(self, auth_client: APIClient) -> None:
+        response = auth_client.patch("/api/v1/users", {"profile_image_url": "https://evil.example.com/x.png"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error_detail"]["profile_image_url"] == ["유효하지 않은 이미지 URL입니다."]
 
 
 @pytest.mark.django_db
@@ -227,7 +243,7 @@ class TestNicknameCheck:
 
 @pytest.mark.django_db
 class TestProfileImagePresignedUrl:
-    def test_presigned_url_발급_및_프로필_이미지_갱신(self, auth_client: APIClient, user: User) -> None:
+    def test_presigned_url_발급_성공(self, auth_client: APIClient, user: User) -> None:
         mock_handler = MagicMock()
         mock_handler.presigned_url_for_upload.return_value = "https://example.com/presigned-put-url"
         mock_handler.img_url.return_value = "https://example.com/profile-images/new.jpg"
@@ -245,32 +261,8 @@ class TestProfileImagePresignedUrl:
         assert response.data["content_type"] == "image/jpeg"
 
         user.refresh_from_db()
-        assert user.profile_img_url == "https://example.com/profile-images/new.jpg"
+        assert user.profile_img_url != "https://example.com/profile-images/new.jpg"
         mock_handler.delete_object.assert_not_called()
-
-    def test_기존_프로필_이미지가_S3_객체면_교체시_삭제됨(self, auth_client: APIClient, user: User) -> None:
-        user.profile_img_url = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/profiles/old_avatar.jpg"
-        user.save(update_fields=["profile_img_url"])
-
-        mock_handler = MagicMock()
-        mock_handler.presigned_url_for_upload.return_value = "https://example.com/presigned-put-url"
-        mock_handler.img_url.return_value = "https://example.com/profile-images/new.jpg"
-        mock_handler.key_from_img_url.return_value = "profiles/old_avatar.jpg"
-
-        with patch("apps.core.presigned_url.services.get_s3_handler", return_value=mock_handler):
-            response = auth_client.patch(
-                "/api/v1/users/profile-image/presigned-url",
-                {"file_name": "avatar.jpg"},
-            )
-
-        assert response.status_code == status.HTTP_200_OK
-
-        user.refresh_from_db()
-        assert user.profile_img_url == "https://example.com/profile-images/new.jpg"
-        mock_handler.key_from_img_url.assert_called_once_with(
-            "https://example-bucket.s3.ap-northeast-2.amazonaws.com/profiles/old_avatar.jpg"
-        )
-        mock_handler.delete_object.assert_called_once_with("profiles/old_avatar.jpg")
 
     def test_지원하지_않는_파일_형식_400(self, auth_client: APIClient) -> None:
         response = auth_client.patch(

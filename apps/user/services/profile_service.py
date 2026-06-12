@@ -1,4 +1,3 @@
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 
@@ -7,7 +6,6 @@ from apps.core.exceptions import Conflict
 from apps.core.presigned_url.services import PresignedUrlService
 from apps.review.models import Review
 from apps.user.models import User
-from apps.user.tasks import upload_profile_image
 
 
 class BookmarkPagination(PageNumberPagination):
@@ -56,10 +54,6 @@ class NicknameService:
 
 
 class ProfileImageService:
-    @staticmethod
-    def queue_upload(user: User, image: InMemoryUploadedFile) -> None:
-        upload_profile_image.delay(user.id, image.read(), image.content_type or "image/jpeg")
-
     @staticmethod
     def set_profile_image_url(user: User, img_url: str) -> None:
         old_img_url = user.profile_img_url
