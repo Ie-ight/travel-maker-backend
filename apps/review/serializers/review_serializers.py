@@ -4,6 +4,12 @@ from rest_framework import serializers
 from apps.review.models import Review
 
 
+def _validate_image_url(value: str) -> str:
+    if value and not value.startswith(f"https://{settings.AWS_STORAGE_BUCKET_NAME}"):
+        raise serializers.ValidationError("유효하지 않은 이미지 URL입니다.")
+    return value
+
+
 # 응답에 본인 작성 여부(is_owner)를 추가하는 믹스인
 class IsOwnerMixin(serializers.Serializer[Review]):
     is_owner = serializers.SerializerMethodField()
@@ -39,7 +45,10 @@ class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]
 class ReviewCreateSerializer(serializers.Serializer[None]):
     rating = serializers.IntegerField(min_value=1, max_value=5)
     content = serializers.CharField(max_length=200)
-    image = serializers.ImageField(required=False, allow_null=True)
+    image_url = serializers.URLField(required=False, allow_null=True)
+
+    def validate_image_url(self, value: str) -> str:
+        return _validate_image_url(value)
 
 
 # 리뷰 등록 응답
@@ -58,9 +67,7 @@ class ReviewUpdateSerializer(serializers.Serializer[None]):
     image_url = serializers.URLField(required=False, allow_null=True)
 
     def validate_image_url(self, value: str) -> str:
-        if value and not value.startswith(f"https://{settings.AWS_STORAGE_BUCKET_NAME}"):
-            raise serializers.ValidationError("유효하지 않은 이미지 URL입니다.")
-        return value
+        return _validate_image_url(value)
 
     def validate(self, attrs: dict[str, object]) -> dict[str, object]:
         if not attrs:

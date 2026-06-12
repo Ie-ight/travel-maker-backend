@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from django.db.models import Avg, Count, QuerySet
 
@@ -14,7 +13,6 @@ from apps.review.exceptions import (
     ReviewNotFound,
 )
 from apps.review.models import Review
-from apps.review.tasks import upload_review_image
 
 
 def _get_place_or_404(place_id: int) -> Place:
@@ -48,7 +46,7 @@ def create_review(
     place_id: int,
     rating: int,
     content: str,
-    image: InMemoryUploadedFile | None = None,
+    image_url: str | None = None,
 ) -> Review:
     _get_place_or_404(place_id)
     if Review.objects.filter(user_id=user.pk, place_id=place_id).exists():
@@ -58,10 +56,8 @@ def create_review(
         place_id=place_id,
         rating=rating,
         content=content,
-        image_url=None,
+        image_url=image_url,
     )
-    if image is not None:
-        upload_review_image.delay(review.id, image.read(), image.content_type or "image/jpeg")
     _update_place_rating(place_id)
     return review
 

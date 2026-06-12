@@ -1,8 +1,5 @@
-from io import BytesIO
-from unittest.mock import MagicMock, patch
-
 import pytest
-from PIL import Image as PILImage
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -91,23 +88,17 @@ class TestReviewList:
 
 @pytest.mark.django_db
 class TestReviewCreate:
+    @override_settings(AWS_STORAGE_BUCKET_NAME="test-bucket")
     def test_이미지_포함_리뷰_등록_성공(self, auth_client: APIClient, place: Place) -> None:
-        img = PILImage.new("RGB", (100, 100), color="red")
-        img_bytes = BytesIO()
-        img.save(img_bytes, format="JPEG")
-        img_bytes.name = "test.jpg"
-        img_bytes.seek(0)
-
-        with patch("apps.review.services.review_services.upload_review_image") as mock_task:
-            mock_task.delay = MagicMock()
-            response = auth_client.post(
-                f"/api/v1/places/{place.id}/reviews",
-                {"rating": 5, "content": "좋아요!", "image": img_bytes},
-                format="multipart",
-            )
+        image_url = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/reviews/test.jpg"
+        response = auth_client.post(
+            f"/api/v1/places/{place.id}/reviews",
+            {"rating": 5, "content": "좋아요!", "image_url": image_url},
+        )
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["is_owner"] is True
+        assert response.data["image_url"] == image_url
 
     def test_리뷰_비인증_등록_실패(self, client: APIClient, place: Place) -> None:
         response = client.post(
