@@ -116,7 +116,7 @@ http://localhost:3000/console.html
 - 로그인 완료 후 자동으로 콘솔로 복귀합니다.
 
 **리뷰 작성**
-- 반드시 FormData로 전송됩니다 (JSON 불가 — 서버가 `MultiPartParser`만 허용).
+- 이미지를 첨부하면 presigned URL을 발급받아 S3에 직접 업로드한 뒤, 그 URL을 `image_url`로 담아 JSON으로 전송합니다.
 - 같은 장소에 리뷰는 1개만 작성 가능합니다.
 
 **경로 조회**

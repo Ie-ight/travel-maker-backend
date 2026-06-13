@@ -738,26 +738,50 @@ async function fetchPlaceName(inputId, spanId) {
   } catch { span.textContent = ''; }
 }
 
-// ── Reviews (항상 FormData — 뷰가 MultiPartParser만 허용) ──
+// ── Reviews (presigned URL로 S3에 직접 업로드 후 image_url을 JSON으로 전송) ──
+// 1) POST /reviews/presigned-url 로 업로드용 URL 발급
+// 2) 발급받은 presigned_url에 파일을 직접 PUT (S3)
+// 3) 업로드된 파일의 img_url을 image_url로 담아 리뷰 생성/수정 요청
+async function uploadReviewImage(file, rid) {
+  const presign = await req('POST', '/api/v1/reviews/presigned-url', { file_name: file.name }, rid);
+  if (!presign || presign.status !== 200) return null;
+  const { presigned_url, img_url, content_type } = presign.data;
+  const put = await fetch(presigned_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': content_type },
+    body: file,
+  });
+  if (!put.ok) {
+    showRes(rid, put.status, { error: 'S3 이미지 업로드 실패' });
+    return null;
+  }
+  return img_url;
+}
 async function createReview() {
   const pid = v('rv-plid');
   if (!pid) return alert('장소 ID를 입력하세요');
-  const fd = new FormData();
-  fd.append('rating', v('rv-rat') || '5');
-  fd.append('content', v('rv-cont'));
+  const body = { rating: Number(v('rv-rat') || 5), content: v('rv-cont') };
   const img = document.getElementById('rv-img').files[0];
-  if (img) fd.append('image', img);
-  req('POST', `/api/v1/places/${pid}/reviews`, fd, 'r-rvcr');
+  if (img) {
+    const imgUrl = await uploadReviewImage(img, 'r-rvcr');
+    if (!imgUrl) return;
+    body.image_url = imgUrl;
+  }
+  req('POST', `/api/v1/places/${pid}/reviews`, body, 'r-rvcr');
 }
 async function updateReview() {
   const rid = v('rvd-id');
   if (!rid) return alert('리뷰 ID를 입력하세요');
-  const fd = new FormData();
-  const rat = v('rvd-rat'); if (rat) fd.append('rating', rat);
-  const con = v('rvd-cont'); if (con) fd.append('content', con);
+  const body = {};
+  const rat = v('rvd-rat'); if (rat) body.rating = Number(rat);
+  const con = v('rvd-cont'); if (con) body.content = con;
   const img = document.getElementById('rvd-img').files[0];
-  if (img) fd.append('image', img);
-  req('PATCH', `/api/v1/reviews/${rid}`, fd, 'r-rvdet');
+  if (img) {
+    const imgUrl = await uploadReviewImage(img, 'r-rvdet');
+    if (!imgUrl) return;
+    body.image_url = imgUrl;
+  }
+  req('PATCH', `/api/v1/reviews/${rid}`, body, 'r-rvdet');
 }
 
 // ── Quiz ─────────────────────────────────────────────────
