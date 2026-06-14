@@ -190,8 +190,6 @@ public_profile_get_schema = extend_schema(
                 "follower_count": 4,
                 "following_count": 6,
                 "travel_type_name": "모험가형",
-                "created_at": "2026-01-15T09:00:00Z",
-                "updated_at": "2026-05-20T10:00:00Z",
             },
             response_only=True,
         ),

@@ -131,8 +131,6 @@ class PublicUserSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[
             "follower_count",
             "following_count",
             "travel_type_name",
-            "created_at",
-            "updated_at",
         ]
         read_only_fields = fields
 
