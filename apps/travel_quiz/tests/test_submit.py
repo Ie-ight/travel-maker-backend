@@ -83,7 +83,12 @@ class TestQuizSubmit:
         response = client.post("/api/v1/quiz/submit", {"answers": VALID_ANSWERS}, format="json")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["result_vector"]) == 6
+
+        result_vector = response.data["result_vector"]
+        assert len(result_vector) == 6
+        for axis in result_vector:
+            assert axis.keys() == {"label", "value"}
+            assert 0 <= axis["value"] <= 100
 
         type_tags = response.data["type_tags"]
         assert type_tags == build_type_tags(response.data["type_key"])
@@ -95,7 +100,22 @@ class TestQuizSubmit:
             assert card["title"]
             assert card["description"]
 
+        for key in ("compatible_type", "incompatible_type"):
+            travel_type = response.data[key]
+            assert travel_type.keys() == {"travel_type_id", "type_key", "type_tags", "name", "image_url"}
+            assert travel_type["type_key"] != response.data["type_key"]
+            assert travel_type["type_tags"] == build_type_tags(travel_type["type_key"])
+
         assert 1 <= len(response.data["destinations"]) <= 3
-        assert response.data["destinations"][0]["place_id"] == place.id
-        assert response.data["destinations"][0]["tags"]
-        assert response.data["destinations"][0]["style_vector"] == [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+        destination = response.data["destinations"][0]
+        assert destination["place_id"] == place.id
+        assert destination["tags"]
+        assert destination["style_vector"] == [
+            {"label": "액티비티형", "value": 50},
+            {"label": "계획형", "value": 50},
+            {"label": "혼자형", "value": 50},
+            {"label": "자연형", "value": 50},
+            {"label": "문화형", "value": 50},
+            {"label": "가성비형", "value": 50},
+        ]
+        assert 0 <= destination["match_rate"] <= 100

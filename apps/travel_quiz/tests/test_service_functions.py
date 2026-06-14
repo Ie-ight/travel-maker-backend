@@ -1,17 +1,24 @@
 """
-make_description / build_type_tags / _build_detail_cards 순수 함수 단위 테스트.
+make_description / build_type_tags / build_detail_cards 순수 함수 단위 테스트.
 
 agents.md의 d1~d4 문구 및 card1~4 표와 코드 출력이 1:1로 일치하는지
 전체 분기를 파라미터라이즈드 케이스로 고정한다. DB 접근 없음.
 """
 
+import itertools
+
 import pytest
 
 from apps.travel_quiz.services.travel_quiz_services import (
-    _build_detail_cards,
+    build_detail_cards,
     build_type_tags,
+    find_compatible_types,
+    label_vector,
     make_description,
 )
+from apps.travel_quiz.tests.factories import TravelTypeFactory
+
+ALL_TYPE_KEYS = ["".join(combo) for combo in itertools.product("tf", repeat=3)]
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -158,5 +165,55 @@ def test_build_detail_cards(
     active: bool, planned: bool, solo: bool, nature: bool, cultural: bool, budget: bool
 ) -> None:
     norm = _norm(active, planned, solo, nature, cultural, budget)
-    actual = [(c.title, c.description) for c in _build_detail_cards(norm)]
+    actual = [(c.title, c.description) for c in build_detail_cards(norm)]
     assert actual == _expected_cards(active, planned, solo, nature, cultural, budget)
+
+
+# ---------------------------------------------------------------------------
+# label_vector — 6축 라벨링 + 백분율 변환
+# ---------------------------------------------------------------------------
+
+
+def test_label_vector() -> None:
+    values = [0.8, 0.7, 0.6, 0.3, 0.7, 0.4]
+
+    result = label_vector(values)
+
+    assert result == [
+        {"label": "액티비티형", "value": 80},
+        {"label": "계획형", "value": 70},
+        {"label": "혼자형", "value": 60},
+        {"label": "자연형", "value": 30},
+        {"label": "문화형", "value": 70},
+        {"label": "가성비형", "value": 40},
+    ]
+
+
+def test_label_vector_반올림() -> None:
+    assert label_vector([0.123, 0.456, 0.789, 0.001, 0.999, 0.5]) == [
+        {"label": "액티비티형", "value": 12},
+        {"label": "계획형", "value": 46},
+        {"label": "혼자형", "value": 79},
+        {"label": "자연형", "value": 0},
+        {"label": "문화형", "value": 100},
+        {"label": "가성비형", "value": 50},
+    ]
+
+
+# ---------------------------------------------------------------------------
+# find_compatible_types — type_key 3축(0,2,3) 코사인 유사도 기반 호환/비호환 유형
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_find_compatible_types_가장_가깝고_가장_먼_유형을_반환() -> None:
+    types = {key: TravelTypeFactory(type_key=key) for key in ALL_TYPE_KEYS}  # type: ignore[misc]
+    # axes 0,2,3 = (0.9, 0.9, 0.1) → "ttf"(자기 자신) 제외 중 "ttt"(1,1,1)가 가장 가깝고 "fff"(0,0,0)가 가장 멀다
+    norm = [0.9, 0.5, 0.9, 0.1, 0.5, 0.5]
+
+    compatible, incompatible = find_compatible_types(types["ttf"], norm)
+
+    assert compatible.type_key == "ttt"
+    assert incompatible.type_key == "fff"
+    assert compatible.id != types["ttf"].id
+    assert incompatible.id != types["ttf"].id

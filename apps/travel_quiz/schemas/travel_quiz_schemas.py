@@ -42,7 +42,28 @@ quiz_submit_schema = extend_schema(
                     {"title": "도시의 분위기", "description": "도시의 빛과 문화에서 영감을 받아요."},
                     {"title": "문화에 아낌없이", "description": "그 지역의 이야기와 역사에 아낌없이 투자해요."},
                 ],
-                "result_vector": [0.8, 0.7, 0.6, 0.3, 0.7, 0.4],
+                "result_vector": [
+                    {"label": "액티비티형", "value": 80},
+                    {"label": "계획형", "value": 70},
+                    {"label": "혼자형", "value": 60},
+                    {"label": "자연형", "value": 30},
+                    {"label": "문화형", "value": 70},
+                    {"label": "가성비형", "value": 40},
+                ],
+                "compatible_type": {
+                    "travel_type_id": 1,
+                    "type_key": "ttt",
+                    "type_tags": ["액티비티형", "혼자형", "자연형"],
+                    "name": "새벽을 달리는 늑대",
+                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttt.png",
+                },
+                "incompatible_type": {
+                    "travel_type_id": 8,
+                    "type_key": "fff",
+                    "type_tags": ["힐링형", "단체형", "도시형"],
+                    "name": "카페에 둥지 트는 참새",
+                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/fff.png",
+                },
                 "destinations": [
                     {
                         "place_id": 1,
@@ -50,7 +71,15 @@ quiz_submit_schema = extend_schema(
                         "description": "광안대교의 야경이 펼쳐지는 해변",
                         "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/places/img.jpg",
                         "tags": ["해수욕·해안", "카페·디저트"],
-                        "style_vector": [0.8, 0.6, 0.7, 0.3, 0.65, 0.4],
+                        "style_vector": [
+                            {"label": "액티비티형", "value": 80},
+                            {"label": "계획형", "value": 60},
+                            {"label": "혼자형", "value": 70},
+                            {"label": "자연형", "value": 30},
+                            {"label": "문화형", "value": 65},
+                            {"label": "가성비형", "value": 40},
+                        ],
+                        "match_rate": 91,
                     },
                 ],
             },
@@ -77,6 +106,7 @@ quiz_result_schema = extend_schema(
         OpenApiExample(
             "퀴즈 결과 응답",
             value={
+                "type_key": "ttf",
                 "name": "골목을 가르는 여우",
                 "description": (
                     "체력을 아낌없이 쓰는 활동형 여행자예요. 철저한 준비로 혼자만의 루트를 만들며 "
@@ -84,6 +114,19 @@ quiz_result_schema = extend_schema(
                 ),
                 "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttf.png",
                 "type_tags": ["액티비티형", "혼자형", "도시형"],
+                "result_vector": [
+                    {"label": "액티비티형", "value": 80},
+                    {"label": "계획형", "value": 70},
+                    {"label": "혼자형", "value": 60},
+                    {"label": "자연형", "value": 30},
+                    {"label": "문화형", "value": 70},
+                    {"label": "가성비형", "value": 40},
+                ],
+                "destinations": [
+                    {"place_id": 1, "place_name": "부산 광안리 해수욕장", "match_rate": 91},
+                    {"place_id": 2, "place_name": "전주 한옥마을", "match_rate": 85},
+                    {"place_id": 3, "place_name": "강릉 안목해변", "match_rate": 78},
+                ],
                 "updated_at": "2026-05-22T12:23:11Z",
             },
             response_only=True,
