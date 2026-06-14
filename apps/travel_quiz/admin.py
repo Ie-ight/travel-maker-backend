@@ -5,11 +5,12 @@ from django.utils.safestring import SafeString
 
 from apps.core.admin import BaseAdmin, render_thumbnail
 from apps.travel_quiz.models import TravelType
+from apps.travel_quiz.services.travel_quiz_services import build_type_tags
 
 
 @admin.register(TravelType)
 class TravelTypeAdmin(BaseAdmin):
-    list_display = ["id", "type_key", "name", "avatar", "user_count"]
+    list_display = ["id", "type_key", "type_tags", "name", "avatar", "user_count"]
     list_display_links = ["id", "type_key"]
     search_fields = ["type_key", "name"]
     save_on_top = True
@@ -21,6 +22,10 @@ class TravelTypeAdmin(BaseAdmin):
     def get_queryset(self, request: HttpRequest) -> QuerySet[TravelType]:
         qs: QuerySet[TravelType] = super().get_queryset(request)
         return qs.annotate(user_count=Count("usertestresult", distinct=True))
+
+    @admin.display(description="유형 태그")
+    def type_tags(self, obj: TravelType) -> str:
+        return ", ".join(build_type_tags(obj.type_key))
 
     @admin.display(description="이미지")
     def avatar(self, obj: TravelType) -> SafeString | str:
