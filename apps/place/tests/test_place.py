@@ -241,6 +241,31 @@ class TestPlaceSearchView:
         ids = {r["id"] for r in response.data["results"]}
         assert ids == {by_name.id, by_tag.id}
 
+    def test_trgm_fallback_on_no_exact_match(self, api_client: APIClient) -> None:
+        # 정확 매칭 결과 없을 때 trgm 유사도 폴백으로 유사 장소 반환
+        place = PlaceFactory(place_name="광안리 해수욕장")
+        response = api_client.get(PLACE_SEARCH_URL, {"keyword": "광안리해수욕"})
+        assert response.status_code == 200
+        assert response.data["count"] >= 1
+        assert response.data["results"][0]["id"] == place.id
+
+    def test_trgm_fallback_returns_empty_when_no_similar(self, api_client: APIClient) -> None:
+        # 유사한 장소도 없으면 빈 결과 반환 (에러 없이)
+        PlaceFactory(place_name="제주 오름")
+        response = api_client.get(PLACE_SEARCH_URL, {"keyword": "xyzqwerty"})
+        assert response.status_code == 200
+        assert response.data["count"] == 0
+
+    def test_exact_match_takes_priority_over_trgm(self, api_client: APIClient) -> None:
+        # 정확 매칭 결과가 있으면 trgm 폴백 진입 안 함
+        exact = PlaceFactory(place_name="해수욕장")
+        similar = PlaceFactory(place_name="해수욕장 근처 카페")
+        response = api_client.get(PLACE_SEARCH_URL, {"keyword": "해수욕장"})
+        assert response.status_code == 200
+        ids = {r["id"] for r in response.data["results"]}
+        assert exact.id in ids
+        assert similar.id in ids  # 둘 다 exact 매칭
+
     def test_response_shape_matches_list(self, api_client: APIClient) -> None:
         PlaceFactory(place_name="서울 타워", description="멋진 곳", rating_avg="4.5")
         response = api_client.get(PLACE_SEARCH_URL, {"keyword": "서울"})
