@@ -225,23 +225,6 @@ class TestRouteList:
 
 
 @pytest.mark.django_db
-class TestUserRouteList:
-    def test_내_경로_목록_조회_성공(self, auth_client: APIClient, user: User) -> None:
-        RouteFactory.create_batch(2, user=user)
-        response = auth_client.get(f"/api/v1/users/{user.nickname}/routes")
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["count"] == 2
-
-    def test_비인증_마이페이지_조회_실패(self, client: APIClient, user: User) -> None:
-        response = client.get(f"/api/v1/users/{user.nickname}/routes")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_존재하지_않는_유저_404(self, auth_client: APIClient) -> None:
-        response = auth_client.get("/api/v1/users/없는유저/routes")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-@pytest.mark.django_db
 class TestRouteLike:
     def test_좋아요_등록_성공(self, auth_client: APIClient, route: Route) -> None:
         response = auth_client.post(f"/api/v1/routes/{route.id}/like")
@@ -272,21 +255,6 @@ class TestRouteLike:
     def test_좋아요_내역_없음_취소_실패(self, auth_client: APIClient, route: Route) -> None:
         response = auth_client.delete(f"/api/v1/routes/{route.id}/like")
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-@pytest.mark.django_db
-class TestUserLikedRoutes:
-    def test_좋아요한_경로_목록_성공(self, auth_client: APIClient, user: User) -> None:
-        routes = RouteFactory.create_batch(2)
-        RouteLikeFactory(route=routes[0], user=user)
-        RouteLikeFactory(route=routes[1], user=user)
-        response = auth_client.get("/api/v1/users/routes/likes")
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["count"] == 2
-
-    def test_비인증_좋아요_목록_실패(self, client: APIClient) -> None:
-        response = client.get("/api/v1/users/routes/likes")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.django_db

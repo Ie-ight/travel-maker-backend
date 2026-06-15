@@ -35,7 +35,7 @@ Handles travel itinerary (route) CRUD. A `Route` has 1~5 `RouteDay`s, and each `
 
 ## Query Optimization
 
-- `_get_route_queryset()` is the shared base for list/detail/user-routes/liked-routes:
+- `_get_route_queryset()` is the shared base for list/detail/user-routes/liked-routes (the latter two views live in `apps/user/views/profile_view.py`, but `get_user_routes()`/`get_liked_routes()` stay in `apps/route/services/route_services.py`):
   - `select_related("region_tag")` — avoids FK N+1.
   - `prefetch_related("theme_tags", Prefetch("days", ... prefetch "day_places" -> select_related("place") -> prefetch "place__images"))` — nested prefetch ordered by `day_index`/`order` so the map can draw lines without extra queries.
   - `.annotate(place_count=Count("days__day_places", distinct=True))` — total place count computed in DB.
@@ -52,8 +52,6 @@ Handles travel itinerary (route) CRUD. A `Route` has 1~5 `RouteDay`s, and each `
 | GET | `/api/v1/routes/{route_id}` | ❌ | `RouteDetailSerializer` — includes per-day places with coordinates/images |
 | PATCH | `/api/v1/routes/{route_id}` | ✅ | Owner only (`RouteForbidden`); `days` if present replaces all days/places |
 | DELETE | `/api/v1/routes/{route_id}` | ✅ | Owner only |
-| GET | `/api/v1/users/{nickname}/routes` | ✅ | `RouteMyListSerializer`, paginated |
-| GET | `/api/v1/users/routes/likes` | ✅ | Current user's liked routes; route in `urls.py` registered BEFORE `users/<str:nickname>/routes` to avoid path collision |
 | POST | `/api/v1/routes/{route_id}/like` | ✅ | 409 if already liked |
 | DELETE | `/api/v1/routes/{route_id}/like` | ✅ | 404 if not liked |
 | DELETE | `/api/v1/admin/routes/{route_id}` | ✅ (admin) | `AdminRouteDetailView`, `IsAdminRole`, force-delete |
@@ -75,4 +73,3 @@ Handles travel itinerary (route) CRUD. A `Route` has 1~5 `RouteDay`s, and each `
 - Do not increment/decrement `like_count` via `route.save()` — use `Route.objects.filter(pk=...).update(like_count=F(...) ± 1)`.
 - Do not allow non-owners to update/delete a route — raise `RouteForbidden`.
 - Do not skip `_validate_region_tag()` / `_validate_place_ids()` before creating `Route`/`RouteDay`/`RouteDayPlace` rows — this converts FK `IntegrityError` (500) into `RouteValidationError` (400).
-- Do not register `users/<str:nickname>/routes` before `users/routes/likes` in `urls.py` — the nickname pattern would swallow the literal `/likes` path.

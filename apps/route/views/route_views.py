@@ -16,8 +16,6 @@ from apps.route.schemas.route_schemas import (
     route_list_schema,
     route_unlike_schema,
     route_update_schema,
-    user_liked_routes_schema,
-    user_route_list_schema,
 )
 from apps.route.serializers.route_serializers import (
     RouteCreateResponseSerializer,
@@ -25,7 +23,6 @@ from apps.route.serializers.route_serializers import (
     RouteDetailSerializer,
     RouteLikeResponseSerializer,
     RouteListSerializer,
-    RouteMyListSerializer,
     RouteUpdateResponseSerializer,
     RouteUpdateSerializer,
 )
@@ -33,10 +30,8 @@ from apps.route.services.route_services import (
     admin_delete_route,
     create_route,
     delete_route,
-    get_liked_routes,
     get_route_detail,
     get_routes,
-    get_user_routes,
     like_route,
     unlike_route,
     update_route,
@@ -90,16 +85,6 @@ class RouteDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class UserRouteListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @user_route_list_schema
-    def get(self, request: Request, nickname: str) -> Response:
-        page, paginator = get_user_routes(nickname, request)
-        serializer = RouteMyListSerializer(page, many=True)
-        return Response(paginator.get_paginated_response(serializer.data).data)
-
-
 class RouteLikeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -117,16 +102,6 @@ class RouteLikeView(APIView):
     def delete(self, request: Request, route_id: int) -> Response:
         unlike_route(cast(User, request.user), route_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class UserLikedRoutesView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @user_liked_routes_schema
-    def get(self, request: Request) -> Response:
-        page, paginator = get_liked_routes(cast(User, request.user), request)
-        serializer = RouteListSerializer(page, many=True)
-        return Response(paginator.get_paginated_response(serializer.data).data)
 
 
 class AdminRouteDetailView(APIView):
