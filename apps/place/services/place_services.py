@@ -3,9 +3,10 @@ from collections.abc import Sequence
 from django.contrib.postgres.search import TrigramSimilarity
 from django.db.models import BooleanField, Count, Exists, F, OuterRef, Q, QuerySet, Value
 from django.db.models.expressions import Combinable
+from pgvector.django import CosineDistance
 
 from apps.bookmark.models import Bookmark
-from apps.place.models import Place
+from apps.place.models import Place, PlaceFeature
 
 # review는 비정규화 컬럼 rating_count(= 리뷰 수, 리뷰 생성/수정/삭제마다 갱신)로 정렬한다.
 # Count("reviews")를 bookmark_count와 함께 annotate하면 두 to-many JOIN이 곱연산으로 행을 부풀린다.
@@ -54,6 +55,74 @@ def get_place_list(
     return queryset.order_by(ordering, "-id")
 
 
+def _get_places_hybrid(
+    user_vector: list[float],
+    keyword: str,
+    tags: list[int] | None = None,
+    limit: int = 20,
+) -> list[Place]:
+    """keyword DB 필터 → 정확 코사인 유사도 → combined score 정렬.
+
+    기존 HNSW → Python in-memory 방식은 top-N 밖 keyword 매칭을 누락한다.
+    이 함수는 keyword 매칭을 DB 레벨에서 먼저 수행하고, 그 후보에 대해서만 코사인 유사도를 계산한다.
+    combined = 0.7 * vec_score + 0.3 * kw_score
+    """
+    base_qs = Place.objects.filter(is_active=True)
+    if tags:
+        for tag_id in tags:
+            base_qs = base_qs.filter(tags__id=tag_id)
+
+    # 1) keyword 후보 추출 (DB 레벨 — Phase 1·2 로직과 동일)
+    exact_qs = base_qs.filter(
+        Q(place_name__icontains=keyword) | Q(tags__tag_name__icontains=keyword) | Q(address_primary__icontains=keyword)
+    ).distinct()
+
+    if exact_qs.exists():
+        candidate_ids = list(exact_qs.values_list("id", flat=True))
+    else:
+        candidate_ids = list(
+            base_qs.annotate(trgm_sim=TrigramSimilarity("place_name", keyword))
+            .filter(trgm_sim__gt=0.15)
+            .values_list("id", flat=True)
+        )
+
+    if not candidate_ids:
+        return []
+
+    # 2) 후보 대상 정확 코사인 유사도 (HNSW 아닌 exact scan — 후보 수가 적어 충분히 빠름)
+    dist_map: dict[int, float] = {
+        row["place_id"]: float(row["distance"])
+        for row in PlaceFeature.objects.filter(place_id__in=candidate_ids)
+        .annotate(distance=CosineDistance("style_vector", user_vector))
+        .values("place_id", "distance")
+    }
+
+    # 3) keyword relevance score — place_name trgm 유사도를 kw_score로 사용
+    kw_map: dict[int, float] = {
+        row["id"]: float(row["trgm_sim"])
+        for row in Place.objects.filter(id__in=candidate_ids)
+        .annotate(trgm_sim=TrigramSimilarity("place_name", keyword))
+        .values("id", "trgm_sim")
+    }
+
+    # 4) place 객체 로드 (bookmark_count + prefetch)
+    places = list(
+        Place.objects.filter(id__in=candidate_ids)
+        .annotate(bookmark_count=Count("bookmarks", distinct=True))
+        .prefetch_related("images", "tags")
+    )
+
+    # 5) combined score 계산 후 정렬
+    def combined(p: Place) -> float:
+        dist = dist_map.get(p.id)
+        vec_score = (1.0 - dist) if dist is not None else 0.0
+        kw_score = kw_map.get(p.id, 0.0)
+        return 0.7 * vec_score + 0.3 * kw_score
+
+    places.sort(key=combined, reverse=True)
+    return places[:limit]
+
+
 def get_place_list_recommend(
     user_id: int | None,
     keyword: str = "",
@@ -71,22 +140,23 @@ def get_place_list_recommend(
         except UserTestResult.DoesNotExist:
             pass
 
-    # 키워드 필터가 있으면 in-memory 필터링을 위해 넉넉히 가져온다
-    fetch_limit = 100 if keyword else 20
-    if user_vector is not None:
-        places = list(get_places_sorted_by_vector(user_vector, tag_ids=tags or [], limit=fetch_limit))
+    if user_vector is not None and keyword:
+        # Phase 3: keyword DB 필터 후 정확 코사인 + trgm combined score
+        places: list[Place] = _get_places_hybrid(user_vector, keyword, tags)
+    elif user_vector is not None:
+        places = list(get_places_sorted_by_vector(user_vector, tag_ids=tags or [], limit=20))
     else:
+        fetch_limit = 100 if keyword else 20
         places = list(get_popular_places(tag_ids=tags or [], limit=fetch_limit))
-
-    if keyword:
-        kw = keyword.lower()
-        places = [
-            p
-            for p in places
-            if kw in p.place_name.lower()
-            or any(kw in t.tag_name.lower() for t in p.tags.all())
-            or (p.address_primary and kw in p.address_primary.lower())
-        ]
+        if keyword:
+            kw = keyword.lower()
+            places = [
+                p
+                for p in places
+                if kw in p.place_name.lower()
+                or any(kw in t.tag_name.lower() for t in p.tags.all())
+                or (p.address_primary and kw in p.address_primary.lower())
+            ]
 
     # PlaceListSerializer의 is_bookmarked 필드 요구에 맞게 Python 레벨에서 채운다 (쿼리 1회)
     if user_id is not None and places:
