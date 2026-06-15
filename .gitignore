@@ -107,3 +107,6 @@ dumps/*.dump
 .claude/now.md
 
 logs/*.log
+logs/*.log.*
+
+.claude/plan.md
