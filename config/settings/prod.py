@@ -69,28 +69,14 @@ REST_FRAMEWORK_PROD["DEFAULT_RENDERER_CLASSES"] = [
 ]
 REST_FRAMEWORK = REST_FRAMEWORK_PROD
 
-# # 프로덕션 로깅
-# LOGGING_PROD: dict[str, Any] = LOGGING.copy()  # type: ignore[name-defined,used-before-def]  # noqa: F405
-# LOGGING_PROD["handlers"]["file"] = {
-#     "level": "ERROR",
-#     "class": "logging.FileHandler",
-#     "filename": str(BASE_DIR / "logs" / "django.log"),  # type: ignore[name-defined]  # noqa: F405
-#     "formatter": "verbose",
-# }
-# LOGGING_PROD["root"]["handlers"] = ["console", "file"]
-# LOGGING_PROD["loggers"]["django"]["handlers"] = ["console", "file"]
-# LOGGING = LOGGING_PROD
-
 # Celery Beat 스케줄 (단계 7 운영) — prod에서만 활성. 로컬 dev beat는 local settings라 스케줄 없음(자동 실행 0)
 CELERY_BEAT_SCHEDULE = {
-    # 월 1회(매월 1일 04:00): Tour API 변경분 증분 동기화(신규·변경·소프트삭제)
-    "sync-incremental-monthly": {
+    "sync-incremental-weekly": {
         "task": "apps.place.tasks.sync_incremental_task",
-        "schedule": crontab(day_of_month=1, hour=4, minute=0),
+        "schedule": crontab(day_of_week=1, hour=4, minute=0),  # 매주 월요일 새벽 4시
     },
-    # 매일 05:00: 미태깅 장소를 Gemini로 일 한도(20)·분당(4)만큼 태깅
     "ai-tag-missing-daily": {
         "task": "apps.place.tasks.ai_tag_missing_task",
-        "schedule": crontab(hour=5, minute=0),
+        "schedule": crontab(hour=5, minute=0),  # 매일 새벽 5시
     },
 }
