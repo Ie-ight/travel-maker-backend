@@ -1,245 +1,262 @@
-# plan.md
+# 검색 기능 강화 계획
 
-TravelMaker 백엔드 구현 현황 및 남은 작업 계획.
-새 기능 작업 전 이 문서를 읽고, 완료된 항목은 `[x]`로 체크하며 업데이트한다.
-
----
-
-## 내일 바로 할 일 (2026-06-06 기준)
-
-### Step 1 — PR/브랜치 마무리 (우선)
-
-PR #76 (`feat/sort` → `dev`) CI ✅ 통과, 리뷰 후 머지 대기 중.
-**머지 완료 후 순서대로:**
-
-1. **`feat/quiz-result` push + PR 생성**
-   - 로컬 브랜치에 커밋(`e0d64eb`)은 있으나 push 안 됨
-   - stash도 있음 → `git stash list` 확인 후 필요시 적용
-   - PR base: `dev`
-   - `git push origin feat/quiz-result` → `gh pr create`
-
-2. **`feat/kakao-callback` rebase + PR 업데이트**
-   - 현재 PR base: `feat/sort` (올바름)
-   - feat/sort가 dev에 머지되면 → `git rebase origin/dev` → `git push --force-with-lease`
-   - PR base를 `dev`로 변경: `gh pr edit <번호> --base dev`
-
-### Step 2 — 기능 구현 우선순위
-
-| 순서 | Phase | 내용 | 예상 소요 |
-|---|---|---|---|
-| 1 | Phase 1 | 유저 관심 태그 API | 소 |
-| 2 | Phase 4 | 팔로우 API | 중 |
-| 3 | Phase 5 | 팔로우 피드 API | 중 |
-| 4 | Phase 6 | S3 이미지 업로드 | 중 |
-| 5 | Phase 7 | Celery Beat 증분 동기화 | 소 |
+엔드포인트·응답 형식 변경 없이 `apps/place/services/place_services.py` 중심으로 검색 품질을 개선한다.
+작업 전 이 문서를 읽고, 완료된 항목은 `[x]`로 체크하며 업데이트한다.
 
 ---
 
-## 현황 요약
+## 구현 순서 요약
 
-| 앱 | 상태 | 비고 |
-|---|---|---|
-| `apps/core` | ✅ 완료 | 공통 모델, 예외 핸들러, 페이지네이션, Redis 키 관리 |
-| `apps/user` — 인증 | ✅ 완료 | 카카오 OAuth2 백엔드 콜백 방식, JWT, refresh, logout, withdrawal, recovery |
-| `apps/user` — 프로필 | ✅ 완료 | GET/PATCH, 내 북마크 목록, 내 리뷰 목록 |
-| `apps/user` — 관심 태그 | 🔲 미구현 | `User.tags` M2M 모델만 존재. API 없음 |
-| `apps/user` — 팔로우 | 🔲 미구현 | `Follow` 모델만 존재. API 없음 |
-| `apps/place` — 장소 CRUD | ✅ 완료 | list, search, filter, detail |
-| `apps/place` — 태그 | ✅ 완료 | 태그 목록 API, 관심 태그 기반 필터 |
-| `apps/place` — 지도 | ✅ 완료 | 마커 목록, 경로(Kakao Mobility 프록시), JS키 |
-| `apps/place` — 데이터 파이프라인 | ✅ 완료 | sync_places, ai_tag, assign_tags 등 management commands |
-| `apps/place` — 추천 API | ✅ 완료 | pgvector HNSW 코사인 유사도 기반 추천 (`feat/sort` PR #76) |
-| `apps/review` | ✅ 완료 | CRUD, 이미지 Celery 비동기 처리 |
-| `apps/review` — S3 업로드 | 🔲 미구현 | 현재 이미지 URL 직접 저장 |
-| `apps/bookmark` | ✅ 완료 | 생성/삭제 |
-| `apps/travel_quiz` — 퀴즈 결과 | ✅ 완료 | POST/GET `/api/v1/quiz/result` (`feat/quiz-result` 로컬, push 필요) |
-| 증분 동기화 스케줄 | 🔲 미구현 | Celery Beat + `sync_places --sync` |
+| 순서 | 작업 | 난이도 | 효과 |
+|------|------|--------|------|
+| 1 | 태그명 + 주소 OR 검색 확장 | 낮음 | 즉각적 |
+| 2 | pg_trgm 유사도 폴백 | 낮음 | 오타 허용 |
+| 3 | Hybrid Search (`sort=recommend` + keyword) | 중간 | 의미 기반 랭킹 |
 
 ---
 
-## 구현된 API 목록
+## Phase 1 — 태그명 + 주소 OR 검색 확장
 
-### 인증 (`/api/v1/auth/`)
+### 목적
 
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| GET | `kakao/callback` | 카카오 콜백 (백엔드 주도 302 리다이렉트) |
-| POST | `token/refresh` | 액세스 토큰 재발급 |
-| POST | `logout` | 로그아웃 (refresh 토큰 블랙리스트) |
-| DELETE | `withdrawal` | 회원 탈퇴 (soft delete) |
-| POST | `recovery` | 탈퇴 계정 복구 (14일 이내) |
+현재 keyword 검색은 `place_name__icontains`만 본다.
+"캠핑" 검색 시 `tag_name="캠핑"` 인 장소가 누락되고, "강남" 검색 시 주소 기반 결과가 나오지 않는 문제를 해결한다.
 
-### 유저 (`/api/v1/`)
+### 변경 내용
 
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| GET/PATCH | `users/me` | 내 프로필 조회/수정 |
-| GET | `users/me/bookmarks` | 내 북마크 목록 |
-| GET | `users/me/reviews` | 내 리뷰 목록 |
+`get_place_list()` 의 keyword 필터를 OR 조건으로 확장한다.
 
-### 장소 (`/api/v1/places/`)
+```python
+# 변경 전
+if keyword:
+    queryset = queryset.filter(place_name__icontains=keyword)
 
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| GET | `` | 장소 목록 (페이지네이션) |
-| GET | `search` | 키워드 검색 |
-| GET | `filter` | 태그 필터 |
-| GET | `recommend` | 유저 성향 벡터 기반 추천 (pgvector HNSW) |
-| GET | `<place_id>` | 장소 상세 |
-| GET | `map` | 지도 마커 좌표 목록 |
-| GET | `map/route` | 경로 조회 (Kakao Mobility 프록시) |
-| GET | `config/kakao` | Kakao JS 키 반환 |
-| POST/DELETE | `<place_id>/bookmarks/` | 북마크 생성/삭제 |
-
-### 태그 (`/api/v1/tags/`)
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| GET | `` | 전체 태그 목록 |
-
-### 퀴즈 (`/api/v1/`)
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| POST | `quiz/result` | 퀴즈 결과 저장/갱신 (travel_type_key + result_vector) |
-| GET | `quiz/result` | 내 퀴즈 결과 조회 |
-
-### 리뷰 (`/api/v1/`)
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| GET/POST | `places/<place_id>/reviews/` | 리뷰 목록 / 작성 |
-| PATCH/DELETE | `reviews/<review_id>/` | 리뷰 수정 / 삭제 |
-
----
-
-## 남은 작업 — 우선순위 순
-
-### Phase 1 — 유저 관심 태그 API
-
-`User.tags` (M2M → `place.Tag`) 필드가 모델에 존재하지만 등록/조회 API가 없다.
-추천 API의 선행 조건이므로 먼저 구현한다.
-
-- [ ] `GET /api/v1/users/me/tags` — 내 관심 태그 조회
-- [ ] `PUT /api/v1/users/me/tags` — 관심 태그 전체 교체
-- [ ] 테스트: `apps/user/tests/test_profile.py` 확장
-
-구현 파일:
-```
-apps/user/serializers/profile_serializer.py   # 태그 시리얼라이저 추가
-apps/user/services/profile_service.py         # 태그 교체 로직
-apps/user/views/profile_view.py               # UserTagView 추가
-apps/user/urls/user_urls.py                   # URL 등록
-apps/user/schemas/profile_schema.py           # @extend_schema 추가
+# 변경 후
+if keyword:
+    queryset = queryset.filter(
+        Q(place_name__icontains=keyword) |
+        Q(tags__tag_name__icontains=keyword) |
+        Q(address_primary__icontains=keyword)
+    ).distinct()  # M2M join 중복 제거
 ```
 
----
+`get_place_list_recommend()` 의 keyword in-memory 필터도 동일하게 확장한다.
 
-### Phase 2 — 유저 성향 설문 + `user_features` 벡터 ✅ 완료 (travel_quiz로 대체)
+```python
+# 변경 전
+places = [p for p in places if kw in p.place_name.lower()]
 
-`apps/travel_quiz` 앱의 `UserTestResult` 모델(travel_type + result_vector VECTOR(6))로 구현 완료.
-`POST/GET /api/v1/quiz/result` (`feat/quiz-result` 브랜치 — **push/PR 필요**).
-
----
-
-### Phase 3 — pgvector 기반 장소 추천 API ✅ 완료
-
-`GET /api/v1/places/recommend` 구현 완료 (`feat/sort` PR #76 머지 대기).
-
-- HNSW 인덱스(`vector_cosine_ops`) 활용, `SET LOCAL hnsw.iterative_scan = strict_order`
-- over-fetch(×4) → Python dedup → Place 2차 쿼리 enrichment
-- 비로그인/벡터 없는 경우 인기순(북마크 수) 폴백 + Redis 캐시(TTL 300s)
-
----
-
-### Phase 4 — 팔로우 API
-
-`Follow` 모델은 구현되어 있으나 API가 없다.
-
-- [ ] `POST /api/v1/users/<user_id>/follow` — 팔로우
-- [ ] `DELETE /api/v1/users/<user_id>/follow` — 언팔로우
-- [ ] `GET /api/v1/users/<user_id>/followers` — 팔로워 목록
-- [ ] `GET /api/v1/users/<user_id>/followings` — 팔로잉 목록
-- [ ] 테스트
-
-구현 파일:
-```
-apps/user/serializers/follow_serializer.py    # 새 파일
-apps/user/services/follow_service.py          # 새 파일
-apps/user/views/follow_view.py               # 새 파일
-apps/user/urls/user_urls.py                   # URL 등록
-apps/user/schemas/follow_schema.py           # 새 파일
+# 변경 후
+places = [
+    p for p in places
+    if kw in p.place_name.lower()
+    or any(kw in t.tag_name.lower() for t in p.tags.all())
+    or (p.address_primary and kw in p.address_primary.lower())
+]
 ```
 
----
+단, recommend 경로의 in-memory 필터는 Phase 3 이후 hybrid로 대체되므로 임시 처리다.
 
-### Phase 5 — 팔로우 피드 API
+### 수정 파일
 
-Phase 4 완료 후 진행.
+- `apps/place/services/place_services.py`
 
-- [ ] `GET /api/v1/feed` — 팔로잉한 유저의 최신 리뷰 피드
-  - 정렬: `created_at DESC`
-  - 페이지네이션: 기본 `page_size=8`
-- [ ] 테스트
+### 체크리스트
 
-구현 파일:
-```
-apps/review/serializers/review_serializers.py  # 피드용 시리얼라이저 추가
-apps/review/services/review_services.py        # 피드 쿼리 함수 추가
-apps/review/views/review_views.py             # FeedView 추가
-apps/review/urls.py                           # URL 등록
-apps/review/schemas/review_schemas.py         # @extend_schema 추가
-```
+- [x] `get_place_list()` OR 필터 적용
+- [x] `get_place_list_recommend()` in-memory 필터 확장
+- [x] 테스트: `apps/place/tests/test_place.py` 케이스 추가 및 기존 케이스 수정
+- [x] 테스트 통과 확인 (85/85 passed)
 
 ---
 
-### Phase 6 — 리뷰 이미지 S3 업로드
+## Phase 2 — pg_trgm 유사도 폴백
 
-현재 이미지 URL을 직접 저장. S3 presigned URL 방식으로 교체.
+### 목적
 
-- [ ] S3 연동 설정 (`django-storages`, `boto3`)
-  - 환경변수: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`
-- [ ] `POST /api/v1/reviews/image-upload` — presigned URL 발급 (인증 필요)
-- [ ] 리뷰 작성/수정 시 S3 URL 검증 로직
-- [ ] Celery 태스크 교체 (URL 저장 → S3 URL 검증)
-- [ ] 테스트
+keyword 검색 결과가 0건일 때 pg_trgm 유사도 검색으로 폴백해 오타·유사 표현을 허용한다.
+"해수욕" → "해수욕장", "광안리해수" → "광안리 해수욕장" 등.
 
----
+### 사전 작업: 마이그레이션 1개
 
-### Phase 7 — 증분 동기화 스케줄 (Celery Beat)
+```python
+# apps/place/migrations/XXXX_add_pg_trgm.py
+from django.contrib.postgres.operations import TrigramExtension
 
-`sync_places --sync` 커맨드는 구현되어 있으므로 Beat 스케줄만 연결하면 된다.
-
-- [ ] `celery_beat` 스케줄 설정 (`CELERY_BEAT_SCHEDULE`)
-  - 주기: 월 1회 (운영 환경 기준)
-  - 태스크: `sync_places --sync` → Celery 태스크로 래핑
-- [ ] 태스크 완료 알림 또는 로깅 확인
-- [ ] 테스트
-
-구현 파일:
-```
-apps/place/tasks.py                           # sync_places 태스크 추가
-config/settings/base.py                       # CELERY_BEAT_SCHEDULE 추가
+class Migration(migrations.Migration):
+    operations = [TrigramExtension()]
 ```
 
+### 변경 내용
+
+`get_place_list()` 에 폴백 로직 추가.
+
+```python
+from django.contrib.postgres.search import TrigramSimilarity
+
+def get_place_list(keyword="", sort="bookmark", order="desc", ...):
+    queryset = Place.objects.filter(is_active=True)...
+
+    if keyword:
+        exact_qs = queryset.filter(
+            Q(place_name__icontains=keyword) |
+            Q(tags__tag_name__icontains=keyword) |
+            Q(address_primary__icontains=keyword)
+        ).distinct()
+
+        if exact_qs.exists():
+            queryset = exact_qs
+        else:
+            # 결과 없으면 trgm 유사도 폴백 (임계값 0.15~0.2 사이 튜닝 필요)
+            queryset = queryset.annotate(
+                sim=TrigramSimilarity("place_name", keyword)
+            ).filter(sim__gt=0.15).order_by("-sim")
+    ...
+```
+
+### 수정 파일
+
+- `apps/place/migrations/XXXX_add_pg_trgm.py` (신규)
+- `apps/place/services/place_services.py`
+
+### 체크리스트
+
+- [ ] `TrigramExtension` 마이그레이션 생성 및 적용
+- [ ] `get_place_list()` 폴백 로직 추가
+- [ ] 임계값 0.15 기준으로 테스트 후 조정
+- [ ] 테스트: 오타 입력 케이스 추가
+
 ---
 
-### Phase 8 — Redis 키 관리 (`apps/core/cache.py`) ✅ 완료
+## Phase 3 — Hybrid Search (`sort=recommend` + keyword 충돌 해결)
 
-모든 Redis cache key는 `apps/core/cache.py`에서 생성 함수로 정의한다. 서비스 코드에 문자열 하드코딩 금지.
+### 현재 문제
 
-- [x] `blacklist_key(jti)` → `blacklist:{jti}` (JWT 블랙리스트)
-- [x] `popular_places_fallback_key(limit)` → `popular_places:limit:{N}` (추천 폴백 캐시)
-- 향후 Redis 용도 추가 시 이 파일에 먼저 키 함수 정의
+`sort=recommend` + keyword 조합 시 순서가 잘못되어 있다.
+
+```
+현재 흐름:
+  HNSW ANN 검색 (벡터 기준 상위 100개 추출)
+        ↓
+  Python에서 keyword 필터 (place_name icontains만)
+
+문제: 벡터 기준 상위 100개 안에 keyword 매칭 장소가 없으면 결과가 0건
+```
+
+### 해결 방향
+
+keyword 있을 때는 순서를 뒤집어, **keyword로 먼저 후보를 추린 뒤** 그 안에서 벡터 유사도를 exact 계산해 합산한다.
+HNSW를 사용하지 않지만 keyword 후보 수가 수십~수백 개 수준이라 exact cosine으로도 충분히 빠르다.
+
+```
+Hybrid 흐름 (keyword 있을 때):
+  keyword로 후보 추리기 (place_name + tag_name + address OR + trgm 폴백)
+        ↓
+  후보에 대해 cosine 유사도 exact 계산 (HNSW 미사용)
+        ↓
+  vec_score(0~1) + kw_score(trgm, 0~1) 가중합 → 정렬
+
+keyword 없을 때:
+  기존 HNSW ANN 경로 유지 (변경 없음)
+```
+
+### 변경 내용
+
+`get_place_list_recommend()` 를 keyword 유무에 따라 분기한다.
+
+```python
+from django.contrib.postgres.search import TrigramSimilarity
+from django.db.models import F
+from pgvector.django import CosineDistance
+
+def get_place_list_recommend(user_id, keyword="", tags=None):
+    user_vector = _get_user_vector(user_id)  # UserTestResult 조회, 없으면 None
+
+    # keyword 없으면 기존 HNSW 경로 유지
+    if not keyword:
+        if user_vector:
+            return get_places_sorted_by_vector(user_vector, tag_ids=tags, limit=20)
+        return get_popular_places(tag_ids=tags, limit=20)
+
+    # keyword 있으면 Hybrid 경로
+    return _get_places_hybrid(user_vector, keyword=keyword, tag_ids=tags)
+
+
+def _get_places_hybrid(user_vector, keyword, tag_ids=None, limit=20):
+    # 1. keyword로 후보 추리기 (style_vector 있는 장소만)
+    qs = Place.objects.filter(is_active=True, place_feature__isnull=False)
+    exact_qs = qs.filter(
+        Q(place_name__icontains=keyword) |
+        Q(tags__tag_name__icontains=keyword) |
+        Q(address_primary__icontains=keyword)
+    ).distinct()
+
+    # exact 결과 없으면 trgm 폴백
+    if not exact_qs.exists():
+        qs = qs.annotate(sim=TrigramSimilarity("place_name", keyword)).filter(sim__gt=0.15)
+    else:
+        qs = exact_qs
+
+    if tag_ids:
+        for tag_id in tag_ids:
+            qs = qs.filter(tags__id=tag_id)
+
+    # 2. 벡터 유사도 + keyword 유사도 동시 계산
+    if user_vector:
+        qs = qs.annotate(
+            vec_score=1 - CosineDistance("place_feature__style_vector", user_vector),
+            kw_score=TrigramSimilarity("place_name", keyword),
+        ).annotate(
+            combined=0.7 * F("vec_score") + 0.3 * F("kw_score")
+        ).order_by("-combined")
+    else:
+        # 벡터 없으면 keyword 유사도 + 인기순 폴백
+        qs = qs.annotate(
+            kw_score=TrigramSimilarity("place_name", keyword),
+            bookmark_count=Count("bookmarks", distinct=True),
+        ).order_by("-kw_score", "-bookmark_count")
+
+    return list(qs.prefetch_related("images", "tags")[:limit])
+```
+
+### 가중치 기준
+
+| 상황 | vec_score | kw_score |
+|------|-----------|----------|
+| 기본 (취향 우선) | 0.7 | 0.3 |
+| 검색 의도가 강할 때 | 0.4 | 0.6 |
+| 벡터 없음 (퀴즈 미완료) | — | 인기순 폴백 |
+
+가중치는 추후 A/B 테스트로 조정 가능하도록 상수로 분리한다.
+
+### 수정 파일
+
+- `apps/place/services/place_services.py` (`get_place_list_recommend`, `_get_places_hybrid` 추가)
+
+### 체크리스트
+
+- [ ] `_get_places_hybrid()` 함수 구현
+- [ ] `get_place_list_recommend()` 분기 로직 수정
+- [ ] keyword 없는 경우 기존 HNSW 경로 회귀 테스트
+- [ ] keyword + recommend 조합 테스트 (결과 0건 케이스 포함)
+- [ ] 비로그인 + keyword + recommend 케이스 테스트
 
 ---
 
-## 개발 규칙 요약
+## 전체 수정 파일 목록
 
-- **레이어 분리 필수**: views → services → serializers. 비즈니스 로직은 services에만.
-- **테스트 선행**: Red → Green → Refactor.
-- **에러 응답**: 항상 `{"error_detail": "..."}` 형태.
-- **스키마 데코레이터**: `@extend_schema`는 앱의 `schemas/` 모듈에서 import, 뷰 인라인 금지.
-- **동작 변경과 구조 변경은 별도 커밋**.
+| 파일 | Phase |
+|------|-------|
+| `apps/place/services/place_services.py` | 1, 2, 3 |
+| `apps/place/migrations/XXXX_add_pg_trgm.py` | 2 |
+| `apps/place/tests/` (기존 또는 신규) | 1, 2, 3 |
 
-상세 규칙은 `AGENTS.md`, 설계 배경은 `SYSTEM_DESIGN.md` 참고.
+스키마(`place_schemas.py`)와 뷰(`place_views.py`)는 변경하지 않는다.
+
+---
+
+## 참고
+
+- pg_trgm 임계값: 한국어는 자모 단위 트라이그램이라 영어보다 낮게 설정 (0.15~0.2 권장)
+- Hybrid 가중치: `VEC_WEIGHT = 0.7`, `KW_WEIGHT = 0.3` 상수로 분리해 추후 튜닝
+- `_get_places_hybrid()` 는 Phase 2 완료 후 구현 (pg_trgm 마이그레이션 선행 필요)
