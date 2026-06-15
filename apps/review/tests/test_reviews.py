@@ -8,7 +8,7 @@ from apps.review.models import Review
 from apps.review.tests.factories import PlaceFactory, ReviewFactory, UserFactory
 from apps.route.models import Route, RouteDay, RouteDayPlace
 from apps.route.tests.factories import RouteFactory
-from apps.user.models import User
+from apps.user.models import User, UserActionLog
 
 
 def _create_route_with_place(user: User, place: Place) -> Route:
@@ -98,7 +98,7 @@ class TestReviewList:
 @pytest.mark.django_db
 class TestReviewCreate:
     @override_settings(AWS_STORAGE_BUCKET_NAME="test-bucket")
-    def test_이미지_포함_리뷰_등록_성공(self, auth_client: APIClient, place: Place) -> None:
+    def test_이미지_포함_리뷰_등록_성공(self, auth_client: APIClient, user: User, place: Place) -> None:
         image_url = "https://test-bucket.s3.ap-northeast-2.amazonaws.com/reviews/test.jpg"
         response = auth_client.post(
             f"/api/v1/places/{place.id}/reviews",
@@ -108,6 +108,20 @@ class TestReviewCreate:
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["is_owner"] is True
         assert response.data["image_url"] == image_url
+        assert UserActionLog.objects.filter(  # type: ignore[attr-defined]
+            user=user, place=place, action_type=UserActionLog.ActionType.REVIEW
+        ).exists()
+
+    def test_평점_3점_리뷰_등록시_행동로그_생성안됨(self, auth_client: APIClient, user: User, place: Place) -> None:
+        response = auth_client.post(
+            f"/api/v1/places/{place.id}/reviews",
+            {"rating": 3, "content": "보통이에요"},
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert not UserActionLog.objects.filter(  # type: ignore[attr-defined]
+            user=user, place=place, action_type=UserActionLog.ActionType.REVIEW
+        ).exists()
 
     def test_리뷰_비인증_등록_실패(self, client: APIClient, place: Place) -> None:
         response = client.post(

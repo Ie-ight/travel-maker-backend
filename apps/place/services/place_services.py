@@ -9,6 +9,14 @@ from pgvector.django import CosineDistance
 
 from apps.bookmark.models import Bookmark
 from apps.place.models import Place, PlaceFeature
+from apps.place.services.feed_stage_service import determine_stage
+from apps.place.services.sort_algorithm_service import (
+    get_places_sorted_by_content_vector,
+    get_places_sorted_by_vector,
+    get_popular_places,
+)
+from apps.travel_quiz.models import UserTestResult
+from apps.user.models import UserPreference
 
 # review는 비정규화 컬럼 rating_count(= 리뷰 수, 리뷰 생성/수정/삭제마다 갱신)로 정렬한다.
 # Count("reviews")를 bookmark_count와 함께 annotate하면 두 to-many JOIN이 곱연산으로 행을 부풀린다.
@@ -64,12 +72,14 @@ def _get_places_hybrid(
     user_vector: list[float],
     keyword: str,
     tags: list[int] | None = None,
+    vector_field: str = "style_vector",
 ) -> list[Place]:
     """keyword DB 필터 → 정확 코사인 유사도 → combined score 정렬.
 
     기존 HNSW → Python in-memory 방식은 top-N 밖 keyword 매칭을 누락한다.
     이 함수는 keyword 매칭을 DB 레벨에서 먼저 수행하고, 그 후보에 대해서만 코사인 유사도를 계산한다.
     combined = 0.7 * vec_score + 0.3 * kw_score
+    vector_field: S2는 "style_vector"(6D), S3는 "content_vector"(1024D)를 사용한다.
     페이지네이션은 뷰가 담당하므로 전체 매칭 결과를 반환한다.
     """
     base_qs = Place.objects.filter(is_active=True)
@@ -105,8 +115,8 @@ def _get_places_hybrid(
     # 2) 후보 대상 정확 코사인 유사도 (HNSW 아닌 exact scan — 후보 수가 적어 충분히 빠름)
     dist_map: dict[int, float] = {
         row["place_id"]: float(row["distance"])
-        for row in PlaceFeature.objects.filter(place_id__in=candidate_ids)
-        .annotate(distance=CosineDistance("style_vector", user_vector))
+        for row in PlaceFeature.objects.filter(place_id__in=candidate_ids, **{f"{vector_field}__isnull": False})
+        .annotate(distance=CosineDistance(vector_field, user_vector))
         .values("place_id", "distance")
     }
 
@@ -145,17 +155,20 @@ def get_place_list_recommend(
     keyword: str = "",
     tags: list[int] | None = None,
 ) -> Sequence[Place]:
-    """유저 성향 벡터 기반 추천순. 벡터 없으면 인기순 폴백."""
-    from apps.place.services.sort_algorithm_service import get_places_sorted_by_vector, get_popular_places
-    from apps.travel_quiz.models import UserTestResult
+    """S1(인기)/S2(퀴즈 6축 ANN)/S3(행동 기반 1024D ANN) 단계별 추천순."""
+    stage = determine_stage(user_id)
 
     user_vector: list[float] | None = None
-    if user_id is not None:
-        try:
-            result = UserTestResult.objects.get(user_id=user_id)
-            user_vector = list(result.result_vector)
-        except UserTestResult.DoesNotExist:
-            pass
+    vector_field = "style_vector"
+    if stage == "S3":
+        assert user_id is not None  # S3는 determine_stage가 로그인 유저에게만 반환
+        preference = UserPreference.objects.get(user_id=user_id)
+        user_vector = list(preference.content_vector)
+        vector_field = "content_vector"
+    elif stage == "S2":
+        assert user_id is not None  # S2도 로그인 유저에게만 반환
+        result = UserTestResult.objects.get(user_id=user_id)
+        user_vector = list(result.result_vector)
 
     # 영벡터는 코사인 유사도 미정의(NULL/NaN) → 인기순 폴백으로 처리
     if user_vector is not None and not any(user_vector):
@@ -163,7 +176,9 @@ def get_place_list_recommend(
 
     if user_vector is not None and keyword:
         # Phase 3: keyword DB 필터 후 정확 코사인 + trgm combined score
-        places: list[Place] = _get_places_hybrid(user_vector, keyword, tags)
+        places: list[Place] = _get_places_hybrid(user_vector, keyword, tags, vector_field=vector_field)
+    elif user_vector is not None and vector_field == "content_vector":
+        places = list(get_places_sorted_by_content_vector(user_vector, tag_ids=tags or [], limit=20))
     elif user_vector is not None:
         places = list(get_places_sorted_by_vector(user_vector, tag_ids=tags or [], limit=20))
     else:

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import cast
 
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
@@ -16,6 +17,8 @@ from apps.review.exceptions import (
 )
 from apps.review.models import Review
 from apps.route.models import Route
+from apps.user.models import User, UserActionLog
+from apps.user.services.action_log_service import record_action
 
 
 def _get_place_or_404(place_id: int) -> Place:
@@ -64,7 +67,7 @@ def create_review(
     image_url: str | None = None,
     route_id: int | None = None,
 ) -> Review:
-    _get_place_or_404(place_id)
+    place = _get_place_or_404(place_id)
     if Review.objects.filter(user_id=user.pk, place_id=place_id).exists():
         raise AlreadyReviewed()
     route = _get_review_route(user, place_id, route_id)
@@ -77,6 +80,8 @@ def create_review(
         route=route,
     )
     _update_place_rating(place_id)
+    if rating != 3:
+        record_action(cast(User, user), place, UserActionLog.ActionType.REVIEW, rating=rating)
     return review
 
 

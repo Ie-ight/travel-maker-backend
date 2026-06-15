@@ -27,7 +27,7 @@ def get_places_sorted_by_vector(
             cursor.execute("SET LOCAL hnsw.iterative_scan = strict_order")
 
         pf_qs = (
-            PlaceFeature.objects.filter(place__is_active=True)
+            PlaceFeature.objects.filter(place__is_active=True, style_vector__isnull=False)
             .annotate(distance=CosineDistance("style_vector", user_vector))
             .order_by("distance")
         )
@@ -59,6 +59,48 @@ def get_places_sorted_by_vector(
     return sorted(places, key=lambda p: order[p.id])[:limit]
 
 
+def get_places_sorted_by_content_vector(
+    user_vector: list[float],
+    tag_ids: list[int] | None = None,
+    region_tag_id: int | None = None,
+    limit: int = 20,
+) -> Sequence[Place]:
+    """행동 기반 1024D 임베딩(content_vector) ANN 정렬 (S3, §7.2). content_vector 미생성 장소는 제외된다."""
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SET LOCAL hnsw.iterative_scan = strict_order")
+
+        pf_qs = (
+            PlaceFeature.objects.filter(place__is_active=True, content_vector__isnull=False)
+            .annotate(distance=CosineDistance("content_vector", user_vector))
+            .order_by("distance")
+        )
+
+        if tag_ids:
+            pf_qs = pf_qs.filter(place__tags__id__in=tag_ids)
+        if region_tag_id:
+            pf_qs = pf_qs.filter(place__tags__id=region_tag_id)
+
+        seen: set[int] = set()
+        candidate_ids: list[int] = []
+        for pid in pf_qs.values_list("place_id", flat=True)[: limit * _OVER_FETCH]:
+            if pid not in seen:
+                seen.add(pid)
+                candidate_ids.append(pid)
+
+    if not candidate_ids:
+        return []
+
+    places = list(
+        Place.objects.filter(id__in=candidate_ids)
+        .annotate(bookmark_count=Count("bookmarks", distinct=True))
+        .prefetch_related("images", "tags")
+    )
+
+    order = {pid: i for i, pid in enumerate(candidate_ids)}
+    return sorted(places, key=lambda p: order[p.id])[:limit]
+
+
 def get_popular_places(
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
@@ -84,7 +126,7 @@ def get_popular_places(
         Place.objects.filter(is_active=True)
         .annotate(bookmark_count=Count("bookmarks", distinct=True))
         .prefetch_related("images", "tags")
-        .order_by("-bookmark_count", "-rating_avg")
+        .order_by("-bookmark_count", "-rating_avg", "-view_count")
     )
 
     if tag_ids:
