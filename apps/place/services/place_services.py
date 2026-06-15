@@ -117,7 +117,7 @@ def _get_places_hybrid(
     }
 
     # 4) place 객체 로드 (bookmark_count + prefetch)
-    places = list(
+    places: list[Place] = list(
         Place.objects.filter(id__in=candidate_ids)
         .annotate(bookmark_count=Count("bookmarks", distinct=True))
         .prefetch_related("images", "tags")
