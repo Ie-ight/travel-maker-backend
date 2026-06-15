@@ -5,7 +5,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.core.utils import validate_s3_image_url
-from apps.user.models import User
+from apps.user.models import Follow, User
 
 
 class _UserTagSerializer(serializers.Serializer):  # type: ignore[type-arg]
@@ -119,6 +119,13 @@ class PublicUserSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[
     following_count = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     travel_type_name = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+
+    def get_is_following(self, obj: User) -> bool:
+        request = self.context.get("request")
+        if request is None or not request.user.is_authenticated:
+            return False
+        return Follow.objects.filter(follower=request.user, following=obj).exists()
 
     class Meta:
         model = User
@@ -131,8 +138,7 @@ class PublicUserSerializer(_UserProfileFieldsMixin, serializers.ModelSerializer[
             "follower_count",
             "following_count",
             "travel_type_name",
-            "created_at",
-            "updated_at",
+            "is_following",
         ]
         read_only_fields = fields
 
@@ -188,6 +194,7 @@ class UserReviewSerializer(serializers.ModelSerializer[Any]):
             "place_name",
             "rating",
             "content",
+            "image_url",
             "created_at",
             "updated_at",
         ]

@@ -160,6 +160,40 @@ class TestProfileGet:
 
 
 @pytest.mark.django_db
+class TestPublicProfileGet:
+    def test_비로그인_조회시_is_following_false(self, client: APIClient, user: User) -> None:
+        response = client.get(f"/api/v1/users/{user.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["is_following"] is False
+
+    def test_로그인_팔로우_안한_상태_is_following_false(self, auth_client: APIClient, user: User) -> None:
+        target = UserFactory()  # type: ignore[misc]
+
+        response = auth_client.get(f"/api/v1/users/{target.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["is_following"] is False
+
+    def test_로그인_팔로우한_상태_is_following_true(self, auth_client: APIClient, user: User) -> None:
+        target = UserFactory()  # type: ignore[misc]
+        FollowFactory(follower=user, following=target)  # type: ignore[misc]
+
+        response = auth_client.get(f"/api/v1/users/{target.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["is_following"] is True
+
+    def test_공개_프로필_여행성향_타입명_포함(self, client: APIClient, user: User) -> None:
+        result = UserTestResultFactory(user=user)  # type: ignore[misc]
+
+        response = client.get(f"/api/v1/users/{user.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["travel_type_name"] == result.travel_type.name
+
+
+@pytest.mark.django_db
 class TestProfilePatch:
     def test_프로필_수정_성공(self, auth_client: APIClient) -> None:
         response = auth_client.patch("/api/v1/users", {"nickname": "수정닉네임"})
@@ -302,6 +336,15 @@ class TestUserReviewList:
         response = auth_client.get("/api/v1/users/reviews")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 3
+
+    def test_리뷰_목록_조회시_이미지_URL_포함(self, auth_client: APIClient, user: User) -> None:
+        image_url = "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/reviews/test.jpg"
+        ReviewFactory(user=user, image_url=image_url)  # type: ignore[misc]
+
+        response = auth_client.get("/api/v1/users/reviews")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["results"][0]["image_url"] == image_url
 
     def test_리뷰_목록_비로그인_실패(self, client: APIClient) -> None:
         response = client.get("/api/v1/users/reviews")

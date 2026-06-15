@@ -52,7 +52,7 @@ services:
     container_name: travel-maker-celery-worker-prod
     command: >
       sh -c "sleep 10 &&
-             uv run celery -A config worker --loglevel=info"
+             uv run celery -A config worker --loglevel=info -E"
     volumes:
       - ../../:/app
       - ../../logs:/app/logs
@@ -95,7 +95,7 @@ services:
       dockerfile: infrastructure/docker/Dockerfile
     container_name: travel-maker-flower-prod
     entrypoint: []
-    command: uv run celery -A config flower --port=5555 --basic_auth=$${FLOWER_BASIC_AUTH}
+    command: sh -c "uv run celery -A config flower --port=5555 --basic_auth=$$FLOWER_BASIC_AUTH"
 
     ports:
       - "5555:5555"
