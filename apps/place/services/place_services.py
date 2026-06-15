@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from django.db.models import BooleanField, Count, Exists, F, OuterRef, QuerySet, Value
+from django.db.models import BooleanField, Count, Exists, F, OuterRef, Q, QuerySet, Value
 from django.db.models.expressions import Combinable
 
 from apps.bookmark.models import Bookmark
@@ -32,7 +32,11 @@ def get_place_list(
         .annotate(bookmark_count=Count("bookmarks", distinct=True), is_bookmarked=_is_bookmarked_expr(user_id))
     )
     if keyword:
-        queryset = queryset.filter(place_name__icontains=keyword)
+        queryset = queryset.filter(
+            Q(place_name__icontains=keyword)
+            | Q(tags__tag_name__icontains=keyword)
+            | Q(address_primary__icontains=keyword)
+        ).distinct()
     if tags:
         # AND 매칭: 태그별로 filter를 체이닝하면 태그마다 별도 JOIN이 생겨 "모두 포함"이 된다.
         # 각 태그 JOIN이 bookmark JOIN과 곱해질 수 있어 bookmark_count는 distinct=True로 부풀림을 막는다.
@@ -70,7 +74,13 @@ def get_place_list_recommend(
 
     if keyword:
         kw = keyword.lower()
-        places = [p for p in places if kw in p.place_name.lower()]
+        places = [
+            p
+            for p in places
+            if kw in p.place_name.lower()
+            or any(kw in t.tag_name.lower() for t in p.tags.all())
+            or (p.address_primary and kw in p.address_primary.lower())
+        ]
 
     # PlaceListSerializer의 is_bookmarked 필드 요구에 맞게 Python 레벨에서 채운다 (쿼리 1회)
     if user_id is not None and places:

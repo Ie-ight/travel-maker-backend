@@ -108,3 +108,5 @@ dumps/*.dump
 
 logs/*.log
 logs/*.log.*
+
+.claude/plan.md
