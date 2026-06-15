@@ -208,12 +208,38 @@ class TestPlaceSearchView:
         assert response.data["count"] == 1
         assert response.data["results"][0]["id"] == seoul.id
 
-    def test_keyword_does_not_match_tag_or_description(self, api_client: APIClient) -> None:
+    def test_keyword_matches_tag_name(self, api_client: APIClient) -> None:
         tag = TagFactory(tag_name="조용한")
-        PlaceFactory(place_name="한강공원", description="조용한 곳", tags=[tag])
+        place = PlaceFactory(place_name="한강공원", tags=[tag])
+        PlaceFactory(place_name="북적이는 시장", tags=[])
+        response = api_client.get(PLACE_SEARCH_URL, {"keyword": "조용한"})
+        assert response.status_code == 200
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == place.id
+
+    def test_keyword_matches_address(self, api_client: APIClient) -> None:
+        place = PlaceFactory(place_name="어딘가", address_primary="서울특별시 강남구 테헤란로 1")
+        PlaceFactory(place_name="다른곳", address_primary="부산광역시 해운대구 1")
+        response = api_client.get(PLACE_SEARCH_URL, {"keyword": "강남"})
+        assert response.status_code == 200
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == place.id
+
+    def test_keyword_does_not_match_description(self, api_client: APIClient) -> None:
+        PlaceFactory(place_name="한강공원", description="조용한 곳", tags=[])
         response = api_client.get(PLACE_SEARCH_URL, {"keyword": "조용한"})
         assert response.status_code == 200
         assert response.data["count"] == 0
+
+    def test_keyword_or_match_place_name_and_tag(self, api_client: APIClient) -> None:
+        tag = TagFactory(tag_name="바다")
+        by_name = PlaceFactory(place_name="바다뷰 카페", tags=[])
+        by_tag = PlaceFactory(place_name="힐링 스팟", tags=[tag])
+        response = api_client.get(PLACE_SEARCH_URL, {"keyword": "바다"})
+        assert response.status_code == 200
+        assert response.data["count"] == 2
+        ids = {r["id"] for r in response.data["results"]}
+        assert ids == {by_name.id, by_tag.id}
 
     def test_response_shape_matches_list(self, api_client: APIClient) -> None:
         PlaceFactory(place_name="서울 타워", description="멋진 곳", rating_avg="4.5")

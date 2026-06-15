@@ -7,6 +7,9 @@ echo "Waiting for postgres..."
 echo "Running migrations..."
 uv run python manage.py migrate --noinput
 
+echo "Seeding travel types..."
+uv run python manage.py seed_travel_types
+
 echo "Collecting static files..."
 uv run python manage.py collectstatic --noinput
 

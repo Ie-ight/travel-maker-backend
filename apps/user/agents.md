@@ -115,3 +115,21 @@ Reuses existing service functions.
 ### Do Not
 - Do not expose `email` in public profile response
 - Do not expose `bookmark_count`, `review_count` in public profile
+
+---
+
+## Routes (My Page / Liked)
+
+Moved from `apps/route` per Swagger review feedback. Views live in `apps/user/views/profile_view.py`
+(`UserRouteListView`, `UserLikedRoutesView`), but reuse `get_user_routes()`/`get_liked_routes()` and
+`RouteMyListSerializer`/`RouteListSerializer` from `apps/route` — no duplicated query logic.
+
+### API Endpoints
+
+| Method | URL | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/v1/users/{nickname}/routes` | ✅ | `RouteMyListSerializer`, paginated; 404 if nickname doesn't exist |
+| GET | `/api/v1/users/routes/likes` | ✅ | Current user's liked routes, `RouteListSerializer`, paginated |
+
+### Do Not
+- Do not register `users/<str:nickname>/routes` before `users/routes/likes` in `user_urls.py` — the nickname pattern would swallow the literal `/likes` path.

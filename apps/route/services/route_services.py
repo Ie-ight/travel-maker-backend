@@ -43,11 +43,11 @@ def _build_prefetch() -> list[str | Prefetch]:
 
 
 def _get_route_queryset() -> QuerySet[Route]:
-    # select_related("region_tag"): FK N+1 방지
+    # select_related("region_tag", "user"): FK N+1 방지 (user는 상세 응답의 작성자 정보용)
     # _build_prefetch(): days·places·이미지 중첩 prefetch (목록·상세 공통)
     # annotate place_count: DB에서 총 장소 수를 한 번에 계산 (Python 루프 대신)
     return (
-        Route.objects.select_related("region_tag")
+        Route.objects.select_related("region_tag", "user")
         .prefetch_related(*_build_prefetch())
         .annotate(place_count=Count("days__day_places", distinct=True))
     )

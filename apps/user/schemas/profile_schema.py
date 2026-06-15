@@ -4,6 +4,10 @@ from apps.core.presigned_url.serializers import (
     PresignedUrlRequestSerializer,
     PresignedUrlResponseSerializer,
 )
+from apps.route.serializers.route_serializers import (
+    RouteListSerializer,
+    RouteMyListSerializer,
+)
 from apps.user.serializers.profile_serializer import (
     NicknameCheckResponseSerializer,
     NicknameCheckSerializer,
@@ -157,6 +161,7 @@ user_review_get_schema = extend_schema(
                         "place_name": "부산 광안리 해수욕장",
                         "rating": 5,
                         "content": "야경이 정말 예뻐요!",
+                        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/reviews/uuid.jpg",
                         "created_at": "2026-05-22T12:23:11Z",
                         "updated_at": "2026-05-22T12:23:11Z",
                     },
@@ -169,6 +174,29 @@ user_review_get_schema = extend_schema(
         200: UserReviewSerializer,
         401: OpenApiResponse(description="자격 인증 데이터가 제공되지 않았습니다."),
     },
+)
+
+user_route_list_schema = extend_schema(
+    tags=["User"],
+    summary="마이페이지 경로 조회",
+    description=(
+        "입력한 닉네임을 가진 유저가 작성한 경로 목록을 최신순으로 조회합니다.\n"
+        "존재하지 않는 닉네임이면 404 에러가 발생합니다."
+    ),
+    parameters=[
+        OpenApiParameter(name="page", type=int, required=False, description="페이지 번호 (기본값 1)"),
+    ],
+    responses={200: RouteMyListSerializer(many=True)},
+)
+
+user_liked_routes_schema = extend_schema(
+    tags=["User"],
+    summary="내가 좋아요한 경로 목록",
+    description="로그인한 유저가 좋아요를 누른 경로 목록을 최신순으로 조회합니다.",
+    parameters=[
+        OpenApiParameter(name="page", type=int, required=False, description="페이지 번호 (기본값 1)"),
+    ],
+    responses={200: RouteListSerializer(many=True)},
 )
 
 public_profile_get_schema = extend_schema(
@@ -223,6 +251,7 @@ public_user_review_get_schema = extend_schema(
                         "place_name": "부산 광안리 해수욕장",
                         "rating": 5,
                         "content": "야경이 정말 예뻐요!",
+                        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/reviews/uuid.jpg",
                         "created_at": "2026-05-22T12:23:11Z",
                         "updated_at": "2026-05-22T12:23:11Z",
                     },
