@@ -190,6 +190,7 @@ public_profile_get_schema = extend_schema(
                 "follower_count": 4,
                 "following_count": 6,
                 "travel_type_name": "모험가형",
+                "is_following": False,
             },
             response_only=True,
         ),
