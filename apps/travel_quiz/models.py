@@ -20,7 +20,7 @@ class TravelType(models.Model):
 
 class UserTestResult(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    travel_type = models.ForeignKey(TravelType, on_delete=models.CASCADE)
+    travel_type = models.ForeignKey(TravelType, on_delete=models.PROTECT)
     result_vector = VectorField(dimensions=6)
     updated_at = models.DateTimeField(auto_now=True)
 

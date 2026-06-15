@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import cast
 
@@ -16,6 +17,12 @@ _AXIS_TAG_LABELS: tuple[dict[str, str], ...] = (
     {"t": "혼자형", "f": "단체형"},
     {"t": "자연형", "f": "도시형"},
 )
+
+# 6축 라벨 (순서: activity, plan, social, space, experience, budget)
+_AXIS_LABELS: tuple[str, ...] = ("액티비티형", "계획형", "혼자형", "자연형", "문화형", "가성비형")
+
+# type_key를 결정하는 3축의 인덱스 (_determine_type_key와 동일: activity, social, space)
+_TYPE_KEY_AXES = (0, 2, 3)
 
 _PLAN_SOLO_DESCRIPTIONS = {
     (True, True): "철저한 준비로 혼자만의 루트를 만들며",
@@ -71,7 +78,10 @@ class QuizSubmitResult:
     description: str
     detail_cards: list[DetailCard]
     result_vector: list[float]
+    accuracy: int
     recommended_places: list[Place]
+    compatible_type: TravelType
+    incompatible_type: TravelType
 
 
 def _calculate_norm_vector(answers: list[str]) -> list[float]:
@@ -94,6 +104,41 @@ def build_type_tags(type_key: str) -> list[str]:
     return [labels[char] for labels, char in zip(_AXIS_TAG_LABELS, type_key, strict=True)]
 
 
+def label_vector(values: list[float]) -> list[dict[str, object]]:
+    return [{"label": label, "value": round(value * 100)} for label, value in zip(_AXIS_LABELS, values, strict=True)]
+
+
+def calculate_match_rate(obj: Place) -> int:
+    similarity = 1 - float(obj.distance)  # type: ignore[attr-defined]
+    return round(max(0.0, min(1.0, similarity)) * 100)
+
+
+def calculate_accuracy(norm: list[float]) -> int:
+    deviations = [abs(norm[i] - 0.5) * 2 for i in _TYPE_KEY_AXES]
+    return round(sum(deviations) / len(deviations) * 100)
+
+
+def _type_axis_vector(type_key: str) -> list[float]:
+    return [1.0 if ch == "t" else 0.0 for ch in type_key]
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    denom = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
+    return dot / denom if denom else 0.0
+
+
+def find_compatible_types(travel_type: TravelType, norm: list[float]) -> tuple[TravelType, TravelType]:
+    user_vec = [norm[i] for i in _TYPE_KEY_AXES]
+    scored = [
+        (other, _cosine_similarity(user_vec, _type_axis_vector(other.type_key)))
+        for other in TravelType.objects.exclude(id=travel_type.id)
+    ]
+    compatible = max(scored, key=lambda pair: pair[1])[0]
+    incompatible = min(scored, key=lambda pair: pair[1])[0]
+    return compatible, incompatible
+
+
 def make_description(norm: list[float]) -> str:
     is_active = norm[0] >= 0.5
     is_planned = norm[1] >= 0.5
@@ -113,7 +158,7 @@ def make_description(norm: list[float]) -> str:
     return f"{d1} {d2} {d3} {d4}"
 
 
-def _build_detail_cards(norm: list[float]) -> list[DetailCard]:
+def build_detail_cards(norm: list[float]) -> list[DetailCard]:
     is_active = norm[0] >= 0.5
     is_planned = norm[1] >= 0.5
     is_solo = norm[2] >= 0.5
@@ -129,7 +174,7 @@ def _build_detail_cards(norm: list[float]) -> list[DetailCard]:
     ]
 
 
-def _get_recommended_places(result_vector: list[float]) -> list[Place]:
+def get_recommended_places(result_vector: list[float]) -> list[Place]:
     return list(
         Place.objects.filter(is_active=True, place_feature__isnull=False)
         .annotate(distance=CosineDistance("place_feature__style_vector", result_vector))
@@ -153,16 +198,20 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
         )
         saved = True
 
-    recommended_places = _get_recommended_places(norm)
+    recommended_places = get_recommended_places(norm)
+    compatible_type, incompatible_type = find_compatible_types(travel_type, norm)
 
     return QuizSubmitResult(
         saved=saved,
         travel_type=travel_type,
         type_tags=build_type_tags(type_key),
         description=make_description(norm),
-        detail_cards=_build_detail_cards(norm),
+        detail_cards=build_detail_cards(norm),
         result_vector=norm,
+        accuracy=calculate_accuracy(norm),
         recommended_places=recommended_places,
+        compatible_type=compatible_type,
+        incompatible_type=incompatible_type,
     )
 
 
