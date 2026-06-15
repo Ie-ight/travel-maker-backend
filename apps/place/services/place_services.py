@@ -1,6 +1,8 @@
 from collections.abc import Sequence
+from typing import cast
 
 from django.contrib.postgres.search import TrigramSimilarity
+from django.core.cache import cache
 from django.db.models import BooleanField, Count, Exists, F, OuterRef, Q, QuerySet, Value
 from django.db.models.expressions import Combinable
 from pgvector.django import CosineDistance
@@ -197,10 +199,23 @@ def get_place_detail(place_id: int, user_id: int | None = None) -> Place | None:
     # 없으면 None 반환(순수 데이터 접근). "없으면 404" 판단은 뷰가 한다.
     # review_count는 비정규화 rating_count 컬럼에서 직접 읽고(시리얼라이저 source), bookmark_count는
     # 상세에서 노출하지 않으므로 런타임 집계(JOIN)가 전혀 없다.
-    return (
-        Place.objects.select_related("info")  # 운영정보(PlaceInfo, 역방향 1:1) — 상세 detail용
-        .prefetch_related("images", "tags")
-        .annotate(is_bookmarked=_is_bookmarked_expr(user_id))
-        .filter(id=place_id, is_active=True)  # 소프트삭제 장소는 상세도 미노출(뷰에서 404)
-        .first()
-    )
+    cache_key = f"place_detail:{place_id}"
+    place = cast(Place | None, cache.get(cache_key))
+
+    if place is None:
+        place = (
+            Place.objects.select_related("info")
+            .prefetch_related("images", "tags")
+            .filter(id=place_id, is_active=True)
+            .first()
+        )
+        if place is not None:
+            cache.set(cache_key, place, 60 * 60)
+
+    if place is not None:
+        # is_bookmarked는 캐시 없이 별도 조회
+        place.is_bookmarked = (  # type: ignore[attr-defined]
+            Bookmark.objects.filter(place_id=place_id, user_id=user_id).exists() if user_id else False
+        )
+
+    return place

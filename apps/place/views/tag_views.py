@@ -1,5 +1,3 @@
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -11,7 +9,6 @@ from apps.place.serializers.tag_serializers import TagQuerySerializer, TagSerial
 from apps.place.services.tag_services import TagService
 
 
-@method_decorator(cache_page(60 * 60 * 24), name="get")  # 24시간 캐시
 class TagListView(APIView):
     permission_classes = [AllowAny]
 
