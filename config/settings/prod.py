@@ -6,7 +6,6 @@ Production settings.
 from typing import Any
 
 import sentry_sdk
-from celery.schedules import crontab
 from decouple import config
 from sentry_sdk.integrations.django import DjangoIntegration
 
@@ -68,15 +67,3 @@ REST_FRAMEWORK_PROD["DEFAULT_RENDERER_CLASSES"] = [
     "rest_framework.renderers.JSONRenderer",
 ]
 REST_FRAMEWORK = REST_FRAMEWORK_PROD
-
-# Celery Beat 스케줄 (단계 7 운영) — prod에서만 활성. 로컬 dev beat는 local settings라 스케줄 없음(자동 실행 0)
-CELERY_BEAT_SCHEDULE = {
-    "sync-incremental-weekly": {
-        "task": "apps.place.tasks.sync_incremental_task",
-        "schedule": crontab(day_of_week=1, hour=4, minute=0),  # 매주 월요일 새벽 4시
-    },
-    "ai-tag-missing-daily": {
-        "task": "apps.place.tasks.ai_tag_missing_task",
-        "schedule": crontab(hour=5, minute=0),  # 매일 새벽 5시
-    },
-}
