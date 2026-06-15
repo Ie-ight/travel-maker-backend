@@ -53,7 +53,11 @@ def tag() -> object:
 
 @pytest.fixture
 def place() -> object:
-    return PlaceFactory()
+    return PlaceFactory(
+        description="아름다운 해변입니다.",
+        address_primary="제주특별자치도 제주시",
+        address_detail="해변로 123",
+    )
 
 
 @pytest.fixture
@@ -89,6 +93,9 @@ class TestRouteCreate:
         assert day1["day_index"] == 1
         assert day1["places"][0]["place_id"] == place.id  # type: ignore[attr-defined]
         assert day1["places"][0]["place_name"] == place.place_name  # type: ignore[attr-defined]
+        assert day1["places"][0]["description"] == place.description  # type: ignore[attr-defined]
+        assert day1["places"][0]["address_primary"] == place.address_primary  # type: ignore[attr-defined]
+        assert day1["places"][0]["address_detail"] == place.address_detail  # type: ignore[attr-defined]
 
     def test_경로_생성_비인증_실패(self, client: APIClient, tag: object, place: object) -> None:
         response = client.post("/api/v1/routes", _route_payload(tag.id, place.id), format="json")  # type: ignore[attr-defined]
@@ -135,6 +142,8 @@ class TestRouteDetail:
         response = client.get(f"/api/v1/routes/{route.id}")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["route_id"] == route.id
+        assert response.data["user_id"] == route.user_id
+        assert response.data["user_nickname"] == route.user.nickname
         assert "days" in response.data
 
     def test_존재하지_않는_경로_404(self, client: APIClient) -> None:
