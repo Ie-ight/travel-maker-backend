@@ -4,14 +4,16 @@
 """
 
 import pytest
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.bookmark.models import Bookmark
-from apps.place.models import Place, PlaceInfo
+from apps.place.models import Place, PlaceFeature, PlaceInfo
 from apps.place.services.place_services import get_place_detail
 from apps.place.tests.factories import PlaceFactory, PlaceImageFactory, TagFactory, UserFactory
 from apps.review.models import Review
+from apps.travel_quiz.tests.factories import TravelTypeFactory, UserTestResultFactory
 
 PLACE_LIST_URL = reverse("place_list")
 PLACE_SEARCH_URL = reverse("place_search")
@@ -799,3 +801,101 @@ class TestPlaceDetailView:
     def test_service_returns_none_when_inactive(self) -> None:
         place = PlaceFactory(is_active=False)
         assert get_place_detail(place.id) is None
+
+
+PLACE_RECOMMEND_URL = reverse("place_search")
+
+
+@pytest.mark.django_db
+class TestPlaceRecommendHybridSearch:
+    """sort=recommend + keyword 하이브리드 검색 (Phase 3) 테스트."""
+
+    def _make_user_with_vector(self, vector: list[float]):
+        travel_type = TravelTypeFactory()
+        return UserTestResultFactory(travel_type=travel_type, result_vector=vector).user
+
+    def test_hybrid_returns_keyword_matching_places(self, api_client: APIClient) -> None:
+        # 벡터 보유 유저 + keyword → 키워드 매칭 장소만 반환
+        user = self._make_user_with_vector([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        match = PlaceFactory(place_name="해운대 해수욕장")
+        PlaceFactory(place_name="경복궁")  # keyword 미매칭
+        api_client.force_authenticate(user=user)
+        response = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "해운대", "sort": "recommend"})
+        assert response.status_code == 200
+        ids = [r["id"] for r in response.data["results"]]
+        assert match.id in ids
+        assert all(r["place_name"] != "경복궁" for r in response.data["results"])
+
+    def test_hybrid_orders_by_combined_score(self, api_client: APIClient) -> None:
+        # vec_score 높은 장소가 상위에 오는지 확인
+        user = self._make_user_with_vector([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        high_vec = PlaceFactory(place_name="부산 해수욕장")
+        low_vec = PlaceFactory(place_name="서울 해수욕장")
+        # high_vec: 유저 벡터와 거의 동일 (유사도 높음)
+        PlaceFeature.objects.create(place=high_vec, style_vector=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        # low_vec: 유저 벡터와 반대 (유사도 낮음)
+        PlaceFeature.objects.create(place=low_vec, style_vector=[0.0, 1.0, 0.0, 0.0, 0.0, 0.0])
+        api_client.force_authenticate(user=user)
+        response = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "해수욕장", "sort": "recommend"})
+        assert response.status_code == 200
+        ids = [r["id"] for r in response.data["results"]]
+        assert ids.index(high_vec.id) < ids.index(low_vec.id)
+
+    def test_hybrid_empty_on_no_match(self, api_client: APIClient) -> None:
+        # keyword 매칭 없으면 빈 결과
+        user = self._make_user_with_vector([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        PlaceFactory(place_name="경복궁")
+        api_client.force_authenticate(user=user)
+        response = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "xyzqwerty", "sort": "recommend"})
+        assert response.status_code == 200
+        assert response.data["count"] == 0
+
+    def test_no_vector_falls_back_to_popular_filter(self, api_client: APIClient) -> None:
+        # 퀴즈 미완료 유저(벡터 없음)는 기존 인기순 + in-memory 필터
+        cache.clear()  # 이전 테스트가 채운 popular places 캐시 제거
+        user = UserFactory()
+        match = PlaceFactory(place_name="제주 오름")
+        PlaceFactory(place_name="남산타워")
+        api_client.force_authenticate(user=user)
+        response = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "제주", "sort": "recommend"})
+        assert response.status_code == 200
+        ids = [r["id"] for r in response.data["results"]]
+        assert match.id in ids
+
+    def test_tag_matched_place_gets_minimum_kw_score(self, api_client: APIClient) -> None:
+        # 태그명으로 매칭된 장소도 kw_score 최소값 보장 — place_name trgm이 낮아도 결과에 포함
+        from apps.place.models import Tag
+
+        user = self._make_user_with_vector([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        tag = Tag.objects.create(tag_type="세부 테마", tag_name="해수욕")
+        by_tag = PlaceFactory(place_name="경포대", tags=[tag])  # place_name에 "해수욕" 없음
+        PlaceFeature.objects.create(place=by_tag, style_vector=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        api_client.force_authenticate(user=user)
+        response = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "해수욕", "sort": "recommend"})
+        assert response.status_code == 200
+        ids = [r["id"] for r in response.data["results"]]
+        assert by_tag.id in ids
+
+    def test_zero_vector_falls_back_to_popular(self, api_client: APIClient) -> None:
+        # 영벡터(퀴즈 완료했지만 결과가 0벡터)는 인기순 폴백
+        cache.clear()  # popular places 캐시 오염 방지
+        travel_type = TravelTypeFactory()
+        user = UserTestResultFactory(travel_type=travel_type, result_vector=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).user
+        match = PlaceFactory(place_name="한라산")
+        api_client.force_authenticate(user=user)
+        response = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "한라산", "sort": "recommend"})
+        assert response.status_code == 200
+        ids = [r["id"] for r in response.data["results"]]
+        assert match.id in ids
+
+    def test_hybrid_pagination_page2_not_empty(self, api_client: APIClient) -> None:
+        # keyword 매칭 결과가 page_size보다 많으면 page 2도 결과 반환
+        user = self._make_user_with_vector([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        PlaceFactory.create_batch(12, place_name="부산 해수욕장")
+        api_client.force_authenticate(user=user)
+        r1 = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "부산", "sort": "recommend", "page_size": 8})
+        r2 = api_client.get(PLACE_RECOMMEND_URL, {"keyword": "부산", "sort": "recommend", "page_size": 8, "page": 2})
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert len(r1.data["results"]) == 8
+        assert len(r2.data["results"]) == 4  # 나머지 4개
