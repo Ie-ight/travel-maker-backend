@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 
+from django.contrib.postgres.search import TrigramSimilarity
 from django.db.models import BooleanField, Count, Exists, F, OuterRef, Q, QuerySet, Value
 from django.db.models.expressions import Combinable
 
@@ -32,11 +33,16 @@ def get_place_list(
         .annotate(bookmark_count=Count("bookmarks", distinct=True), is_bookmarked=_is_bookmarked_expr(user_id))
     )
     if keyword:
-        queryset = queryset.filter(
+        exact_qs = queryset.filter(
             Q(place_name__icontains=keyword)
             | Q(tags__tag_name__icontains=keyword)
             | Q(address_primary__icontains=keyword)
         ).distinct()
+        if exact_qs.exists():
+            queryset = exact_qs
+        else:
+            # 정확 매칭 결과 없으면 place_name 트라이그램 유사도 폴백 (오타 허용)
+            queryset = queryset.annotate(trgm_sim=TrigramSimilarity("place_name", keyword)).filter(trgm_sim__gt=0.15)
     if tags:
         # AND 매칭: 태그별로 filter를 체이닝하면 태그마다 별도 JOIN이 생겨 "모두 포함"이 된다.
         # 각 태그 JOIN이 bookmark JOIN과 곱해질 수 있어 bookmark_count는 distinct=True로 부풀림을 막는다.
