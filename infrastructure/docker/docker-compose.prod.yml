@@ -52,7 +52,7 @@ services:
     container_name: travel-maker-celery-worker-prod
     command: >
       sh -c "sleep 10 &&
-             uv run celery -A config worker --loglevel=info"
+             uv run celery -A config worker --loglevel=info -E"
     volumes:
       - ../../:/app
       - ../../logs:/app/logs
