@@ -65,6 +65,9 @@ class RouteUpdateSerializer(serializers.Serializer[None]):
 class RouteDayPlaceDetailSerializer(serializers.ModelSerializer[RouteDayPlace]):
     place_id = serializers.IntegerField(source="place.id")
     place_name = serializers.CharField(source="place.place_name")
+    description = serializers.CharField(source="place.description")
+    address_primary = serializers.CharField(source="place.address_primary")
+    address_detail = serializers.CharField(source="place.address_detail")
     # latitude/longitude: 지도에서 장소 간 선(경로)을 그리는 핵심 좌표 데이터
     # order 순서대로 정렬되어 있어 프론트가 순서대로 선을 연결하면 됨
     latitude = serializers.FloatField(source="place.latitude")
@@ -73,7 +76,17 @@ class RouteDayPlaceDetailSerializer(serializers.ModelSerializer[RouteDayPlace]):
 
     class Meta:
         model = RouteDayPlace
-        fields = ["order", "place_id", "place_name", "latitude", "longitude", "image_url"]
+        fields = [
+            "order",
+            "place_id",
+            "place_name",
+            "description",
+            "address_primary",
+            "address_detail",
+            "latitude",
+            "longitude",
+            "image_url",
+        ]
         read_only_fields = fields
 
     def get_image_url(self, obj: RouteDayPlace) -> str | None:
@@ -172,9 +185,11 @@ class RouteLikeResponseSerializer(serializers.Serializer[dict[str, str | int]]):
 
 class RouteDetailSerializer(RouteListSerializer):
     # RouteListSerializer를 상속해 get_region_tag·get_theme_tags 중복 제거.
-    # days 필드만 추가하고 Meta.fields를 재정의해 상세 응답에 맞게 조정.
+    # days·작성자 필드만 추가하고 Meta.fields를 재정의해 상세 응답에 맞게 조정.
     # day_index 오름차순 → 각 day 안에서 order 오름차순으로 정렬된 상태로 반환.
     # 프론트는 days[0].places → days[1].places 순서로 선을 이으면 전체 경로 완성.
+    user_id = serializers.IntegerField()
+    user_nickname = serializers.CharField(source="user.nickname")
     days = RouteDayDetailSerializer(many=True)
 
     class Meta(RouteListSerializer.Meta):
@@ -182,6 +197,8 @@ class RouteDetailSerializer(RouteListSerializer):
             "route_id",
             "title",
             "description",
+            "user_id",
+            "user_nickname",
             "region_tag",
             "theme_tags",
             "start_date",

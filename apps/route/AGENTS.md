@@ -29,7 +29,8 @@ Handles travel itinerary (route) CRUD. A `Route` has 1~5 `RouteDay`s, and each `
 - Only the route owner can update/delete (`RouteForbidden`, 403). `AdminRouteDetailView` (routed under `apps/user/urls/admin_urls.py`, `IsAdminRole`) can force-delete any route.
 - Liking is idempotent-checked: `RouteAlreadyLiked` (409) if already liked, `RouteLikeNotFound` (404) on unlike if no like exists.
 - `like_count` is always updated via `Route.objects.filter(pk=route_id).update(like_count=F("like_count") + 1 / - 1)` — never via instance `.save()` — to avoid race conditions on concurrent likes.
-- Create/update responses (`RouteCreateResponseSerializer`/`RouteUpdateResponseSerializer`) include a `days` field (`RouteDayDetailSerializer`, same shape as the detail view: `day_index` + `places[]` with `place_id`/`place_name`/`latitude`/`longitude`/`image_url`) so the frontend can render the map immediately without a follow-up `GET /routes/{id}`. The views re-fetch the route via `get_route_detail()` after create/update to get this prefetched.
+- Create/update responses (`RouteCreateResponseSerializer`/`RouteUpdateResponseSerializer`) include a `days` field (`RouteDayDetailSerializer`, same shape as the detail view: `day_index` + `places[]` with `place_id`/`place_name`/`description`/`address_primary`/`address_detail`/`latitude`/`longitude`/`image_url`) so the frontend can render the map immediately without a follow-up `GET /routes/{id}`. The views re-fetch the route via `get_route_detail()` after create/update to get this prefetched.
+- `RouteDetailSerializer` additionally includes `user_id`/`user_nickname` (작성자 정보, sourced from `Route.user`).
 
 ---
 
@@ -49,7 +50,7 @@ Handles travel itinerary (route) CRUD. A `Route` has 1~5 `RouteDay`s, and each `
 |---|---|---|---|
 | GET | `/api/v1/routes` | ❌ | Paginated (`RoutePagination`, page_size=10, max 50). `region_tag_id`, `theme_tag_ids` (repeatable or comma-separated, AND filter), `ordering=latest\|popular` |
 | POST | `/api/v1/routes` | ✅ | `days` required, 1~5 days, 1~5 `place_ids` each, max 4박5일 |
-| GET | `/api/v1/routes/{route_id}` | ❌ | `RouteDetailSerializer` — includes per-day places with coordinates/images |
+| GET | `/api/v1/routes/{route_id}` | ❌ | `RouteDetailSerializer` — includes 작성자(`user_id`/`user_nickname`) and 일자별 장소(좌표/이미지/설명/주소) |
 | PATCH | `/api/v1/routes/{route_id}` | ✅ | Owner only (`RouteForbidden`); `days` if present replaces all days/places |
 | DELETE | `/api/v1/routes/{route_id}` | ✅ | Owner only |
 | POST | `/api/v1/routes/{route_id}/like` | ✅ | 409 if already liked |
