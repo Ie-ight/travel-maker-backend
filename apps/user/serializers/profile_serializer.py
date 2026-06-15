@@ -194,6 +194,7 @@ class UserReviewSerializer(serializers.ModelSerializer[Any]):
             "place_name",
             "rating",
             "content",
+            "image_url",
             "created_at",
             "updated_at",
         ]
