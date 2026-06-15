@@ -6,7 +6,6 @@ from apps.route.serializers.route_serializers import (
     RouteDetailSerializer,
     RouteLikeResponseSerializer,
     RouteListSerializer,
-    RouteMyListSerializer,
     RouteUpdateResponseSerializer,
     RouteUpdateSerializer,
 )
@@ -83,19 +82,6 @@ route_list_schema = extend_schema(
     responses={200: RouteListSerializer(many=True)},
 )
 
-user_route_list_schema = extend_schema(
-    tags=["Route"],
-    summary="마이페이지 경로 조회",
-    description=(
-        "입력한 닉네임을 가진 유저가 작성한 경로 목록을 최신순으로 조회합니다.\n"
-        "존재하지 않는 닉네임이면 404 에러가 발생합니다."
-    ),
-    parameters=[
-        OpenApiParameter(name="page", type=int, required=False, description="페이지 번호 (기본값 1)"),
-    ],
-    responses={200: RouteMyListSerializer(many=True)},
-)
-
 route_like_schema = extend_schema(
     tags=["Route"],
     summary="경로 좋아요 등록",
@@ -112,16 +98,6 @@ route_unlike_schema = extend_schema(
         "해당 경로에 등록했던 좋아요를 취소합니다.\n경로가 존재하지 않거나 좋아요한 적이 없으면 404 에러가 발생합니다."
     ),
     responses={204: None},
-)
-
-user_liked_routes_schema = extend_schema(
-    tags=["Route"],
-    summary="내가 좋아요한 경로 목록",
-    description="로그인한 유저가 좋아요를 누른 경로 목록을 최신순으로 조회합니다.",
-    parameters=[
-        OpenApiParameter(name="page", type=int, required=False, description="페이지 번호 (기본값 1)"),
-    ],
-    responses={200: RouteListSerializer(many=True)},
 )
 
 admin_route_delete_schema = extend_schema(
