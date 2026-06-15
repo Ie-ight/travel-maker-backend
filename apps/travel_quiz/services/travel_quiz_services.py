@@ -78,6 +78,7 @@ class QuizSubmitResult:
     description: str
     detail_cards: list[DetailCard]
     result_vector: list[float]
+    accuracy: int
     recommended_places: list[Place]
     compatible_type: TravelType
     incompatible_type: TravelType
@@ -110,6 +111,11 @@ def label_vector(values: list[float]) -> list[dict[str, object]]:
 def calculate_match_rate(obj: Place) -> int:
     similarity = 1 - float(obj.distance)  # type: ignore[attr-defined]
     return round(max(0.0, min(1.0, similarity)) * 100)
+
+
+def calculate_accuracy(norm: list[float]) -> int:
+    deviations = [abs(norm[i] - 0.5) * 2 for i in _TYPE_KEY_AXES]
+    return round(sum(deviations) / len(deviations) * 100)
 
 
 def _type_axis_vector(type_key: str) -> list[float]:
@@ -202,6 +208,7 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
         description=make_description(norm),
         detail_cards=build_detail_cards(norm),
         result_vector=norm,
+        accuracy=calculate_accuracy(norm),
         recommended_places=recommended_places,
         compatible_type=compatible_type,
         incompatible_type=incompatible_type,

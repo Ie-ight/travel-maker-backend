@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.place.models import PlaceFeature
-from apps.travel_quiz.services.travel_quiz_services import build_type_tags, make_description
+from apps.travel_quiz.services.travel_quiz_services import build_type_tags, calculate_accuracy, make_description
 from apps.travel_quiz.tests.factories import PlaceFactory, TravelTypeFactory, UserFactory, UserTestResultFactory
 from apps.user.models import User
 
@@ -41,6 +41,8 @@ class TestQuizResultGet:
         assert response.data["image_url"] == travel_type.image_url
         assert response.data["type_tags"] == build_type_tags(travel_type.type_key)
         assert response.data["updated_at"] is not None
+        assert response.data["accuracy"] == calculate_accuracy(result.result_vector)
+        assert 0 <= response.data["accuracy"] <= 100
 
         result_vector = response.data["result_vector"]
         assert len(result_vector) == 6

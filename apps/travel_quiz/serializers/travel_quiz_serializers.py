@@ -8,6 +8,7 @@ from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.travel_quiz.services.travel_quiz_services import (
     QuizSubmitResult,
     build_type_tags,
+    calculate_accuracy,
     calculate_match_rate,
     get_recommended_places,
     label_vector,
@@ -95,6 +96,7 @@ class QuizSubmitResponseSerializer(serializers.Serializer):  # type: ignore[type
     type_tags = serializers.ListField(child=serializers.CharField())
     detail_cards = DetailCardSerializer(many=True)
     result_vector = serializers.SerializerMethodField()
+    accuracy = serializers.IntegerField()
     compatible_type = TravelTypeBriefSerializer()
     incompatible_type = TravelTypeBriefSerializer()
     destinations = PlaceRecommendationSerializer(source="recommended_places", many=True)
@@ -110,6 +112,7 @@ class QuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]
     image_url = serializers.CharField(source="travel_type.image_url")
     type_tags = serializers.SerializerMethodField()
     result_vector = serializers.SerializerMethodField()
+    accuracy = serializers.SerializerMethodField()
     destinations = serializers.SerializerMethodField()
     updated_at = serializers.DateTimeField()
 
@@ -121,6 +124,9 @@ class QuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]
 
     def get_result_vector(self, obj: UserTestResult) -> list[dict[str, object]]:
         return label_vector(obj.result_vector)
+
+    def get_accuracy(self, obj: UserTestResult) -> int:
+        return calculate_accuracy(obj.result_vector)
 
     def get_destinations(self, obj: UserTestResult) -> list[dict[str, object]]:
         places = get_recommended_places(obj.result_vector)

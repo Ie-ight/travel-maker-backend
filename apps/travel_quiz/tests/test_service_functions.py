@@ -12,6 +12,7 @@ import pytest
 from apps.travel_quiz.services.travel_quiz_services import (
     build_detail_cards,
     build_type_tags,
+    calculate_accuracy,
     find_compatible_types,
     label_vector,
     make_description,
@@ -198,6 +199,26 @@ def test_label_vector_반올림() -> None:
         {"label": "문화형", "value": 100},
         {"label": "가성비형", "value": 50},
     ]
+
+
+# ---------------------------------------------------------------------------
+# calculate_accuracy — type_key 3축(0,2,3)의 0.5 대비 편차 평균
+# ---------------------------------------------------------------------------
+
+
+def test_calculate_accuracy_명세_예시() -> None:
+    norm = [0.8, 1, 1, 1, 0.6, 1]
+
+    assert calculate_accuracy(norm) == 87
+
+
+def test_calculate_accuracy_중립값은_0() -> None:
+    assert calculate_accuracy([0.5] * 6) == 0
+
+
+def test_calculate_accuracy_극단값은_100() -> None:
+    assert calculate_accuracy([1, 1, 1, 1, 1, 1]) == 100
+    assert calculate_accuracy([0, 0, 0, 0, 0, 0]) == 100
 
 
 # ---------------------------------------------------------------------------

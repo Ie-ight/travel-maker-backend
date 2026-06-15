@@ -94,6 +94,9 @@ class TestQuizSubmit:
         assert type_tags == build_type_tags(response.data["type_key"])
         assert response.data["description"]
 
+        assert isinstance(response.data["accuracy"], int)
+        assert 0 <= response.data["accuracy"] <= 100
+
         detail_cards = response.data["detail_cards"]
         assert len(detail_cards) == 4
         for card in detail_cards:

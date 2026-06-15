@@ -50,6 +50,7 @@ quiz_submit_schema = extend_schema(
                     {"label": "문화형", "value": 70},
                     {"label": "가성비형", "value": 40},
                 ],
+                "accuracy": 40,
                 "compatible_type": {
                     "travel_type_id": 1,
                     "type_key": "ttt",
@@ -122,6 +123,7 @@ quiz_result_schema = extend_schema(
                     {"label": "문화형", "value": 70},
                     {"label": "가성비형", "value": 40},
                 ],
+                "accuracy": 40,
                 "destinations": [
                     {"place_id": 1, "place_name": "부산 광안리 해수욕장", "match_rate": 91},
                     {"place_id": 2, "place_name": "전주 한옥마을", "match_rate": 85},
