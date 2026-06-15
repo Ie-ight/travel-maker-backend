@@ -234,3 +234,9 @@ def get_place_detail(place_id: int, user_id: int | None = None) -> Place | None:
         )
 
     return place
+
+
+def increment_view_count(place_id: int) -> None:
+    # F() 원자 증가 — 동시 요청에도 갱신 누락 없음. 응답 객체의 view_count는 갱신되지 않으나
+    # 시리얼라이저가 view_count를 노출하지 않으므로 별도 refresh 불필요.
+    Place.objects.filter(pk=place_id).update(view_count=F("view_count") + 1)

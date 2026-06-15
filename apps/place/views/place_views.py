@@ -16,7 +16,12 @@ from apps.place.serializers.place_serializers import (
     PlaceDetailSerializer,
     PlaceListSerializer,
 )
-from apps.place.services.place_services import get_place_detail, get_place_list, get_place_list_recommend
+from apps.place.services.place_services import (
+    get_place_detail,
+    get_place_list,
+    get_place_list_recommend,
+    increment_view_count,
+)
 
 
 class CustomPagination(PageNumberPagination):
@@ -95,4 +100,5 @@ class PlaceDetailView(APIView):
         place = get_place_detail(place_id, user_id=user_id)
         if place is None:
             raise NotFound("존재하지 않는 장소입니다.")
+        increment_view_count(place_id)
         return Response(PlaceDetailSerializer(place).data)
