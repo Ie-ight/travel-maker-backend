@@ -337,6 +337,15 @@ class TestUserReviewList:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 3
 
+    def test_리뷰_목록_조회시_이미지_URL_포함(self, auth_client: APIClient, user: User) -> None:
+        image_url = "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/reviews/test.jpg"
+        ReviewFactory(user=user, image_url=image_url)  # type: ignore[misc]
+
+        response = auth_client.get("/api/v1/users/reviews")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["results"][0]["image_url"] == image_url
+
     def test_리뷰_목록_비로그인_실패(self, client: APIClient) -> None:
         response = client.get("/api/v1/users/reviews")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
