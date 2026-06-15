@@ -110,7 +110,7 @@ class PublicProfileView(APIView):
         except User.DoesNotExist:
             raise NotFound("사용자를 찾을 수 없습니다.") from None
 
-        serializer = PublicUserSerializer(target_user)
+        serializer = PublicUserSerializer(target_user, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
