@@ -112,6 +112,13 @@ def _record_route_add_actions(user: User, place_ids: set[int]) -> None:
         record_action(user, place, UserActionLog.ActionType.ROUTE_ADD)
 
 
+def _get_route_or_404(route_id: int) -> Route:
+    try:
+        return Route.objects.get(pk=route_id)
+    except Route.DoesNotExist:
+        raise RouteNotFound() from None
+
+
 @transaction.atomic
 def create_route(user: User, data: dict[str, Any]) -> Route:
     days_data: list[dict[str, Any]] = data.pop("days", [])
@@ -130,10 +137,7 @@ def create_route(user: User, data: dict[str, Any]) -> Route:
 
 @transaction.atomic
 def update_route(user: User, route_id: int, data: dict[str, Any]) -> Route:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     if route.user_id != user.pk:
         raise RouteForbidden(detail="본인이 작성한 경로만 수정할 수 있습니다.")
 
@@ -171,10 +175,7 @@ def update_route(user: User, route_id: int, data: dict[str, Any]) -> Route:
 
 @transaction.atomic
 def delete_route(user: User, route_id: int) -> None:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     if route.user_id != user.pk:
         raise RouteForbidden(detail="본인이 작성한 경로만 삭제할 수 있습니다.")
     route.delete()
@@ -182,8 +183,9 @@ def delete_route(user: User, route_id: int) -> None:
 
 def get_route_detail(route_id: int) -> Route:
     # place.latitude / place.longitude 가 지도 선 그리기 핵심 좌표 데이터.
+    # _get_route_queryset()을 재사용해 select_related("user") 등 목록과 동일한 최적화를 적용.
     try:
-        return Route.objects.select_related("region_tag").prefetch_related(*_build_prefetch()).get(pk=route_id)
+        return _get_route_queryset().get(pk=route_id)
     except Route.DoesNotExist:
         raise RouteNotFound() from None
 
@@ -227,10 +229,7 @@ def get_user_routes(nickname: str, request: Request) -> tuple[QuerySet[Route] | 
 
 @transaction.atomic
 def like_route(user: User, route_id: int) -> RouteLike:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     if RouteLike.objects.filter(route=route, user=user).exists():
         raise RouteAlreadyLiked()
     like = RouteLike.objects.create(route=route, user=user)
@@ -243,10 +242,7 @@ def like_route(user: User, route_id: int) -> RouteLike:
 
 @transaction.atomic
 def unlike_route(user: User, route_id: int) -> None:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     deleted, _ = RouteLike.objects.filter(route=route, user=user).delete()
     if not deleted:
         raise RouteLikeNotFound()
@@ -255,10 +251,7 @@ def unlike_route(user: User, route_id: int) -> None:
 
 @transaction.atomic
 def admin_delete_route(route_id: int) -> None:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     route.delete()
 
 

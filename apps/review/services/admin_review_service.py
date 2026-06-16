@@ -1,13 +1,11 @@
-from decimal import Decimal
-
 from django.db import transaction
-from django.db.models import Avg, Count, QuerySet
+from django.db.models import QuerySet
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 
-from apps.place.models import Place
 from apps.review.exceptions import ReviewNotFound
 from apps.review.models import Review
+from apps.review.services.review_services import update_place_rating
 
 
 class AdminReviewPagination(PageNumberPagination):
@@ -29,18 +27,6 @@ def get_admin_reviews(request: Request) -> tuple[QuerySet[Review] | None, AdminR
     return page, paginator  # type: ignore[return-value]
 
 
-def _update_place_rating(place_id: int) -> None:
-    try:
-        place = Place.objects.select_for_update().get(pk=place_id)
-    except Place.DoesNotExist:
-        return
-    result = Review.objects.filter(place_id=place_id).aggregate(avg=Avg("rating"), count=Count("id"))
-    avg = result["avg"]
-    place.rating_avg = Decimal(str(round(avg, 1))) if avg is not None else Decimal("0.0")  # type: ignore[assignment]
-    place.rating_count = result["count"] or 0
-    place.save(update_fields=["rating_avg", "rating_count"])
-
-
 @transaction.atomic
 def admin_delete_review(review_id: int) -> None:
     try:
@@ -49,4 +35,4 @@ def admin_delete_review(review_id: int) -> None:
         raise ReviewNotFound() from None
     place_id = review.place_id
     review.delete()
-    _update_place_rating(place_id)
+    update_place_rating(place_id)
