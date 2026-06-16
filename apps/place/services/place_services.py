@@ -9,6 +9,7 @@ from django.db.models.expressions import Combinable
 from pgvector.django import CosineDistance
 
 from apps.bookmark.models import Bookmark
+from apps.core.search import TRGM_THRESHOLD, extract_core_keyword
 from apps.place.models import Place, PlaceFeature
 from apps.place.services.feed_stage_service import determine_stage
 from apps.place.services.sort_algorithm_service import (
@@ -22,77 +23,16 @@ from apps.user.models import UserPreference
 # review는 비정규화 컬럼 rating_count(= 리뷰 수, 리뷰 생성/수정/삭제마다 갱신)로 정렬한다.
 # Count("reviews")를 bookmark_count와 함께 annotate하면 두 to-many JOIN이 곱연산으로 행을 부풀린다.
 SORT_FIELDS = {"bookmark": "bookmark_count", "review": "rating_count", "rating": "rating_avg"}
-TRGM_THRESHOLD = 0.15  # pg_trgm 유사도 폴백 임계값 (0.1~0.15가 폴백 티어 관행, PG 기본값 0.3)
 HYBRID_CANDIDATE_LIMIT = 200  # IN 절 폭발 방지 상한 — 광범위 키워드 대응
 VEC_WEIGHT = 0.7  # combined score 가중치: 벡터 유사도
 KW_WEIGHT = 0.3  # combined score 가중치: 키워드 연관도
 HYBRID_CACHE_TTL = 300  # 하이브리드 검색 sorted ID 목록 캐시 TTL (초)
 
-# 장소 유형 접미사 — 프로그래밍으로 길이 내림차순 정렬해 longest-match 보장
-_PLACE_TYPE_SUFFIXES: tuple[str, ...] = tuple(
-    sorted(
-        (
-            "해수욕장",
-            "박물관",
-            "미술관",
-            "전시관",
-            "체험관",
-            "과학관",
-            "기념관",
-            "터미널",
-            "경기장",
-            "수영장",
-            "테마파크",
-            "공원",
-            "광장",
-            "거리",
-            "마을",
-            "시장",
-            "해변",
-            "항구",
-            "대로",
-            "역",
-            "항",
-            "산",
-            "강",
-            "천",
-            "로",
-            "길",
-        ),
-        key=len,
-        reverse=True,
-    )
-)
-_CONNECTOR_PARTICLES = ("에서", "의", "에")  # 장소명 내 조사 — 길이 내림차순
-
-
-def _extract_core_keyword(keyword: str) -> str | None:
-    """조사+접미사 패턴에서 핵심어를 추출한다.
-
-    조사(의/에/에서)가 있을 때만 추출 — 조사 없는 직접 합성어("서울역", "남산공원")는
-    원본 자체가 검색 대상이므로 확장하지 않는다.
-
-    "가야의거리" → "가야"   (의+거리 제거)
-    "속초의해수욕장" → "속초" (의+해수욕장 제거)
-    "서울역" → None         (조사 없음 → 확장 안 함)
-    "남산공원" → None       (조사 없음 → 확장 안 함)
-    """
-    for suffix in _PLACE_TYPE_SUFFIXES:
-        if keyword.endswith(suffix) and len(keyword) > len(suffix):
-            core = keyword[: -len(suffix)]
-            for particle in _CONNECTOR_PARTICLES:
-                if core.endswith(particle):
-                    core = core[: -len(particle)]
-                    if len(core) >= 2 and core != keyword:
-                        return core
-                    break  # 조사는 찾았으나 핵심어가 너무 짧음
-    return None
-
 
 def _build_name_tag_q(keyword: str) -> Q:
     """place_name + tag + 핵심어 OR 조건을 반환한다."""
     q = Q(place_name__icontains=keyword) | Q(tags__tag_name__icontains=keyword)
-    core = _extract_core_keyword(keyword)
+    core = extract_core_keyword(keyword)
     if core:
         q |= Q(place_name__icontains=core)
     return q
@@ -120,7 +60,7 @@ def get_place_list(
     )
     has_relevance = False
     if keyword:
-        core = _extract_core_keyword(keyword)
+        core = extract_core_keyword(keyword)
         # tier1: place_name + tag + 핵심어(조사+접미사 제거)
         tier1_q = Q(place_name__icontains=keyword) | Q(tags__tag_name__icontains=keyword)
         if core:
@@ -329,7 +269,7 @@ def get_place_list_recommend(
         places = list(get_popular_places(tag_ids=tags or [], limit=fetch_limit))
         if keyword:
             kw = keyword.lower()
-            core = _extract_core_keyword(keyword)
+            core = extract_core_keyword(keyword)
             core_lower = core.lower() if core else None
 
             # DB 경로와 동일한 계층 우선순위 적용 — 주소는 이름/태그 미매칭 시에만 폴백
