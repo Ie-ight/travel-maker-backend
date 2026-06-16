@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
+from django.core.cache import cache
 from django.db import transaction
 from pgvector.django import CosineDistance
 
@@ -129,10 +130,17 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 def find_compatible_types(travel_type: TravelType, norm: list[float]) -> tuple[TravelType, TravelType]:
+    cache_key = "travel_types:all"
+    all_types = cache.get(cache_key)
+    if all_types is None:
+        all_types = list(TravelType.objects.all())
+        cache.set(cache_key, all_types, 60 * 60 * 24)  # 24시간
+
     user_vec = [norm[i] for i in _TYPE_KEY_AXES]
     scored = [
         (other, _cosine_similarity(user_vec, _type_axis_vector(other.type_key)))
-        for other in TravelType.objects.exclude(id=travel_type.id)
+        for other in all_types
+        if other.id != travel_type.id
     ]
     compatible = max(scored, key=lambda pair: pair[1])[0]
     incompatible = min(scored, key=lambda pair: pair[1])[0]

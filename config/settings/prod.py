@@ -67,3 +67,11 @@ REST_FRAMEWORK_PROD["DEFAULT_RENDERER_CLASSES"] = [
     "rest_framework.renderers.JSONRenderer",
 ]
 REST_FRAMEWORK = REST_FRAMEWORK_PROD
+
+# Redis 캐시
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+    }
+}

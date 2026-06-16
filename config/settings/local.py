@@ -29,3 +29,9 @@ LOGGING = LOGGING_LOCAL
 
 # Static/Media 파일 로컬 저장
 USE_S3 = False
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
