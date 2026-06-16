@@ -11,7 +11,7 @@ from apps.route.tests.factories import (
     TagFactory,
     UserFactory,
 )
-from apps.user.models import User
+from apps.user.models import User, UserActionLog
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def _route_payload(tag_id: int, place_id: int, **kwargs: object) -> dict:
 
 @pytest.mark.django_db
 class TestRouteCreate:
-    def test_경로_생성_성공(self, auth_client: APIClient, tag: object, place: object) -> None:
+    def test_경로_생성_성공(self, auth_client: APIClient, user: User, tag: object, place: object) -> None:
         response = auth_client.post("/api/v1/routes", _route_payload(tag.id, place.id), format="json")  # type: ignore[attr-defined]
         assert response.status_code == status.HTTP_201_CREATED
         assert "route_id" in response.data
@@ -91,6 +91,9 @@ class TestRouteCreate:
         assert len(response.data["days"]) == 2
         day1 = response.data["days"][0]
         assert day1["day_index"] == 1
+        assert UserActionLog.objects.filter(  # type: ignore[attr-defined]
+            user=user, place=place, action_type=UserActionLog.ActionType.ROUTE_ADD
+        ).exists()
         assert day1["places"][0]["place_id"] == place.id  # type: ignore[attr-defined]
         assert day1["places"][0]["place_name"] == place.place_name  # type: ignore[attr-defined]
         assert day1["places"][0]["description"] == place.description  # type: ignore[attr-defined]

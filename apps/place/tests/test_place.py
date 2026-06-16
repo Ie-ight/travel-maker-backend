@@ -751,6 +751,31 @@ class TestPlaceDetailView:
         assert response.status_code == 404
         assert response.data["error_detail"] == "존재하지 않는 장소입니다."
 
+    def test_view_count_increments_on_each_request(self, api_client: APIClient) -> None:
+        place = PlaceFactory()
+        assert place.view_count == 0
+
+        api_client.get(self._url(place.id))
+        place.refresh_from_db()
+        assert place.view_count == 1
+
+        api_client.get(self._url(place.id))
+        place.refresh_from_db()
+        assert place.view_count == 2
+
+    def test_view_count_not_incremented_on_404(self, api_client: APIClient) -> None:
+        place = PlaceFactory()
+        api_client.get(self._url(999999))
+        place.refresh_from_db()
+        assert place.view_count == 0
+
+    def test_view_count_not_incremented_for_inactive_place(self, api_client: APIClient) -> None:
+        place = PlaceFactory(is_active=False)
+        response = api_client.get(self._url(place.id))
+        assert response.status_code == 404
+        place.refresh_from_db()
+        assert place.view_count == 0
+
     def test_images_empty_when_no_image(self, api_client: APIClient) -> None:
         place = PlaceFactory(images=[])
         response = api_client.get(self._url(place.id))

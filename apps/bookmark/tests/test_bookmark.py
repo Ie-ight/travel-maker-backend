@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 from apps.bookmark.models import Bookmark
 from apps.bookmark.tests.factories import BookmarkFactory, PlaceFactory, UserFactory
 from apps.place.models import Place
-from apps.user.models import User
+from apps.user.models import User, UserActionLog
 
 
 @pytest.fixture
@@ -44,10 +44,13 @@ class TestBookmarkList:
 
 @pytest.mark.django_db
 class TestBookmarkCreate:
-    def test_북마크_추가_성공(self, auth_client: APIClient, place: Place) -> None:
+    def test_북마크_추가_성공(self, auth_client: APIClient, user: User, place: Place) -> None:
         response = auth_client.post(f"/api/v1/places/{place.id}/bookmarks/")
         assert response.status_code == status.HTTP_201_CREATED
         assert Bookmark.objects.count() == 1  # type: ignore[attr-defined]
+        assert UserActionLog.objects.filter(  # type: ignore[attr-defined]
+            user=user, place=place, action_type=UserActionLog.ActionType.BOOKMARK
+        ).exists()
 
     def test_북마크_중복_추가_실패(self, auth_client: APIClient, user: User, place: Place) -> None:
         BookmarkFactory(user=user, place=place)  # type: ignore[misc]
@@ -66,6 +69,9 @@ class TestBookmarkDelete:
         response = auth_client.delete(f"/api/v1/places/{place.id}/bookmarks/")
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert Bookmark.objects.count() == 0  # type: ignore[attr-defined]
+        assert UserActionLog.objects.filter(  # type: ignore[attr-defined]
+            user=user, place=place, action_type=UserActionLog.ActionType.UNBOOKMARK
+        ).exists()
 
     def test_북마크_없는거_삭제_실패(self, auth_client: APIClient, place: Place) -> None:
         response = auth_client.delete(f"/api/v1/places/{place.id}/bookmarks/")

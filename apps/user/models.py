@@ -5,6 +5,8 @@ from typing import ClassVar
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.db import models
+from django.db.models import Q
+from pgvector.django import VectorField
 
 from apps.core.models import TimeStampModel
 
@@ -113,6 +115,52 @@ class SocialUser(TimeStampModel):
                 name="unique_provider_account",
             )
         ]
+
+
+class UserPreference(TimeStampModel):
+    """행동 기반 개인화(S3) 정렬 벡터. action_count가 임계값(behavior_constants.S3_ACTION_COUNT_THRESHOLD)
+    이상이 되면 content_vector가 채워지고, 그 전까지는 null로 유지되어 S2(퀴즈 6축)가 적용된다."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="preference", verbose_name="유저")
+    content_vector = VectorField(dimensions=1024, null=True, blank=True, verbose_name="행동 기반 임베딩 벡터")
+    action_count = models.PositiveIntegerField(default=0, verbose_name="누적 행동 수")
+
+    class Meta:
+        db_table = "user_preferences"
+        verbose_name = "유저 행동 선호"
+        verbose_name_plural = "유저 행동 선호 목록"
+
+    def __str__(self) -> str:
+        return f"{self.user.nickname} (action_count={self.action_count})"
+
+
+class UserActionLog(models.Model):
+    """행동 신호 로그. 가중치(weight)는 생성 시점에 §6/§7 공식으로 계산되어 저장된다."""
+
+    class ActionType(models.TextChoices):
+        REVIEW = "review", "리뷰"
+        BOOKMARK = "bookmark", "북마크"
+        UNBOOKMARK = "unbookmark", "북마크 해제"
+        ROUTE_ADD = "route_add", "경로 추가"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="action_logs", verbose_name="유저")
+    place = models.ForeignKey("place.Place", on_delete=models.CASCADE, related_name="action_logs", verbose_name="장소")
+    action_type = models.CharField(max_length=20, choices=ActionType.choices, verbose_name="행동 유형")
+    weight = models.FloatField(verbose_name="가중치")
+    processed = models.BooleanField(default=False, verbose_name="유저 벡터 반영 여부")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="발생 일시")
+
+    class Meta:
+        db_table = "user_action_logs"
+        indexes = [
+            models.Index(fields=["user", "place", "action_type"], name="useraction_user_place_type_idx"),
+            models.Index(fields=["processed"], condition=Q(processed=False), name="useraction_unprocessed_idx"),
+        ]
+        verbose_name = "유저 행동 로그"
+        verbose_name_plural = "유저 행동 로그 목록"
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.place_id}:{self.action_type}={self.weight}"
 
 
 class Follow(models.Model):

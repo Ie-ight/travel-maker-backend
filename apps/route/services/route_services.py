@@ -5,7 +5,7 @@ from django.db.models import Count, F, Prefetch, QuerySet
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 
-from apps.place.models import Tag
+from apps.place.models import Place, Tag
 from apps.route.exceptions import (
     RouteAlreadyLiked,
     RouteForbidden,
@@ -14,7 +14,8 @@ from apps.route.exceptions import (
     RouteValidationError,
 )
 from apps.route.models import Route, RouteDay, RouteDayPlace, RouteLike
-from apps.user.models import User
+from apps.user.models import User, UserActionLog
+from apps.user.services.action_log_service import record_action
 
 
 class RoutePagination(PageNumberPagination):
@@ -106,6 +107,11 @@ def _create_days(route: Route, days_data: list[dict[str, Any]]) -> None:
             RouteDayPlace.objects.create(route_day=day, place_id=place_id, order=order)
 
 
+def _record_route_add_actions(user: User, place_ids: set[int]) -> None:
+    for place in Place.objects.filter(id__in=place_ids):
+        record_action(user, place, UserActionLog.ActionType.ROUTE_ADD)
+
+
 @transaction.atomic
 def create_route(user: User, data: dict[str, Any]) -> Route:
     days_data: list[dict[str, Any]] = data.pop("days", [])
@@ -117,6 +123,8 @@ def create_route(user: User, data: dict[str, Any]) -> Route:
     if theme_tag_ids:
         route.theme_tags.set(Tag.objects.filter(id__in=theme_tag_ids))
     _create_days(route, days_data)
+    unique_place_ids = {pid for day_data in days_data for pid in day_data["place_ids"]}
+    _record_route_add_actions(user, unique_place_ids)
     return route
 
 
@@ -145,8 +153,14 @@ def update_route(user: User, route_id: int, data: dict[str, Any]) -> Route:
         _validate_days(days_data, start_date, end_date)
         _validate_place_ids(days_data)
         # days 수정 시 기존 일차 전체 삭제 후 재생성 (부분 수정 대신 전체 교체)
+        existing_place_ids = set(
+            RouteDayPlace.objects.filter(route_day__route=route).values_list("place_id", flat=True)
+        )
         route.days.all().delete()
         _create_days(route, days_data)
+        # 기존에 없던 장소만 ROUTE_ADD로 기록 (재기록으로 인한 행동 가중치 중복 방지)
+        new_place_ids = {pid for day_data in days_data for pid in day_data["place_ids"]}
+        _record_route_add_actions(user, new_place_ids - existing_place_ids)
 
     region_tag_id = data.get("region_tag_id")
     if region_tag_id is not None:
