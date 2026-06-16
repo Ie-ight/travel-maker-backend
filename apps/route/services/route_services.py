@@ -1,10 +1,11 @@
 from typing import Any
 
 from django.db import transaction
-from django.db.models import Count, F, Prefetch, QuerySet
+from django.db.models import Count, F, Prefetch, Q, QuerySet
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 
+from apps.core.search import apply_trigram_filter, extract_core_keyword
 from apps.place.models import Place, Tag
 from apps.route.exceptions import (
     RouteAlreadyLiked,
@@ -190,8 +191,29 @@ def get_route_detail(route_id: int) -> Route:
         raise RouteNotFound() from None
 
 
+def _build_route_keyword_q(keyword: str) -> Q:
+    """title + 지역/테마 태그명 + 핵심어 OR 조건을 반환한다."""
+    core = extract_core_keyword(keyword)
+    q = (
+        Q(title__icontains=keyword)
+        | Q(region_tag__tag_name__icontains=keyword)
+        | Q(theme_tags__tag_name__icontains=keyword)
+    )
+    if core:
+        q |= Q(title__icontains=core) | Q(region_tag__tag_name__icontains=core)
+    return q
+
+
 def get_routes(request: Request) -> tuple[QuerySet[Route] | None, RoutePagination]:
     qs = _get_route_queryset()
+
+    keyword = request.query_params.get("keyword", "").strip()
+    if keyword:
+        filtered = qs.filter(_build_route_keyword_q(keyword)).distinct()
+        # trgm 폴백: 이름 매칭 결과가 없으면 오타 허용 유사도 검색
+        if not filtered.exists():
+            filtered = apply_trigram_filter(qs, "title", keyword).distinct()
+        qs = filtered
 
     region_tag_id = request.query_params.get("region_tag_id")
     if region_tag_id:

@@ -142,7 +142,7 @@ class KakaoAuthService:
                     email=user_info.email,
                     nickname=generate_nickname(),
                     gender=user_info.gender,
-                    birthday=user_info.birthday or "1900-01-01",
+                    birthday=user_info.birthday,
                     profile_img_url=user_info.profile_img_url or "",
                 )
                 user.set_unusable_password()

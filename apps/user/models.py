@@ -61,8 +61,8 @@ class User(AbstractBaseUser, TimeStampModel):
     email = models.EmailField(max_length=255, null=False, unique=True, verbose_name="이메일")
     nickname = models.CharField(max_length=14, null=False, unique=True, verbose_name="닉네임")
     bio = models.CharField(max_length=100, blank=True, default="", verbose_name="자기소개")
-    gender = models.CharField(choices=Gender.choices, max_length=6, null=True, verbose_name="성별")
-    birthday = models.DateField(null=False, verbose_name="생년월일")
+    gender = models.CharField(choices=Gender.choices, max_length=6, blank=True, default="", verbose_name="성별")
+    birthday = models.DateField(null=True, blank=True, verbose_name="생년월일")
     profile_img_url = models.CharField(max_length=255, blank=True, null=False, verbose_name="프로필 이미지 URL")
     tags = models.ManyToManyField("place.Tag", blank=True, related_name="users", verbose_name="관심 태그")
     is_active = models.BooleanField(default=True, verbose_name="활성 여부")
@@ -71,7 +71,7 @@ class User(AbstractBaseUser, TimeStampModel):
     deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="탈퇴 일시")
 
     USERNAME_FIELD: ClassVar[str] = "email"
-    REQUIRED_FIELDS: ClassVar[list[str]] = ["nickname", "gender", "birthday"]
+    REQUIRED_FIELDS: ClassVar[list[str]] = ["nickname"]
 
     objects: ClassVar[CustomUserManager] = CustomUserManager()  # type: ignore[misc]
 
