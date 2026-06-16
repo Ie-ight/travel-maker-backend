@@ -5,7 +5,7 @@ from django.db.models import Count, F, Prefetch, QuerySet
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 
-from apps.place.models import Tag
+from apps.place.models import Place, Tag
 from apps.route.exceptions import (
     RouteAlreadyLiked,
     RouteForbidden,
@@ -14,7 +14,8 @@ from apps.route.exceptions import (
     RouteValidationError,
 )
 from apps.route.models import Route, RouteDay, RouteDayPlace, RouteLike
-from apps.user.models import User
+from apps.user.models import User, UserActionLog
+from apps.user.services.action_log_service import record_action
 
 
 class RoutePagination(PageNumberPagination):
@@ -106,6 +107,18 @@ def _create_days(route: Route, days_data: list[dict[str, Any]]) -> None:
             RouteDayPlace.objects.create(route_day=day, place_id=place_id, order=order)
 
 
+def _record_route_add_actions(user: User, place_ids: set[int]) -> None:
+    for place in Place.objects.filter(id__in=place_ids):
+        record_action(user, place, UserActionLog.ActionType.ROUTE_ADD)
+
+
+def _get_route_or_404(route_id: int) -> Route:
+    try:
+        return Route.objects.get(pk=route_id)
+    except Route.DoesNotExist:
+        raise RouteNotFound() from None
+
+
 @transaction.atomic
 def create_route(user: User, data: dict[str, Any]) -> Route:
     days_data: list[dict[str, Any]] = data.pop("days", [])
@@ -117,15 +130,14 @@ def create_route(user: User, data: dict[str, Any]) -> Route:
     if theme_tag_ids:
         route.theme_tags.set(Tag.objects.filter(id__in=theme_tag_ids))
     _create_days(route, days_data)
+    unique_place_ids = {pid for day_data in days_data for pid in day_data["place_ids"]}
+    _record_route_add_actions(user, unique_place_ids)
     return route
 
 
 @transaction.atomic
 def update_route(user: User, route_id: int, data: dict[str, Any]) -> Route:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     if route.user_id != user.pk:
         raise RouteForbidden(detail="본인이 작성한 경로만 수정할 수 있습니다.")
 
@@ -145,8 +157,14 @@ def update_route(user: User, route_id: int, data: dict[str, Any]) -> Route:
         _validate_days(days_data, start_date, end_date)
         _validate_place_ids(days_data)
         # days 수정 시 기존 일차 전체 삭제 후 재생성 (부분 수정 대신 전체 교체)
+        existing_place_ids = set(
+            RouteDayPlace.objects.filter(route_day__route=route).values_list("place_id", flat=True)
+        )
         route.days.all().delete()
         _create_days(route, days_data)
+        # 기존에 없던 장소만 ROUTE_ADD로 기록 (재기록으로 인한 행동 가중치 중복 방지)
+        new_place_ids = {pid for day_data in days_data for pid in day_data["place_ids"]}
+        _record_route_add_actions(user, new_place_ids - existing_place_ids)
 
     region_tag_id = data.get("region_tag_id")
     if region_tag_id is not None:
@@ -157,10 +175,7 @@ def update_route(user: User, route_id: int, data: dict[str, Any]) -> Route:
 
 @transaction.atomic
 def delete_route(user: User, route_id: int) -> None:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     if route.user_id != user.pk:
         raise RouteForbidden(detail="본인이 작성한 경로만 삭제할 수 있습니다.")
     route.delete()
@@ -168,8 +183,9 @@ def delete_route(user: User, route_id: int) -> None:
 
 def get_route_detail(route_id: int) -> Route:
     # place.latitude / place.longitude 가 지도 선 그리기 핵심 좌표 데이터.
+    # _get_route_queryset()을 재사용해 select_related("user") 등 목록과 동일한 최적화를 적용.
     try:
-        return Route.objects.select_related("region_tag").prefetch_related(*_build_prefetch()).get(pk=route_id)
+        return _get_route_queryset().get(pk=route_id)
     except Route.DoesNotExist:
         raise RouteNotFound() from None
 
@@ -213,10 +229,7 @@ def get_user_routes(nickname: str, request: Request) -> tuple[QuerySet[Route] | 
 
 @transaction.atomic
 def like_route(user: User, route_id: int) -> RouteLike:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     if RouteLike.objects.filter(route=route, user=user).exists():
         raise RouteAlreadyLiked()
     like = RouteLike.objects.create(route=route, user=user)
@@ -229,10 +242,7 @@ def like_route(user: User, route_id: int) -> RouteLike:
 
 @transaction.atomic
 def unlike_route(user: User, route_id: int) -> None:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     deleted, _ = RouteLike.objects.filter(route=route, user=user).delete()
     if not deleted:
         raise RouteLikeNotFound()
@@ -241,10 +251,7 @@ def unlike_route(user: User, route_id: int) -> None:
 
 @transaction.atomic
 def admin_delete_route(route_id: int) -> None:
-    try:
-        route = Route.objects.get(pk=route_id)
-    except Route.DoesNotExist:
-        raise RouteNotFound() from None
+    route = _get_route_or_404(route_id)
     route.delete()
 
 

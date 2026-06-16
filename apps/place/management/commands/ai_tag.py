@@ -16,6 +16,7 @@ from typing import Any, cast
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
+from django.db.models import Q
 
 from apps.place.models import Place
 from apps.place.services.ai_tagging import (
@@ -127,7 +128,8 @@ class Command(BaseCommand):
             if options["content_type_id"] is not None:
                 queryset = queryset.filter(content_type_id=options["content_type_id"])
             if options["only_missing"]:
-                queryset = queryset.filter(place_feature__isnull=True)
+                # PlaceFeature 자체가 없거나, 임베딩만 채워지고 style_vector가 비어있는(§4.3) 장소 모두 대상
+                queryset = queryset.filter(Q(place_feature__isnull=True) | Q(place_feature__style_vector__isnull=True))
             queryset = queryset.order_by("id")[: options["limit"]]
 
         dry_run = options["dry_run"]

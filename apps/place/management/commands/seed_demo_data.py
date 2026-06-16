@@ -25,7 +25,7 @@ from django.db import transaction
 from apps.bookmark.models import Bookmark
 from apps.place.models import Place, Tag
 from apps.review.models import Review
-from apps.review.services.review_services import _update_place_rating
+from apps.review.services.review_services import update_place_rating
 from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.travel_quiz.services.travel_quiz_services import _determine_type_key
 from apps.travel_quiz.services.travel_type_seeds import TRAVEL_TYPE_SEEDS
@@ -121,7 +121,7 @@ class Command(BaseCommand):
         demo_users.delete()  # 리뷰·팔로우·성향치 CASCADE 삭제
         with transaction.atomic():
             for pid in place_ids:
-                _update_place_rating(pid)
+                update_place_rating(pid)
         self.stdout.write(f"  정리: 데모 유저 {count}명 및 연관 데이터 삭제, 장소 {len(place_ids)}곳 평점 재계산")
 
     def _ensure_travel_types(self) -> dict[str, TravelType]:
@@ -208,7 +208,7 @@ class Command(BaseCommand):
         Review.objects.bulk_create(reviews, ignore_conflicts=True, batch_size=1000)
         with transaction.atomic():
             for pid in touched:
-                _update_place_rating(pid)
+                update_place_rating(pid)
         self.stdout.write(f"  리뷰: {len(reviews)}건 생성, 장소 {len(touched)}곳 평점 갱신")
 
     def _create_social_users(self, rng: random.Random, users: list[User]) -> None:

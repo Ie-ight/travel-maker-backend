@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import cast
 
 from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
@@ -11,11 +12,13 @@ from apps.review.exceptions import (
     ForbiddenReviewEdit,
     PlaceNotFound,
     ReviewNotFound,
-    RouteNotFound,
     RouteNotIncluded,
 )
 from apps.review.models import Review
+from apps.route.exceptions import RouteNotFound
 from apps.route.models import Route
+from apps.user.models import User, UserActionLog
+from apps.user.services.action_log_service import record_action
 
 
 def _get_place_or_404(place_id: int) -> Place:
@@ -42,7 +45,7 @@ def get_reviews(place_id: int) -> QuerySet[Review]:
     return Review.objects.filter(place_id=place_id).select_related("user")
 
 
-def _update_place_rating(place_id: int) -> None:
+def update_place_rating(place_id: int) -> None:
     # 호출하는 함수의 트랜잭션 안에서 실행됨
     try:
         place = Place.objects.select_for_update().get(pk=place_id)
@@ -64,7 +67,7 @@ def create_review(
     image_url: str | None = None,
     route_id: int | None = None,
 ) -> Review:
-    _get_place_or_404(place_id)
+    place = _get_place_or_404(place_id)
     if Review.objects.filter(user_id=user.pk, place_id=place_id).exists():
         raise AlreadyReviewed()
     route = _get_review_route(user, place_id, route_id)
@@ -76,7 +79,9 @@ def create_review(
         image_url=image_url,
         route=route,
     )
-    _update_place_rating(place_id)
+    update_place_rating(place_id)
+    if rating != 3:
+        record_action(cast(User, user), place, UserActionLog.ActionType.REVIEW, rating=rating)
     return review
 
 
@@ -105,7 +110,7 @@ def update_review(user: AbstractBaseUser, review_id: int, data: dict[str, object
         fields_to_update.append("route")
 
     review.save(update_fields=[*fields_to_update, "updated_at"])  # 변경된 필드 + update_at만 UPDATE
-    _update_place_rating(review.place_id)
+    update_place_rating(review.place_id)
     return review
 
 
@@ -119,4 +124,4 @@ def delete_review(user: AbstractBaseUser, review_id: int) -> None:
         raise ForbiddenReviewDelete()
     place_id = review.place_id
     review.delete()
-    _update_place_rating(place_id)
+    update_place_rating(place_id)

@@ -251,6 +251,11 @@ OLLAMA_MODEL = config("OLLAMA_MODEL", default="gemma3:12b")
 AI_TAG_GEMINI_DAILY_LIMIT = config("AI_TAG_GEMINI_DAILY_LIMIT", default=20, cast=int)
 AI_TAG_GEMINI_RPM = config("AI_TAG_GEMINI_RPM", default=4, cast=int)
 
+# 장소/유저 텍스트 임베딩 (P1.5, provider 토글: ollama | gemini). 1024D 고정(PlaceFeature.content_vector).
+EMBEDDING_PROVIDER = config("EMBEDDING_PROVIDER", default="ollama")
+OLLAMA_EMBED_MODEL = config("OLLAMA_EMBED_MODEL", default="bge-m3")
+GEMINI_EMBED_MODEL = config("GEMINI_EMBED_MODEL", default="gemini-embedding-001")
+
 
 # Logging
 LOGGING = {

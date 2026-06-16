@@ -60,6 +60,7 @@ class Place(TimeStampModel):
 
     source_modified_at = models.CharField(max_length=14, null=True, blank=True, verbose_name="원본 수정 일시")
     is_active = models.BooleanField(default=True, verbose_name="활성 여부")
+    view_count = models.PositiveIntegerField(default=0, verbose_name="조회수")
 
     tags = models.ManyToManyField("Tag", related_name="places", blank=True, verbose_name="태그")  # type: ignore[var-annotated]
 
@@ -148,7 +149,8 @@ class PlaceFeature(TimeStampModel):
     place = models.OneToOneField(
         Place, related_name="place_feature", on_delete=models.CASCADE, primary_key=True, verbose_name="장소"
     )
-    style_vector = VectorField(dimensions=6, verbose_name="성향 벡터")
+    style_vector = VectorField(dimensions=6, null=True, blank=True, verbose_name="성향 벡터")
+    content_vector = VectorField(dimensions=1024, null=True, blank=True, verbose_name="텍스트 임베딩 벡터")
 
     class Meta:
         db_table = "place_features"
@@ -161,5 +163,12 @@ class PlaceFeature(TimeStampModel):
                 m=16,
                 ef_construction=64,
                 opclasses=["vector_cosine_ops"],
-            )
+            ),
+            HnswIndex(
+                name="place_content_vector_hnsw",
+                fields=["content_vector"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_cosine_ops"],
+            ),
         ]
