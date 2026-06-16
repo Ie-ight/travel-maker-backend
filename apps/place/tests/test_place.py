@@ -281,11 +281,11 @@ class TestPlaceSearchView:
             "latitude",
             "longitude",
             "bookmark_count",
+            "review_count",
             "is_bookmarked",
             "rating_avg",
             "tags",
         }
-        assert "review_count" not in result
 
     def test_counts_not_inflated_by_join(self, api_client: APIClient) -> None:
         place = PlaceFactory(place_name="서울")
@@ -600,11 +600,11 @@ class TestPlaceFilterView:
             "latitude",
             "longitude",
             "bookmark_count",
+            "review_count",
             "is_bookmarked",
             "rating_avg",
             "tags",
         }
-        assert "review_count" not in result
 
     def test_default_page_size_is_8(self, api_client: APIClient) -> None:
         tag_a = TagFactory(tag_name="바다")
