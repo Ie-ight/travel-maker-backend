@@ -1,7 +1,9 @@
+from typing import Any
+
 from django.db import migrations, models
 
 
-def convert_gender_null_to_empty(apps, schema_editor):
+def convert_gender_null_to_empty(apps: Any, schema_editor: Any) -> None:
     User = apps.get_model("user", "User")
     User.objects.filter(gender__isnull=True).update(gender="")
 
