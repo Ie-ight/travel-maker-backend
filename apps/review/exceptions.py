@@ -27,11 +27,6 @@ class ForbiddenReviewDelete(APIException):
     default_detail = "본인이 작성한 리뷰만 삭제할 수 있습니다."
 
 
-class RouteNotFound(APIException):
-    status_code = status.HTTP_404_NOT_FOUND
-    default_detail = "존재하지 않는 경로입니다."
-
-
 class RouteNotIncluded(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "선택한 경로에 해당 장소가 포함되어 있지 않습니다."
