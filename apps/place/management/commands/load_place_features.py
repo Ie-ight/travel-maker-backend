@@ -29,13 +29,21 @@ class Command(BaseCommand):
         if not path.exists():
             raise CommandError(f"파일을 찾을 수 없습니다: {path}")
 
-        if path.suffix == ".gz":
-            with gzip.open(path, "rt", encoding="utf-8") as f:
-                rows = cast(list[PlaceFeatureRow], json.load(f))
-        else:
-            rows = cast(list[PlaceFeatureRow], json.loads(path.read_text(encoding="utf-8")))
+        from collections.abc import Iterator
 
-        summary = load_place_features(rows)
+        def _read_jsonl() -> Iterator[PlaceFeatureRow]:
+            if path.suffix == ".gz":
+                with gzip.open(path, "rt", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            yield cast(PlaceFeatureRow, json.loads(line))
+            else:
+                with path.open("rt", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            yield cast(PlaceFeatureRow, json.loads(line))
+
+        summary = load_place_features(_read_jsonl())
 
         self.stdout.write(self.style.SUCCESS("적재 완료"))
         self.stdout.write(f"  매칭: {summary.matched}")
