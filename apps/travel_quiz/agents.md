@@ -226,38 +226,38 @@ Run after `seed_tags` completes.
 `description` is NOT stored in DB — dynamically generated from all 6 axes at response time.
 
 ```python
-TRAVEL_TYPE_SEEDS = {
+TRAVEL_TYPE_SEEDS: dict[str, dict[str, str]] = {
     "ttt": {
         "name": "새벽을 달리는 늑대",
-        "image_url": "",  # S3 URL, fill before seeding
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ttt-wolf.webp",
     },
     "ttf": {
         "name": "골목을 가르는 여우",
-        "image_url": "",
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ttf-fox.webp",
     },
     "tft": {
         "name": "파도를 헤치는 기러기",
-        "image_url": "",
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/tft-goose.webp",
     },
     "tff": {
         "name": "도시를 누비는 제비",
-        "image_url": "",
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/tff-swallow.webp",
     },
     "ftt": {
         "name": "노을을 기다리는 사슴",
-        "image_url": "",
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ftt-deer.webp",
     },
     "ftf": {
         "name": "달빛 아래 걷는 고양이",
-        "image_url": "",
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ftf-cat.webp",
     },
     "fft": {
         "name": "강가에 모이는 백로",
-        "image_url": "",
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/fft-heron.webp",
     },
     "fff": {
         "name": "카페에 둥지 트는 참새",
-        "image_url": "",
+        "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/fff-sparrow.webp",
     },
 }
 ```
@@ -296,3 +296,12 @@ Included in `submit` response only.
 | experience ≥ 0.5 + budget < 0.5 (cultural + luxury) | 문화에 아낌없이 | 그 지역의 이야기와 역사에 아낌없이 투자해요. |
 | experience < 0.5 + budget ≥ 0.5 (activity + budget-friendly) | 합리적인 체험 | 직접 체험하는 여행을 합리적인 가격에 즐겨요. |
 | experience < 0.5 + budget < 0.5 (activity + luxury) | 특별한 경험엔 아낌없이 | 기억에 남을 순간엔 지갑을 열어요. |
+
+| 축 | t 라벨 | f 라벨 |
+|---|---|---|
+| 0. activity | 액티비티형 | 힐링형 |
+| 1. plan | 계획형 | 즉흥형 |
+| 2. social | 혼자형 | 단체형 |
+| 3. space | 자연형 | 도시형 |
+| 4. experience | 문화형 | 체험형 |
+| 5. budget | 가성비형 | 럭셔리형 |

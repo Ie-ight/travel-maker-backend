@@ -184,18 +184,18 @@ def test_label_vector() -> None:
         {"label": "액티비티형", "value": 80},
         {"label": "계획형", "value": 70},
         {"label": "혼자형", "value": 60},
-        {"label": "자연형", "value": 30},
+        {"label": "도시형", "value": 70},
         {"label": "문화형", "value": 70},
-        {"label": "가성비형", "value": 40},
+        {"label": "럭셔리형", "value": 60},
     ]
 
 
 def test_label_vector_반올림() -> None:
     assert label_vector([0.123, 0.456, 0.789, 0.001, 0.999, 0.5]) == [
-        {"label": "액티비티형", "value": 12},
-        {"label": "계획형", "value": 46},
+        {"label": "힐링형", "value": 88},
+        {"label": "즉흥형", "value": 54},
         {"label": "혼자형", "value": 79},
-        {"label": "자연형", "value": 0},
+        {"label": "도시형", "value": 100},
         {"label": "문화형", "value": 100},
         {"label": "가성비형", "value": 50},
     ]
