@@ -27,7 +27,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--ldong-regn-cd", type=str, default=None, help="법정동 시도 코드(지역 필터). 미지정 시 전국"
         )
-        parser.add_argument("--num-rows", type=int, default=None, help="페이지당 결과 수 (기본: 소량 10, --all 1000)")
+        parser.add_argument("--num-rows", type=int, default=None, help="페이지당 결과 수 (기본: 소량 10, --all 50)")
         parser.add_argument("--pages", type=int, default=1, help="조회할 페이지 수 (소량 모드)")
         parser.add_argument("--all", action="store_true", help="전체 타입 전국 대량 적재(단계 6)")
         parser.add_argument("--sync", action="store_true", help="전체 타입 증분 동기화(단계 7, areaBasedSyncList2)")
@@ -52,7 +52,7 @@ class Command(BaseCommand):
             raise CommandError("--all과 --sync는 함께 쓸 수 없습니다.")
         num_rows = options["num_rows"]
         if num_rows is None:
-            num_rows = 1000 if (is_all or is_sync) else 10
+            num_rows = 50 if (is_all or is_sync) else 10
         try:
             if is_sync:
                 summary = sync_incremental(
