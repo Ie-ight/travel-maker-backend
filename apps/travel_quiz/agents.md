@@ -296,3 +296,12 @@ Included in `submit` response only.
 | experience ≥ 0.5 + budget < 0.5 (cultural + luxury) | 문화에 아낌없이 | 그 지역의 이야기와 역사에 아낌없이 투자해요. |
 | experience < 0.5 + budget ≥ 0.5 (activity + budget-friendly) | 합리적인 체험 | 직접 체험하는 여행을 합리적인 가격에 즐겨요. |
 | experience < 0.5 + budget < 0.5 (activity + luxury) | 특별한 경험엔 아낌없이 | 기억에 남을 순간엔 지갑을 열어요. |
+
+| 축 | t 라벨 | f 라벨 |
+|---|---|---|
+| 0. activity | 액티비티형 | 힐링형 |
+| 1. plan | 계획형 | 즉흥형 |
+| 2. social | 혼자형 | 단체형 |
+| 3. space | 자연형 | 도시형 |
+| 4. experience | 문화형 | 체험형 |
+| 5. budget | 가성비형 | 럭셔리형 |
