@@ -8,6 +8,7 @@ areaBasedList2 → detailCommon2 → detailImage2 (+ detailIntro2)로 Place·Pla
 
 import logging
 import re
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from decimal import Decimal, InvalidOperation
@@ -311,13 +312,14 @@ def sync_area(
             break
         for list_item in list_items:
             _process_list_item(api, content_type_id, list_item, dry_run=dry_run, summary=summary)
+        time.sleep(0.1)
     return summary
 
 
 def sync_all(
     content_type_ids: Sequence[int] = DEFAULT_CONTENT_TYPE_IDS,
     *,
-    num_of_rows: int = 1000,
+    num_of_rows: int = 50,
     max_pages: int | None = None,
     skip_existing: bool = False,
     dry_run: bool = False,
@@ -363,6 +365,7 @@ def sync_all(
                     existing_ids=existing_ids,
                 )
             logger.info("타입 %s page %d 처리 (%d건)", content_type_id, page, len(list_items))
+            time.sleep(0.1)
             if len(list_items) < num_of_rows:  # 마지막 페이지
                 break
             page += 1
@@ -482,7 +485,7 @@ def _safe_area_based_list(
 def sync_incremental(
     content_type_ids: Sequence[int] = DEFAULT_CONTENT_TYPE_IDS,
     *,
-    num_of_rows: int = 1000,
+    num_of_rows: int = 50,
     max_pages: int | None = None,
     dry_run: bool = False,
     client: TourApiClient | None = None,
@@ -509,6 +512,7 @@ def sync_incremental(
             for list_item in list_items:
                 _process_sync_item(api, content_type_id, list_item, existing, dry_run=dry_run, summary=sub)
             logger.info("타입 %s page %d 처리 (%d건)", content_type_id, page, len(list_items))
+            time.sleep(0.1)
             if len(list_items) < num_of_rows:  # 마지막 페이지
                 break
             page += 1
