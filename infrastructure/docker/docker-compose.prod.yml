@@ -25,7 +25,6 @@ services:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile
-    image: mashiro2465/travel-maker-web:latest
     container_name: travel-maker-web-prod
     command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --max-requests 1000 --max-requests-jitter 100
     volumes:
@@ -50,12 +49,12 @@ services:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile
-    image: mashiro2465/travel-maker-celery-worker:latest
     container_name: travel-maker-celery-worker-prod
     command: >
       sh -c "sleep 10 &&
              uv run celery -A config worker --loglevel=info -E"
     volumes:
+      - ../../:/app
       - ../../logs:/app/logs
     env_file:
       - ../../envs/.env.prod
@@ -72,12 +71,12 @@ services:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile
-    image: mashiro2465/travel-maker-celery-beat:latest
     container_name: travel-maker-celery-beat-prod
     command: >
       sh -c "sleep 10 &&
              uv run celery -A config beat --loglevel=info"
     volumes:
+      - ../../:/app
       - ../../logs:/app/logs
     env_file:
       - ../../envs/.env.prod
@@ -105,7 +104,6 @@ services:
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.prod
     depends_on:
-      - db
       - redis
     restart: always
     networks:

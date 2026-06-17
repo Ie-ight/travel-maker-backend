@@ -4,6 +4,9 @@ set -e
 echo "Waiting for postgres..."
 /app/infrastructure/scripts/wait-for-it.sh db:5432 --timeout=30
 
+echo "Running migrations..."
+uv run python manage.py migrate --noinput
+
 echo "Seeding travel types..."
 uv run python manage.py seed_travel_types
 
