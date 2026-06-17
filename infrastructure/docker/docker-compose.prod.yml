@@ -22,13 +22,10 @@ services:
       - travel_maker_network
 
   web:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/Dockerfile
+    image: mashiro2465/travel-maker-web:latest
     container_name: travel-maker-web-prod
     command: uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --max-requests 1000 --max-requests-jitter 100
     volumes:
-      - ../../:/app
       - static_volume:/app/staticfiles
       - media_volume:/app/media
       - ../../logs:/app/logs
@@ -46,15 +43,12 @@ services:
       - travel_maker_network
 
   celery_worker:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/Dockerfile
+    image: mashiro2465/travel-maker-celery-worker:latest
     container_name: travel-maker-celery-worker-prod
     command: >
       sh -c "sleep 10 &&
              uv run celery -A config worker --loglevel=info -E"
     volumes:
-      - ../../:/app
       - ../../logs:/app/logs
     env_file:
       - ../../envs/.env.prod
@@ -68,15 +62,12 @@ services:
       - travel_maker_network
 
   celery_beat:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/Dockerfile
+    image: mashiro2465/travel-maker-celery-beat:latest
     container_name: travel-maker-celery-beat-prod
     command: >
       sh -c "sleep 10 &&
              uv run celery -A config beat --loglevel=info"
     volumes:
-      - ../../:/app
       - ../../logs:/app/logs
     env_file:
       - ../../envs/.env.prod
@@ -90,13 +81,10 @@ services:
       - travel_maker_network
 
   flower:
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/Dockerfile
+    image: mashiro2465/travel-maker-flower:latest
     container_name: travel-maker-flower-prod
     entrypoint: []
     command: sh -c "uv run celery -A config flower --port=5555 --basic_auth=$$FLOWER_BASIC_AUTH"
-
     ports:
       - "5555:5555"
     env_file:
