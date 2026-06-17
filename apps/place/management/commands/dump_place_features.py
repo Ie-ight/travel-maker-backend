@@ -32,14 +32,20 @@ class Command(BaseCommand):
             queryset = queryset[: options["limit"]]
 
         rows = serialize_place_features(queryset)
-        payload = json.dumps(rows, ensure_ascii=False)
 
         path = Path(options["out"])
         path.parent.mkdir(parents=True, exist_ok=True)
+
+        count = 0
         if path.suffix == ".gz":
             with gzip.open(path, "wt", encoding="utf-8") as f:
-                f.write(payload)
+                for row in rows:
+                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    count += 1
         else:
-            path.write_text(payload, encoding="utf-8")
+            with path.open("wt", encoding="utf-8") as f:
+                for row in rows:
+                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    count += 1
 
-        self.stdout.write(self.style.SUCCESS(f"덤프 완료: {len(rows)}건 → {options['out']}"))
+        self.stdout.write(self.style.SUCCESS(f"덤프 완료: {count}건 → {options['out']}"))
