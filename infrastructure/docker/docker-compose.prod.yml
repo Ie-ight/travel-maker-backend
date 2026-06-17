@@ -56,9 +56,7 @@ services:
       sh -c "sleep 10 &&
              uv run celery -A config worker --loglevel=info -E"
     volumes:
-      - ../../:/app
       - ../../logs:/app/logs
-             uv run celery -A config worker --loglevel=info"
     env_file:
       - ../../envs/.env.prod
     environment:
@@ -80,7 +78,6 @@ services:
       sh -c "sleep 10 &&
              uv run celery -A config beat --loglevel=info"
     volumes:
-      - ../../:/app
       - ../../logs:/app/logs
     env_file:
       - ../../envs/.env.prod
