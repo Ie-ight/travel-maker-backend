@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Build and Deploy to EC2
 
 on:
   push:
@@ -19,8 +19,8 @@ jobs:
 
     - name: Build and push images
       run: |
-        docker compose -f infrastructure/docker/docker-compose.prod.yml build
-        docker compose -f infrastructure/docker/docker-compose.prod.yml push
+        docker compose -f infrastructure/docker/docker-compose.build.yml build
+        docker compose -f infrastructure/docker/docker-compose.build.yml push
 
   deploy:
     needs: build
