@@ -5,6 +5,7 @@ place_id(PK)는 환경마다 다를 수 있으므로 Tour API 고유값인 Place
 """
 
 import itertools
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TypedDict
@@ -43,11 +44,11 @@ def serialize_place_features(queryset: Iterable[PlaceFeature]) -> Iterable[Place
 
 
 def load_place_features(rows: Iterable[PlaceFeatureRow]) -> LoadSummary:
-    """content_id로 Place를 찾아 PlaceFeature를 1000개 단위로 bulk_create(upsert)한다. content_id 미존재 시 건너뜀."""
+    """content_id로 Place를 찾아 PlaceFeature를 50개 단위로 bulk_create(upsert)한다. content_id 미존재 시 건너뜀."""
     matched = unmatched = 0
 
-    # 1000개씩 청크 단위로 처리 (Python 3.12+ 내장 batched 사용)
-    for batch_rows in itertools.batched(rows, 1000):
+    # 50개씩 청크 단위로 처리 (Python 3.12+ 내장 batched 사용)
+    for batch_rows in itertools.batched(rows, 50):
         content_ids = [r["content_id"] for r in batch_rows]
 
         # 1. 쿼리 최적화: 현재 배치에 해당하는 Place ID를 한 번에 조회
@@ -77,5 +78,7 @@ def load_place_features(rows: Iterable[PlaceFeatureRow]) -> LoadSummary:
                 unique_fields=["place_id"],  # PK 기준으로 충돌 감지
                 update_fields=["style_vector", "content_vector"],
             )
+
+        time.sleep(0.1)
 
     return LoadSummary(matched=matched, unmatched=unmatched)
