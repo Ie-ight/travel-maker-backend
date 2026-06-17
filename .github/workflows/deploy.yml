@@ -1,17 +1,31 @@
-name: Deploy to EC2
+name: Build and Deploy to EC2
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push images
+      run: |
+        docker compose -f infrastructure/docker/docker-compose.build.yml build
+        docker compose -f infrastructure/docker/docker-compose.build.yml push
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
     - name: Deploy to EC2
       uses: appleboy/ssh-action@v1.0.0
       with:
@@ -21,39 +35,28 @@ jobs:
         port: ${{ secrets.EC2_PORT }}
         command_timeout: 30m
         script: |
-          set -e  # 에러 발생 시 즉시 중단!
+          set -e
 
           cd ~/travel-maker-backend
-          # celerybeat 임시 파일 제거 (git pull 충돌 방지)
           rm -f celerybeat-schedule*
-
           git checkout -- uv.lock
-
-          # Git pull 실패하면 여기서 중단
           git pull origin main
 
-          # Nginx 설정 업데이트
           sudo cp ~/travel-maker-backend/infrastructure/nginx/nginx.conf /etc/nginx/sites-available/travel-maker
           sudo nginx -t
           sudo systemctl reload nginx
 
           cd infrastructure/docker
           docker compose -f docker-compose.prod.yml pull
-
-          # 불필요한 이미지/캐시 정리 추가
           docker image prune -f
-          docker builder prune -f
 
-          docker compose -f docker-compose.prod.yml up -d --build
+          docker compose -f docker-compose.prod.yml up -d
 
-          # Static 파일 업데이트
           docker cp travel-maker-web-prod:/app/staticfiles/. /var/www/travel-maker/staticfiles/
 
-          # 마이그레이션 실행
           docker compose -f docker-compose.prod.yml exec -T web uv run python manage.py migrate --noinput
 
-          # 헬스체크
           sleep 10
-          curl -f https://localhost/health/ -k || exit 1  # ← HTTPS로 (-k는 인증서 무시)
+          curl -f https://localhost/health/ -k || exit 1
 
           echo "✅ Deployment completed successfully!"
