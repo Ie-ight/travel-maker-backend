@@ -19,8 +19,15 @@ _AXIS_TAG_LABELS: tuple[dict[str, str], ...] = (
     {"t": "자연형", "f": "도시형"},
 )
 
-# 6축 라벨 (순서: activity, plan, social, space, experience, budget)
-_AXIS_LABELS: tuple[str, ...] = ("액티비티형", "계획형", "혼자형", "자연형", "문화형", "가성비형")
+# 6축 라벨 쌍 (t: norm ≥ 0.5, f: norm < 0.5 / 순서: activity, plan, social, space, experience, budget)
+_AXIS_LABEL_PAIRS: tuple[tuple[str, str], ...] = (
+    ("액티비티형", "힐링형"),
+    ("계획형", "즉흥형"),
+    ("혼자형", "단체형"),
+    ("자연형", "도시형"),
+    ("문화형", "체험형"),
+    ("가성비형", "럭셔리형"),
+)
 
 # type_key를 결정하는 3축의 인덱스 (_determine_type_key와 동일: activity, social, space)
 _TYPE_KEY_AXES = (0, 2, 3)
@@ -106,7 +113,13 @@ def build_type_tags(type_key: str) -> list[str]:
 
 
 def label_vector(values: list[float]) -> list[dict[str, object]]:
-    return [{"label": label, "value": round(value * 100)} for label, value in zip(_AXIS_LABELS, values, strict=True)]
+    result = []
+    for (t_label, f_label), value in zip(_AXIS_LABEL_PAIRS, values, strict=True):
+        if value >= 0.5:
+            result.append({"label": t_label, "value": round(value * 100)})
+        else:
+            result.append({"label": f_label, "value": round((1 - value) * 100)})
+    return result
 
 
 def calculate_match_rate(obj: Place) -> int:

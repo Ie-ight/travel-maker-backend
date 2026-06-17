@@ -46,9 +46,9 @@ quiz_submit_schema = extend_schema(
                     {"label": "액티비티형", "value": 80},
                     {"label": "계획형", "value": 70},
                     {"label": "혼자형", "value": 60},
-                    {"label": "자연형", "value": 30},
+                    {"label": "도시형", "value": 70},
                     {"label": "문화형", "value": 70},
-                    {"label": "가성비형", "value": 40},
+                    {"label": "럭셔리형", "value": 60},
                 ],
                 "accuracy": 40,
                 "compatible_type": {
@@ -119,9 +119,9 @@ quiz_result_schema = extend_schema(
                     {"label": "액티비티형", "value": 80},
                     {"label": "계획형", "value": 70},
                     {"label": "혼자형", "value": 60},
-                    {"label": "자연형", "value": 30},
+                    {"label": "도시형", "value": 70},
                     {"label": "문화형", "value": 70},
-                    {"label": "가성비형", "value": 40},
+                    {"label": "럭셔리형", "value": 60},
                 ],
                 "accuracy": 40,
                 "destinations": [
