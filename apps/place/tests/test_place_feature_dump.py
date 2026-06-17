@@ -30,7 +30,7 @@ class TestSerializePlaceFeatures:
             place=place, style_vector=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6], content_vector=[0.7] * 1024
         )
 
-        rows = serialize_place_features(PlaceFeature.objects.select_related("place"))
+        rows = list(serialize_place_features(PlaceFeature.objects.select_related("place")))
 
         assert len(rows) == 1
         row = rows[0]
@@ -45,7 +45,7 @@ class TestSerializePlaceFeatures:
         place = make_place(content_id=2)
         PlaceFeature.objects.create(place=place, style_vector=None, content_vector=[0.5] * 1024)
 
-        rows = serialize_place_features(PlaceFeature.objects.select_related("place"))
+        rows = list(serialize_place_features(PlaceFeature.objects.select_related("place")))
 
         assert rows[0]["style_vector"] is None
         assert rows[0]["content_vector"] is not None
