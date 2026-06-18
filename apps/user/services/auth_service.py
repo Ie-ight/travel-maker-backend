@@ -19,7 +19,6 @@ from apps.user.utils.auth_exceptions import (
     KakaoServerError,
     KakaoTokenVerificationError,
     MissingAuthCodeError,
-    RecoveryAccountNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,6 +132,8 @@ class KakaoAuthService:
                     provider=SocialUser.Provider.KAKAO,
                     provider_id=user_info.provider_id,
                 )
+                if not social_user.user.is_active:
+                    return cls._recover_or_raise(social_user.user), False
                 return social_user.user, False
             except SocialUser.DoesNotExist:
                 pass
@@ -141,7 +142,7 @@ class KakaoAuthService:
                 user = User.objects.create_user(
                     email=user_info.email,
                     nickname=generate_nickname(),
-                    gender=user_info.gender,
+                    gender=user_info.gender or "",
                     birthday=user_info.birthday,
                     profile_img_url=user_info.profile_img_url or "",
                 )
@@ -158,12 +159,26 @@ class KakaoAuthService:
                     provider=SocialUser.Provider.KAKAO,
                     provider_id=user_info.provider_id,
                 )
+                if not social_user.user.is_active:
+                    return cls._recover_or_raise(social_user.user), False
                 return social_user.user, False
 
         return user, True
 
     WITHDRAW_REASONS = {"서비스 불만족", "개인정보", "기타"}
     RECOVERY_WINDOW_DAYS = 14
+
+    @classmethod
+    def _recover_or_raise(cls, user: User) -> User:
+        """탈퇴 유저 로그인 시 14일 이내면 자동 복구, 초과면 에러."""
+        from django.utils import timezone
+
+        if user.deleted_at is not None and timezone.now() <= user.deleted_at + timedelta(days=cls.RECOVERY_WINDOW_DAYS):
+            user.is_active = True
+            user.deleted_at = None
+            user.save(update_fields=["is_active", "deleted_at"])
+            return user
+        raise AlreadyWithdrawnError()
 
     @classmethod
     def withdraw_user(cls, user: User, reason: str) -> None:
@@ -179,40 +194,6 @@ class KakaoAuthService:
         user.is_active = False
         user.deleted_at = timezone.now()
         user.save(update_fields=["is_active", "deleted_at"])
-
-    @classmethod
-    def recover_user(cls, code: str) -> User:
-        """
-        탈퇴 계정 복구: 14일 이내 재로그인 시 is_active 복원
-        Returns: 복구된 user
-        """
-        if not code:
-            raise MissingAuthCodeError()
-
-        access_token = cls.get_access_token(code)
-        user_info = cls.get_user_info(access_token)
-
-        try:
-            social_user = SocialUser.objects.select_related("user").get(
-                provider=SocialUser.Provider.KAKAO,
-                provider_id=user_info.provider_id,
-            )
-        except SocialUser.DoesNotExist:
-            raise RecoveryAccountNotFoundError() from None
-
-        user = social_user.user
-        if user.is_active:
-            raise RecoveryAccountNotFoundError()
-
-        from django.utils import timezone
-
-        if user.deleted_at is None or timezone.now() > user.deleted_at + timedelta(days=cls.RECOVERY_WINDOW_DAYS):
-            raise RecoveryAccountNotFoundError()
-
-        user.is_active = True
-        user.deleted_at = None
-        user.save(update_fields=["is_active", "deleted_at"])
-        return user
 
     @staticmethod
     def generate_token_pair(user: User) -> tuple[str, str]:

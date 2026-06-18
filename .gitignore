@@ -110,3 +110,6 @@ logs/*.log
 logs/*.log.*
 
 .claude/plan.md
+
+# 로컬 테스트 전용 — 하드코딩된 키 포함, 커밋 금지
+test_frontend/
