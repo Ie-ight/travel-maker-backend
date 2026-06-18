@@ -1,5 +1,6 @@
 from typing import cast
 
+from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -48,6 +49,7 @@ class ProfileView(AuthRequiredMixin, APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @profile_patch_schema
+    @transaction.atomic
     def patch(self, request: Request) -> Response:
         user = cast(User, request.user)
         nickname = request.data.get("nickname")

@@ -34,7 +34,7 @@ quiz_submit_schema = extend_schema(
                     "체력을 아낌없이 쓰는 활동형 여행자예요. 철저한 준비로 혼자만의 루트를 만들며 "
                     "도시의 문화와 에너지에서 영감을 받는 타입이에요. 그 지역의 이야기와 역사에 아낌없이 투자해요."
                 ),
-                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttf.png",
+                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ttf-fox.webp",
                 "type_tags": ["액티비티형", "혼자형", "도시형"],
                 "detail_cards": [
                     {"title": "몸으로 떠나는 여행", "description": "체력을 아낌없이 쓰는 게 진짜 여행이에요."},
@@ -52,18 +52,20 @@ quiz_submit_schema = extend_schema(
                 ],
                 "accuracy": 40,
                 "compatible_type": {
-                    "travel_type_id": 1,
-                    "type_key": "ttt",
-                    "type_tags": ["액티비티형", "혼자형", "자연형"],
-                    "name": "새벽을 달리는 늑대",
-                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttt.png",
+                    "travel_type_id": 4,
+                    "type_key": "tff",
+                    "type_tags": ["액티비티형", "단체형", "도시형"],
+                    "name": "도시를 누비는 제비",
+                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/tff-swallow.webp",
+                    "reason": "통하는 게 많아요! 여행 스타일이 잘 맞는 제비예요.",
                 },
                 "incompatible_type": {
-                    "travel_type_id": 8,
-                    "type_key": "fff",
-                    "type_tags": ["힐링형", "단체형", "도시형"],
-                    "name": "카페에 둥지 트는 참새",
-                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/fff.png",
+                    "travel_type_id": 7,
+                    "type_key": "fft",
+                    "type_tags": ["힐링형", "단체형", "자연형"],
+                    "name": "강가에 모이는 백로",
+                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/fft-heron.webp",
+                    "reason": "지구 정반대편 사람! 모든 여행 스타일이 극과 극인 백로예요.",
                 },
                 "destinations": [
                     {
@@ -113,7 +115,7 @@ quiz_result_schema = extend_schema(
                     "체력을 아낌없이 쓰는 활동형 여행자예요. 철저한 준비로 혼자만의 루트를 만들며 "
                     "도시의 문화와 에너지에서 영감을 받는 타입이에요. 그 지역의 이야기와 역사에 아낌없이 투자해요."
                 ),
-                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttf.png",
+                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ttf-fox.webp",
                 "type_tags": ["액티비티형", "혼자형", "도시형"],
                 "result_vector": [
                     {"label": "액티비티형", "value": 80},
