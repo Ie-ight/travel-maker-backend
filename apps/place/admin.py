@@ -3,19 +3,40 @@ from typing import Any
 from django import forms
 from django.contrib import admin
 from django.db.models import Count, QuerySet
+from django.forms import Media
 from django.http import HttpRequest
 from django.utils.safestring import SafeString
 
 from apps.bookmark.models import Bookmark
-from apps.core.admin import BaseAdmin, apply_vector_widget, format_style_vector, render_thumbnail
+from apps.core.admin import BaseAdmin, SmallTextFieldMixIn, VectorChartMixIn, VectorEditFormMixIn, render_thumbnail
 from apps.place.models import Place, PlaceFeature, PlaceImage, PlaceInfo, Tag
 from apps.review.models import Review
+
+
+class PlaceFeatureForm(VectorEditFormMixIn):
+    """0~100% 형태의 슬라이더 바를 이용해 직관적으로 벡터값을 조작하는 커스텀 폼"""
+
+    class Meta:
+        model = PlaceFeature
+        fields = ("v1_activity", "v2_plan", "v3_social", "v4_nature", "v5_culture", "v6_cost")
+
+    def get_vector_field_name(self) -> str:
+        return "style_vector"
+
+
+class PlaceFeatureInline(VectorChartMixIn, admin.StackedInline):  # type: ignore[type-arg]
+    model = PlaceFeature
+    form = PlaceFeatureForm
+    can_delete = False
+    verbose_name = "성향(AI 태그) 데이터 수동 편집"
+    verbose_name_plural = "성향(AI 태그) 데이터 수동 편집"
+    readonly_fields = ["vector_chart"]
+    fields = ["vector_chart", "v1_activity", "v2_plan", "v3_social", "v4_nature", "v5_culture", "v6_cost"]
 
 
 class PlaceImageInline(admin.TabularInline):  # type: ignore[type-arg]
     model = PlaceImage
     extra = 1
-    classes = ["collapse"]
     fields = ["thumb", "image_url", "thumbnail_url", "is_main", "order"]
     readonly_fields = ["thumb"]
 
@@ -24,34 +45,15 @@ class PlaceImageInline(admin.TabularInline):  # type: ignore[type-arg]
         return render_thumbnail(obj.thumbnail_url or obj.image_url, size=60)
 
 
-class PlaceInfoInline(admin.StackedInline):  # type: ignore[type-arg]
+class PlaceInfoInline(SmallTextFieldMixIn, admin.StackedInline):  # type: ignore[type-arg]
     model = PlaceInfo
     extra = 0
     can_delete = True
-    classes = ["collapse"]
 
 
-class PlaceFeatureInline(admin.StackedInline):  # type: ignore[type-arg]
-    model = PlaceFeature
-    extra = 0
-    can_delete = True
-    classes = ["collapse"]
-    fields = ["style_vector", "style_vector_readable", "updated_at"]
-    readonly_fields = ["style_vector_readable", "updated_at"]
-
-    def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
-        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
-        return apply_vector_widget(formfield, db_field.name, "style_vector")
-
-    @admin.display(description="현재 값(라벨)")
-    def style_vector_readable(self, obj: PlaceFeature) -> str:
-        return format_style_vector(obj.style_vector)
-
-
-class ReviewInline(admin.TabularInline):  # type: ignore[type-arg]
+class ReviewInline(SmallTextFieldMixIn, admin.TabularInline):  # type: ignore[type-arg]
     model = Review
     extra = 0
-    classes = ["collapse"]
     fields = ["user", "rating", "content", "image_url", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
@@ -63,7 +65,6 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
     model = Bookmark
     extra = 0
-    classes = ["collapse"]
     fields = ["user", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
@@ -76,7 +77,9 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
 
 @admin.register(Place)
-class PlaceAdmin(BaseAdmin):
+class PlaceAdmin(SmallTextFieldMixIn, BaseAdmin):
+    large_text_fields = ["description"]
+
     list_display = [
         "id",
         "main_thumb",
@@ -94,10 +97,22 @@ class PlaceAdmin(BaseAdmin):
     list_filter = ["is_active", "content_type_id", "lcls_systm1"]
     search_fields = ["place_name", "address_primary"]
     date_hierarchy = "created_at"
-    autocomplete_fields = ["tags"]
-    inlines = [PlaceImageInline, PlaceInfoInline, PlaceFeatureInline, ReviewInline, BookmarkInline]
+    filter_horizontal = ["tags"]
+    inlines = [PlaceFeatureInline, PlaceImageInline, PlaceInfoInline, ReviewInline, BookmarkInline]
     readonly_fields = ["rating_avg", "rating_count", "created_at", "updated_at"]
     save_on_top = True
+
+    @property
+    def media(self) -> Media:
+        base_media = super().media
+
+        chart_media = Media(
+            js=[
+                "https://cdn.jsdelivr.net/npm/chart.js",
+                "vector_chart.js",
+            ]
+        )
+        return base_media + chart_media
 
     def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
         formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
@@ -187,6 +202,3 @@ class TagAdmin(BaseAdmin):
     list_filter = ["tag_type"]
     search_fields = ["tag_name"]
     list_per_page = 50  # 태그는 많으므로 오버라이드
-
-
-# PlaceInfo·PlaceFeature는 Place 상세 인라인에서 보고 편집하므로 독립 admin(메뉴 항목)은 두지 않는다.

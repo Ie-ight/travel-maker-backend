@@ -1,4 +1,5 @@
-from drf_spectacular.utils import OpenApiExample, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 
 from apps.travel_quiz.serializers.travel_quiz_serializers import (
     AvatarUpdateResponseSerializer,
@@ -7,6 +8,7 @@ from apps.travel_quiz.serializers.travel_quiz_serializers import (
     QuizResultSerializer,
     QuizSubmitResponseSerializer,
     QuizSubmitSerializer,
+    SharedQuizResultSerializer,
 )
 
 quiz_submit_schema = extend_schema(
@@ -152,6 +154,35 @@ quiz_result_schema = extend_schema(
         200: QuizResultSerializer,
         401: QuizErrorResponseSerializer,
         404: QuizErrorResponseSerializer,
+    },
+)
+
+quiz_shared_result_schema = extend_schema(
+    tags=["TravelQuiz"],
+    summary="공유 퀴즈 결과 조회",
+    description=(
+        "공유 링크의 type_key와 vector 쿼리 파라미터로 퀴즈 결과를 재구성합니다. "
+        "로그인·비로그인 모두 호출 가능하며 DB 저장 없이 그 자리에서 계산합니다."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="type_key",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="여행 유형 키 (ttt/ttf/tft/tff/ftt/ftf/fft/fff)",
+        ),
+        OpenApiParameter(
+            name="vector",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="6개 float 쉼표 구분 (예: 0.8,0.7,0.6,0.3,0.7,0.4)",
+        ),
+    ],
+    responses={
+        200: SharedQuizResultSerializer,
+        400: QuizErrorResponseSerializer,
     },
 )
 
