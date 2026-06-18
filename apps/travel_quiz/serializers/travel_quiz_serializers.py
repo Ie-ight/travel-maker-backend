@@ -96,6 +96,7 @@ class QuizSubmitResponseSerializer(serializers.Serializer):  # type: ignore[type
     type_tags = serializers.ListField(child=serializers.CharField())
     detail_cards = DetailCardSerializer(many=True)
     result_vector = serializers.SerializerMethodField()
+    raw_vector = serializers.ListField(source="result_vector", child=serializers.FloatField(), read_only=True)
     accuracy = serializers.IntegerField()
     compatible_type = serializers.SerializerMethodField()
     incompatible_type = serializers.SerializerMethodField()
