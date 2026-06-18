@@ -222,19 +222,17 @@ def test_calculate_accuracy_극단값은_100() -> None:
 
 
 # ---------------------------------------------------------------------------
-# find_compatible_types — type_key 3축(0,2,3) 코사인 유사도 기반 호환/비호환 유형
+# find_compatible_types — 하드코딩 딕셔너리 기반 호환/비호환 유형
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-def test_find_compatible_types_가장_가깝고_가장_먼_유형을_반환() -> None:
+def test_find_compatible_types_매핑된_유형을_반환() -> None:
     types = {key: TravelTypeFactory(type_key=key) for key in ALL_TYPE_KEYS}  # type: ignore[misc]
-    # axes 0,2,3 = (0.9, 0.9, 0.1) → "ttf"(자기 자신) 제외 중 "ttt"(1,1,1)가 가장 가깝고 "fff"(0,0,0)가 가장 멀다
-    norm = [0.9, 0.5, 0.9, 0.1, 0.5, 0.5]
 
-    compatible, incompatible = find_compatible_types(types["ttf"], norm)
+    compatible, incompatible = find_compatible_types(types["ttf"])
 
-    assert compatible.type_key == "ttt"
-    assert incompatible.type_key == "fff"
+    assert compatible.type_key == "tff"  # social 축만 반전
+    assert incompatible.type_key == "fft"  # 전체 반전
     assert compatible.id != types["ttf"].id
     assert incompatible.id != types["ttf"].id

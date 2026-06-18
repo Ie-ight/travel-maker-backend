@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from typing import cast
 
@@ -10,6 +9,8 @@ from pgvector.django import CosineDistance
 from apps.place.models import Place
 from apps.travel_quiz.exceptions import InvalidTravelTypeId, QuizResultNotFound
 from apps.travel_quiz.models import TravelType, UserTestResult
+from apps.travel_quiz.services.compatibility_data import _COMPATIBLE_MAP, _INCOMPATIBLE_MAP
+from apps.travel_quiz.services.compatibility_messages import COMPATIBILITY_MESSAGES
 from apps.travel_quiz.services.quiz_data import QUIZ_DATA
 from apps.user.models import User
 
@@ -90,6 +91,8 @@ class QuizSubmitResult:
     recommended_places: list[Place]
     compatible_type: TravelType
     incompatible_type: TravelType
+    compatible_reason: str
+    incompatible_reason: str
 
 
 def _calculate_norm_vector(answers: list[str]) -> list[float]:
@@ -132,32 +135,18 @@ def calculate_accuracy(norm: list[float]) -> int:
     return round(sum(deviations) / len(deviations) * 100)
 
 
-def _type_axis_vector(type_key: str) -> list[float]:
-    return [1.0 if ch == "t" else 0.0 for ch in type_key]
-
-
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b, strict=True))
-    denom = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
-    return dot / denom if denom else 0.0
-
-
-def find_compatible_types(travel_type: TravelType, norm: list[float]) -> tuple[TravelType, TravelType]:
+def find_compatible_types(travel_type: TravelType) -> tuple[TravelType, TravelType]:
     cache_key = "travel_types:all"
-    all_types = cache.get(cache_key)
+    all_types: list[TravelType] | None = cache.get(cache_key)
     if all_types is None:
         all_types = list(TravelType.objects.all())
         cache.set(cache_key, all_types, 60 * 60 * 24)  # 24시간
 
-    user_vec = [norm[i] for i in _TYPE_KEY_AXES]
-    scored = [
-        (other, _cosine_similarity(user_vec, _type_axis_vector(other.type_key)))
-        for other in all_types
-        if other.id != travel_type.id
-    ]
-    compatible = max(scored, key=lambda pair: pair[1])[0]
-    incompatible = min(scored, key=lambda pair: pair[1])[0]
-    return compatible, incompatible
+    by_key = {t.type_key: t for t in all_types}
+    return (
+        by_key[_COMPATIBLE_MAP[travel_type.type_key]],
+        by_key[_INCOMPATIBLE_MAP[travel_type.type_key]],
+    )
 
 
 def make_description(norm: list[float]) -> str:
@@ -220,7 +209,8 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
         saved = True
 
     recommended_places = get_recommended_places(norm)
-    compatible_type, incompatible_type = find_compatible_types(travel_type, norm)
+    compatible_type, incompatible_type = find_compatible_types(travel_type)
+    messages = COMPATIBILITY_MESSAGES[type_key]
 
     return QuizSubmitResult(
         saved=saved,
@@ -233,6 +223,8 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
         recommended_places=recommended_places,
         compatible_type=compatible_type,
         incompatible_type=incompatible_type,
+        compatible_reason=messages["compatible"],
+        incompatible_reason=messages["incompatible"],
     )
 
 
