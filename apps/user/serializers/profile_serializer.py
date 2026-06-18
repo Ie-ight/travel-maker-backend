@@ -156,6 +156,7 @@ class UserBookmarkSerializer(serializers.ModelSerializer[Any]):
 
     place_id = serializers.IntegerField(source="place.id")
     place_name = serializers.CharField(source="place.place_name")
+    description = serializers.CharField(source="place.description")
     image_url = serializers.SerializerMethodField()
     rating = serializers.FloatField(source="place.rating_avg")
 
@@ -166,6 +167,7 @@ class UserBookmarkSerializer(serializers.ModelSerializer[Any]):
         fields = [
             "place_id",
             "place_name",
+            "description",
             "image_url",
             "rating",
             "created_at",

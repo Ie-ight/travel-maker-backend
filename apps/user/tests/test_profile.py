@@ -324,6 +324,7 @@ class TestUserBookmarkList:
         response = auth_client.get("/api/v1/users/bookmarks")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 3
+        assert "description" in response.data["results"][0]
 
     def test_북마크_목록_비로그인_실패(self, client: APIClient) -> None:
         response = client.get("/api/v1/users/bookmarks")
