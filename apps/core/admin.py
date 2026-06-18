@@ -4,6 +4,7 @@ from typing import Any
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
+from django.db import models
 from django.utils.html import format_html
 from django.utils.safestring import SafeString
 from pgvector.django.vector import VectorWidget
@@ -89,3 +90,9 @@ def apply_vector_widget(formfield: forms.Field | None, db_field_name: str, targe
         attrs = {**formfield.widget.attrs, "style": "width: 100%; max-width: 40em;"}
         formfield.widget = RoundedVectorWidget(attrs=attrs)
     return formfield
+
+
+class SmallTextFieldMixIn:
+    formfield_overrides = {
+        models.TextField: {"widget": forms.Textarea(attrs={"rows": 2, "cols": 80})},
+    }

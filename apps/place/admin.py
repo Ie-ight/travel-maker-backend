@@ -3,19 +3,19 @@ from typing import Any
 from django import forms
 from django.contrib import admin
 from django.db.models import Count, QuerySet
+from django.forms import Media
 from django.http import HttpRequest
-from django.utils.safestring import SafeString
+from django.utils.safestring import SafeString, mark_safe
 
 from apps.bookmark.models import Bookmark
-from apps.core.admin import BaseAdmin, apply_vector_widget, format_style_vector, render_thumbnail
-from apps.place.models import Place, PlaceFeature, PlaceImage, PlaceInfo, Tag
+from apps.core.admin import BaseAdmin, SmallTextFieldMixIn, render_thumbnail
+from apps.place.models import Place, PlaceImage, PlaceInfo, Tag
 from apps.review.models import Review
 
 
 class PlaceImageInline(admin.TabularInline):  # type: ignore[type-arg]
     model = PlaceImage
     extra = 1
-    classes = ["collapse"]
     fields = ["thumb", "image_url", "thumbnail_url", "is_main", "order"]
     readonly_fields = ["thumb"]
 
@@ -24,34 +24,15 @@ class PlaceImageInline(admin.TabularInline):  # type: ignore[type-arg]
         return render_thumbnail(obj.thumbnail_url or obj.image_url, size=60)
 
 
-class PlaceInfoInline(admin.StackedInline):  # type: ignore[type-arg]
+class PlaceInfoInline(SmallTextFieldMixIn, admin.StackedInline):  # type: ignore[type-arg]
     model = PlaceInfo
     extra = 0
     can_delete = True
-    classes = ["collapse"]
 
 
-class PlaceFeatureInline(admin.StackedInline):  # type: ignore[type-arg]
-    model = PlaceFeature
-    extra = 0
-    can_delete = True
-    classes = ["collapse"]
-    fields = ["style_vector", "style_vector_readable", "updated_at"]
-    readonly_fields = ["style_vector_readable", "updated_at"]
-
-    def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
-        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
-        return apply_vector_widget(formfield, db_field.name, "style_vector")
-
-    @admin.display(description="현재 값(라벨)")
-    def style_vector_readable(self, obj: PlaceFeature) -> str:
-        return format_style_vector(obj.style_vector)
-
-
-class ReviewInline(admin.TabularInline):  # type: ignore[type-arg]
+class ReviewInline(SmallTextFieldMixIn, admin.TabularInline):  # type: ignore[type-arg]
     model = Review
     extra = 0
-    classes = ["collapse"]
     fields = ["user", "rating", "content", "image_url", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
@@ -63,7 +44,6 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
     model = Bookmark
     extra = 0
-    classes = ["collapse"]
     fields = ["user", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["user"]
@@ -76,7 +56,7 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
 
 @admin.register(Place)
-class PlaceAdmin(BaseAdmin):
+class PlaceAdmin(SmallTextFieldMixIn, BaseAdmin):
     list_display = [
         "id",
         "main_thumb",
@@ -94,10 +74,51 @@ class PlaceAdmin(BaseAdmin):
     list_filter = ["is_active", "content_type_id", "lcls_systm1"]
     search_fields = ["place_name", "address_primary"]
     date_hierarchy = "created_at"
-    autocomplete_fields = ["tags"]
-    inlines = [PlaceImageInline, PlaceInfoInline, PlaceFeatureInline, ReviewInline, BookmarkInline]
-    readonly_fields = ["rating_avg", "rating_count", "created_at", "updated_at"]
+    filter_horizontal = ["tags"]
+    inlines = [PlaceImageInline, PlaceInfoInline, ReviewInline, BookmarkInline]
+    readonly_fields = ["rating_avg", "rating_count", "created_at", "updated_at", "vector_chart"]
     save_on_top = True
+
+    def vector_chart(self, obj):
+        if hasattr(obj, "place_feature") and obj.place_feature.style_vector is not None:
+            vector_data = [float(x) for x in obj.place_feature.style_vector]
+        else:
+            vector_data = [0, 0, 0, 0, 0, 0]
+
+        return mark_safe(f"""
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; margin-top: 10px;">
+                <div style="width: 400px; height: 400px; background: transparent; padding: 20px; border-radius: 8px;">
+                    <canvas id="vectorRadarChart" data-vector="{vector_data}"></canvas>
+                </div>
+                <div style="padding: 20px; background: var(--darkened-bg, var(--body-bg)); border-radius: 8px; font-size: 13px; color: var(--body-fg); min-width: 300px; border: 1px solid var(--border-color); box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <h4 style="margin-top: 0; color: var(--body-fg); font-weight: bold; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; font-size: 14px;">
+                        🧭 성향 지표 해석 가이드
+                    </h4>
+                    <ul style="list-style: none; padding: 0; margin: 0; line-height: 2.2;">
+                        <li><b>🏃 활동성:</b> <span style="color:#818cf8; font-weight:bold;">100% 액티비티형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 힐링·휴식형</span></li>
+                        <li><b>📅 계획성:</b> <span style="color:#818cf8; font-weight:bold;">100% 철저한 계획형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 즉흥·발길 닿는 대로</span></li>
+                        <li><b>🤝 사교성:</b> <span style="color:#818cf8; font-weight:bold;">100% 나홀로·독립형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 단체·어울림형</span></li>
+                        <li><b>🌲 공간지향:</b> <span style="color:#818cf8; font-weight:bold;">100% 대자연·한적함</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 화려한 도심형</span></li>
+                        <li><b>🖼️ 경험지향:</b> <span style="color:#818cf8; font-weight:bold;">100% 관람·문화감상</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 직접 체험·액션형</span></li>
+                        <li><b>💸 소비지향:</b> <span style="color:#818cf8; font-weight:bold;">100% 알뜰·가성비형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 프리미엄·럭셔리형</span></li>
+                    </ul>
+                </div>
+            </div>
+        """)
+
+    vector_chart.short_description = "장소 성향"
+
+    @property
+    def media(self):
+        base_media = super().media
+
+        chart_media = Media(
+            js=[
+                "https://cdn.jsdelivr.net/npm/chart.js",
+                "vector_chart.js",
+            ]
+        )
+        return base_media + chart_media
 
     def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
         formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
@@ -126,6 +147,7 @@ class PlaceAdmin(BaseAdmin):
                     "longitude",
                     "tel",
                     "homepage",
+                    "vector_chart",
                 ]
             },
         ),
@@ -187,6 +209,3 @@ class TagAdmin(BaseAdmin):
     list_filter = ["tag_type"]
     search_fields = ["tag_name"]
     list_per_page = 50  # 태그는 많으므로 오버라이드
-
-
-# PlaceInfo·PlaceFeature는 Place 상세 인라인에서 보고 편집하므로 독립 admin(메뉴 항목)은 두지 않는다.
