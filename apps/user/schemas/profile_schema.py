@@ -121,6 +121,7 @@ user_bookmark_get_schema = extend_schema(
                     {
                         "place_id": 1,
                         "place_name": "부산 광안리 해수욕장",
+                        "description": "광안대교의 야경이 펼쳐지는 해변",
                         "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/places/img.jpg",
                         "rating": 4.5,
                         "created_at": "2026-05-22T12:23:11Z",
