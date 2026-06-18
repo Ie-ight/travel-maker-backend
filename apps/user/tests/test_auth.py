@@ -118,6 +118,22 @@ class TestKakaoAuthService:
 
     @patch.object(KakaoAuthService, "get_user_info")
     @patch.object(KakaoAuthService, "get_access_token")
+    def test_앱전환으로_provider_id_달라진_기존_유저_재연결(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
+        """테스트앱→비즈앱 전환으로 provider_id가 바뀐 경우 이메일로 기존 유저를 찾아 SocialUser를 재연결한다."""
+        user = make_user(email="existing@example.com", nickname="existing_user")
+        SocialUser.objects.create(user=user, provider=SocialUser.Provider.KAKAO, provider_id="kakao_old_id")
+
+        mock_token.return_value = "fake_token"
+        mock_info.return_value = make_kakao_user_info(provider_id="kakao_new_id", email="existing@example.com")
+
+        returned_user, is_new_user = KakaoAuthService.get_or_create_user("fake_code")
+
+        assert returned_user.pk == user.pk
+        assert is_new_user is False
+        assert SocialUser.objects.filter(user=user, provider_id="kakao_new_id").exists()
+
+    @patch.object(KakaoAuthService, "get_user_info")
+    @patch.object(KakaoAuthService, "get_access_token")
     def test_탈퇴_후_14일_이내_재로그인_자동복구(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
         """14일 이내 탈퇴 유저가 재로그인하면 자동 복구되어 is_active=True, deleted_at=None이 된다."""
         from datetime import timedelta
