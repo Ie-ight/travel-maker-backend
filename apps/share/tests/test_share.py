@@ -1,5 +1,6 @@
 import pytest
 from django.test import override_settings
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -15,7 +16,7 @@ from apps.share.tests.factories import (
 from apps.travel_quiz.models import UserTestResult
 from apps.user.models import User
 
-URL = "/api/v1/share"
+URL = reverse("share")
 FRONTEND = "http://testserver-frontend"
 
 
