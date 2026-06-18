@@ -15,7 +15,7 @@ class ShareRequestSerializer(serializers.Serializer):  # type: ignore[type-arg]
         required=False,
     )
 
-    def validate(self, attrs: dict) -> dict:  # type: ignore[override]
+    def validate(self, attrs: dict[str, object]) -> dict[str, object]:  # type: ignore[override]
         content_type = attrs.get("content_type")
         content_id = attrs.get("content_id")
         type_key = attrs.get("type_key")
