@@ -118,8 +118,6 @@ class TestKakaoAuthService:
 
     @patch.object(KakaoAuthService, "get_user_info")
     @patch.object(KakaoAuthService, "get_access_token")
-    @patch.object(KakaoAuthService, "get_user_info")
-    @patch.object(KakaoAuthService, "get_access_token")
     def test_앱전환으로_provider_id_달라진_기존_유저_재연결(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
         """테스트앱→비즈앱 전환으로 provider_id가 바뀐 경우 이메일로 기존 유저를 찾아 SocialUser를 재연결한다."""
         user = make_user(email="existing@example.com", nickname="existing_user")
