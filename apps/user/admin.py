@@ -79,6 +79,7 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 class UserAdmin(BaseAdmin):
     list_display = [
         "id",
+        "profile_thumb",
         "nickname",
         "email",
         "role",
@@ -94,13 +95,13 @@ class UserAdmin(BaseAdmin):
     list_filter = ["is_active", "role", "gender", "tags"]
     search_fields = ["nickname", "email"]
     date_hierarchy = "created_at"
-    readonly_fields = ["created_at", "updated_at", "last_login", "deleted_at"]
+    readonly_fields = ["profile_thumb", "created_at", "updated_at", "last_login", "deleted_at"]
     exclude = ["password"]
     filter_horizontal = ["tags"]
     save_on_top = True
     inlines = [UserTestResultInline, SocialUserInline, FollowingInline, FollowerInline, BookmarkInline]
     fieldsets = [
-        (None, {"fields": ["nickname", "email", "role", "is_active", "is_staff"]}),
+        (None, {"fields": ["profile_thumb", "nickname", "email", "role", "is_active", "is_staff"]}),
         ("프로필", {"fields": ["bio", "gender", "birthday", "profile_img_url", "tags"]}),
         ("메타", {"classes": ["collapse"], "fields": ["last_login", "deleted_at", "created_at", "updated_at"]}),
     ]
@@ -113,6 +114,17 @@ class UserAdmin(BaseAdmin):
             # Follow.follower related_name="followers"(이 유저의 팔로잉), following related_name="followings"(이 유저의 팔로워)
             following_count=Count("followers", distinct=True),
             follower_count=Count("followings", distinct=True),
+        )
+
+    @admin.display(description="프로필 사진")
+    def profile_thumb(self, obj: User):
+        if not obj.profile_img_url:
+            return "—"
+        from django.utils.html import format_html
+
+        return format_html(
+            '<img src="{}" style="width:48px;height:48px;object-fit:cover;border-radius:50%;border:1px solid #e5e7eb;" loading="lazy" />',
+            obj.profile_img_url,
         )
 
     @admin.display(description="관심 태그")
@@ -135,6 +147,3 @@ class UserAdmin(BaseAdmin):
     @admin.display(description="팔로잉수", ordering="following_count")
     def following_count(self, obj: User) -> int:
         return int(getattr(obj, "following_count", 0) or 0)
-
-
-# SocialUser·Follow는 User 상세 인라인에서 보고 편집하므로 독립 admin(메뉴 항목)은 두지 않는다.
