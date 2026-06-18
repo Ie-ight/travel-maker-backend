@@ -139,29 +139,44 @@ class KakaoAuthService:
                 pass
 
             try:
-                user = User.objects.create_user(
-                    email=user_info.email,
-                    nickname=generate_nickname(),
-                    gender=user_info.gender or "",
-                    birthday=user_info.birthday,
-                    profile_img_url=user_info.profile_img_url or "",
-                )
-                user.set_unusable_password()
-                user.save(update_fields=["password"])
+                with transaction.atomic():  # savepoint — IntegrityError가 outer 트랜잭션을 깨지 않도록
+                    user = User.objects.create_user(
+                        email=user_info.email,
+                        nickname=generate_nickname(),
+                        gender=user_info.gender or "",
+                        birthday=user_info.birthday,
+                        profile_img_url=user_info.profile_img_url or "",
+                    )
+                    user.set_unusable_password()
+                    user.save(update_fields=["password"])
+                    SocialUser.objects.create(
+                        user=user,
+                        provider=SocialUser.Provider.KAKAO,
+                        provider_id=user_info.provider_id,
+                    )
+            except IntegrityError:
+                # Case 1: 동시 요청으로 같은 provider_id의 SocialUser가 이미 생성된 경우
+                try:
+                    social_user = SocialUser.objects.select_related("user").get(
+                        provider=SocialUser.Provider.KAKAO,
+                        provider_id=user_info.provider_id,
+                    )
+                    if not social_user.user.is_active:
+                        return cls._recover_or_raise(social_user.user), False
+                    return social_user.user, False
+                except SocialUser.DoesNotExist:
+                    pass
+
+                # Case 2: 이메일 중복 (앱 전환 등으로 provider_id가 달라진 경우)
+                user = User.objects.get(email=user_info.email)
+                if not user.is_active:
+                    return cls._recover_or_raise(user), False
                 SocialUser.objects.create(
                     user=user,
                     provider=SocialUser.Provider.KAKAO,
                     provider_id=user_info.provider_id,
                 )
-            except IntegrityError:
-                # 동시 요청으로 이미 생성된 경우
-                social_user = SocialUser.objects.select_related("user").get(
-                    provider=SocialUser.Provider.KAKAO,
-                    provider_id=user_info.provider_id,
-                )
-                if not social_user.user.is_active:
-                    return cls._recover_or_raise(social_user.user), False
-                return social_user.user, False
+                return user, False
 
         return user, True
 
