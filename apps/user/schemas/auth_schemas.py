@@ -6,7 +6,6 @@ from apps.user.serializers.auth_serializer import (
     ErrorDetailSerializer,
     KakaoLoginResponseSerializer,
     KakaoLoginSerializer,
-    RecoveryResponseSerializer,
     TokenRefreshResponseSerializer,
     WithdrawSerializer,
 )
@@ -127,7 +126,13 @@ token_refresh_schema = extend_schema(
 withdraw_schema = extend_schema(
     tags=["auth"],
     summary="회원 탈퇴",
-    description="소프트 딜리트 처리 (is_active=False, deleted_at=탈퇴일시). 탈퇴 후 14일 이내 복구 가능.",
+    description=(
+        "소프트 딜리트 처리 (is_active=False, deleted_at=탈퇴일시).\n\n"
+        "**탈퇴 후 재가입 정책**\n"
+        "- 탈퇴 후 **14일 이내** 카카오 로그인 시 자동으로 계정이 복구됩니다 (별도 복구 API 없음).\n"
+        "- 카카오 로그인 버튼만으로 복구 + 로그인이 한 번에 처리됩니다.\n"
+        "- 탈퇴 후 **14일 초과** 시 계정 및 모든 데이터가 영구 삭제되며 복구 불가합니다."
+    ),
     request=WithdrawSerializer,
     responses={
         204: OpenApiResponse(description="탈퇴 성공 (No Content)"),
@@ -169,30 +174,6 @@ admin_login_schema = extend_schema(
             response=ErrorDetailSerializer,
             description="이메일/패스워드 불일치 또는 staff 권한 없음",
             examples=[OpenApiExample("401", value={"error_detail": "이메일 또는 패스워드가 올바르지 않습니다."})],
-        ),
-    },
-)
-
-recovery_schema = extend_schema(
-    tags=["auth"],
-    summary="탈퇴 계정 복구",
-    description="탈퇴 후 14일 이내 카카오 인가코드로 계정 복구. 복구 시 Access/Refresh 토큰 발급.",
-    request=KakaoLoginSerializer,
-    responses={
-        200: OpenApiResponse(
-            response=RecoveryResponseSerializer,
-            description="복구 성공",
-            examples=[
-                OpenApiExample(
-                    "200",
-                    value={"access_token": "eyJhbG...", "message": "계정이 복구되었습니다."},
-                )
-            ],
-        ),
-        404: OpenApiResponse(
-            response=ErrorDetailSerializer,
-            description="복구 불가 (탈퇴 계정 없음 또는 14일 초과)",
-            examples=[OpenApiExample("404", value={"error_detail": "복구할 계정을 찾지 못했습니다."})],
         ),
     },
 )

@@ -31,13 +31,6 @@ class WithdrawSerializer(serializers.Serializer[Any]):
     reason = serializers.ChoiceField(choices=REASON_CHOICES)
 
 
-class RecoveryResponseSerializer(serializers.Serializer[Any]):
-    """POST /api/v1/auth/recovery"""
-
-    access_token = serializers.CharField()
-    message = serializers.CharField()
-
-
 class AdminLoginSerializer(serializers.Serializer[Any]):
     """POST /api/v1/auth/admin/login"""
 

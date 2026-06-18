@@ -66,16 +66,6 @@ class SessionExpiredError(AuthBaseException):
     default_detail = "로그인 세션이 만료되었습니다."
 
 
-# ── 404 Not Found ────────────────────────────────────────────────────────────
-
-
-class RecoveryAccountNotFoundError(AuthBaseException):
-    """복구 대상 계정 없음"""
-
-    status_code = status.HTTP_404_NOT_FOUND
-    default_detail = "복구할 계정을 찾지 못했습니다."
-
-
 # ── 409 Conflict ─────────────────────────────────────────────────────────────
 
 
