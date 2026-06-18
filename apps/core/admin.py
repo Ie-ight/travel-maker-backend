@@ -44,6 +44,8 @@ def _ordered_get_app_list(request: Any, app_label: str | None = None) -> list[An
 
 admin.site.get_app_list = _ordered_get_app_list  # type: ignore[method-assign]
 
+admin.site.site_url = "https://www.travel-maker.site/"
+
 
 class BaseAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_per_page = 20

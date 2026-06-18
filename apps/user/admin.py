@@ -4,6 +4,7 @@ from django.http import HttpRequest
 
 from apps.bookmark.models import Bookmark
 from apps.core.admin import BaseAdmin, VectorChartMixIn
+from apps.route.models import Route, RouteLike
 from apps.travel_quiz.models import UserTestResult
 from apps.user.models import Follow, SocialUser, User
 
@@ -75,6 +76,34 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
         return qs.select_related("place")
 
 
+class UserRouteInline(admin.TabularInline):  # type: ignore[type-arg]
+    """이 유저가 작성한 경로 목록"""
+
+    model = Route
+    extra = 0
+    fields = ["title", "region_tag", "start_date", "end_date", "like_count", "created_at"]
+    readonly_fields = ["like_count", "created_at"]
+    show_change_link = True
+    verbose_name = "작성한 경로"
+    verbose_name_plural = "작성한 경로 목록"
+
+
+class RouteLikeInline(admin.TabularInline):  # type: ignore[type-arg]
+    """이 유저가 좋아요를 누른 경로 목록"""
+
+    model = RouteLike
+    extra = 0
+    fields = ["route", "created_at"]
+    readonly_fields = ["created_at"]
+    autocomplete_fields = ["route"]
+    verbose_name = "좋아요 한 경로"
+    verbose_name_plural = "좋아요 한 경로 목록"
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet[RouteLike]:
+        qs: QuerySet[RouteLike] = super().get_queryset(request)
+        return qs.select_related("route")
+
+
 @admin.register(User)
 class UserAdmin(BaseAdmin):
     list_display = [
@@ -99,7 +128,15 @@ class UserAdmin(BaseAdmin):
     exclude = ["password"]
     filter_horizontal = ["tags"]
     save_on_top = True
-    inlines = [UserTestResultInline, SocialUserInline, FollowingInline, FollowerInline, BookmarkInline]
+    inlines = [
+        SocialUserInline,
+        UserTestResultInline,
+        FollowingInline,
+        FollowerInline,
+        BookmarkInline,
+        UserRouteInline,
+        RouteLikeInline,
+    ]
     fieldsets = [
         (None, {"fields": ["profile_thumb", "nickname", "email", "role", "is_active", "is_staff"]}),
         ("프로필", {"fields": ["bio", "gender", "birthday", "profile_img_url", "tags"]}),

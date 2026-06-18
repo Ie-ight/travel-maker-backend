@@ -26,6 +26,7 @@ from apps.bookmark.models import Bookmark
 from apps.place.models import Place, Tag
 from apps.review.models import Review
 from apps.review.services.review_services import update_place_rating
+from apps.route.models import Route, RouteDay, RouteDayPlace, RouteLike
 from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.travel_quiz.services.travel_quiz_services import _determine_type_key
 from apps.travel_quiz.services.travel_type_seeds import TRAVEL_TYPE_SEEDS
@@ -68,6 +69,7 @@ class Command(BaseCommand):
         parser.add_argument("--reviews-per-user", type=int, default=15, help="유저당 평균 리뷰 수")
         parser.add_argument("--bookmarks-per-user", type=int, default=8, help="유저당 평균 북마크 수")
         parser.add_argument("--follows-per-user", type=int, default=5, help="유저당 평균 팔로우 수")
+        parser.add_argument("--routes", type=int, default=10, help="생성할 경로(Route) 수")
         parser.add_argument("--seed", type=int, default=42, help="난수 시드(재현용)")
         parser.add_argument(
             "--place-pool",
@@ -84,6 +86,7 @@ class Command(BaseCommand):
         reviews_per_user: int = options["reviews_per_user"]
         bookmarks_per_user: int = options["bookmarks_per_user"]
         follows_per_user: int = options["follows_per_user"]
+        num_routes: int = options["routes"]
         place_pool: int = options["place_pool"]
 
         if options["delete"]:
@@ -109,6 +112,7 @@ class Command(BaseCommand):
         self._create_follows(rng, users, follows_per_user)
         self._create_reviews(rng, users, pool, pool_weights, reviews_per_user)
         self._create_bookmarks(rng, users, pool, pool_weights, bookmarks_per_user)
+        self._create_routes(rng, users, pool, pool_weights, tag_ids, num_routes)
 
         self.stdout.write(self.style.SUCCESS("데모 시드 완료"))
 
@@ -117,12 +121,19 @@ class Command(BaseCommand):
     def _clear(self) -> None:
         demo_users = User.objects.filter(email__endswith=f"@{DEMO_EMAIL_DOMAIN}")
         place_ids = list(Review.objects.filter(user__in=demo_users).values_list("place_id", flat=True).distinct())
+
+        demo_routes = Route.objects.filter(user__in=demo_users)
+        routes_count = demo_routes.count()
+        demo_routes.delete()
+
         count = demo_users.count()
         demo_users.delete()  # 리뷰·팔로우·성향치 CASCADE 삭제
         with transaction.atomic():
             for pid in place_ids:
                 update_place_rating(pid)
-        self.stdout.write(f"  정리: 데모 유저 {count}명 및 연관 데이터 삭제, 장소 {len(place_ids)}곳 평점 재계산")
+        self.stdout.write(
+            f"  정리: 데모 유저 {count}명 및 연관 데이터 삭제, 경로 {routes_count}개 삭제, 장소 {len(place_ids)}곳 평점 재계산"
+        )
 
     def _ensure_travel_types(self) -> dict[str, TravelType]:
         # 실제 유형 정의(8종, type_key = t/f 3글자)를 정식 시드 명령으로 적재한다.
@@ -233,6 +244,73 @@ class Command(BaseCommand):
         Bookmark.objects.bulk_create(bookmarks, ignore_conflicts=True, batch_size=1000)
         total = Bookmark.objects.filter(user__in=users).count()
         self.stdout.write(f"  북마크: {total}건")
+
+    def _create_routes(
+        self,
+        rng: random.Random,
+        users: list[User],
+        pool: list[int],
+        weights: list[float],
+        tag_ids: list[int],
+        num_routes: int,
+    ) -> None:
+        if not num_routes:
+            return
+
+        routes_created = 0
+        for _ in range(num_routes):
+            user = rng.choice(users)
+            start_date = date.today() + timedelta(days=rng.randint(1, 30))
+            duration = rng.randint(1, 4)  # 1박 2일 ~ 4박 5일 -> days: 2~5
+            end_date = start_date + timedelta(days=duration)
+
+            region_tag = rng.choice(tag_ids) if tag_ids else None
+            theme_tags = rng.sample(tag_ids, k=min(len(tag_ids), rng.randint(1, 3))) if tag_ids else []
+
+            route = Route.objects.create(
+                user=user,
+                title=f"{user.nickname}의 {duration+1}일 여행",
+                description=rng.choice(
+                    [
+                        "정말 기대되는 여행이에요!",
+                        "친구들과 함께하는 즐거운 휴가",
+                        "혼자 조용히 다녀오려고 합니다.",
+                        "가족 여행 코스입니다.",
+                    ]
+                ),
+                region_tag_id=region_tag,
+                start_date=start_date,
+                end_date=end_date,
+                like_count=0,
+            )
+            if theme_tags:
+                route.theme_tags.set(theme_tags)
+
+            # Create RouteDay
+            for day_idx in range(1, duration + 2):
+                route_day = RouteDay.objects.create(route=route, day_index=day_idx)
+                # Create RouteDayPlace
+                num_places = rng.randint(2, 4)
+                daily_places = self._weighted_sample(rng, pool, weights, num_places)
+
+                day_places_to_create = []
+                for order, pid in enumerate(daily_places, start=1):
+                    day_places_to_create.append(RouteDayPlace(route_day=route_day, place_id=pid, order=order))
+
+                RouteDayPlace.objects.bulk_create(day_places_to_create)
+
+            # Create RouteLike
+            like_count = rng.randint(0, min(10, len(users)))
+            likers = rng.sample(users, k=like_count)
+            likes_to_create = [RouteLike(route=route, user=liker) for liker in likers]
+            RouteLike.objects.bulk_create(likes_to_create, ignore_conflicts=True)
+
+            route.like_count = len(likes_to_create)
+            route.save(update_fields=["like_count"])
+
+            routes_created += 1
+
+        self.stdout.write(f"  경로(Route): {routes_created}건 생성 (일자별 장소, 좋아요 포함)")
 
     # ── 인기 가중 표본 ─────────────────────────────────────────────
 
