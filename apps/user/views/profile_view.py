@@ -1,5 +1,6 @@
 from typing import cast
 
+from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -8,8 +9,8 @@ from rest_framework.views import APIView
 
 from apps.core.exceptions import AuthRequiredMixin, NotFound
 from apps.core.presigned_url.views import PresignedUrlView
-from apps.route.serializers.route_serializers import RouteListSerializer, RouteMyListSerializer
-from apps.route.services.route_services import get_liked_routes, get_user_routes
+from apps.route.serializers.route_serializers import RouteMyListSerializer
+from apps.route.services.route_services import get_user_routes
 from apps.user.models import User
 from apps.user.schemas.profile_schema import (
     nickname_check_schema,
@@ -19,7 +20,6 @@ from apps.user.schemas.profile_schema import (
     public_profile_get_schema,
     public_user_review_get_schema,
     user_bookmark_get_schema,
-    user_liked_routes_schema,
     user_review_get_schema,
     user_route_list_schema,
 )
@@ -49,6 +49,7 @@ class ProfileView(AuthRequiredMixin, APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @profile_patch_schema
+    @transaction.atomic
     def patch(self, request: Request) -> Response:
         user = cast(User, request.user)
         nickname = request.data.get("nickname")
@@ -111,16 +112,6 @@ class UserRouteListView(APIView):
     def get(self, request: Request, nickname: str) -> Response:
         page, paginator = get_user_routes(nickname, request)
         serializer = RouteMyListSerializer(page, many=True)
-        return Response(paginator.get_paginated_response(serializer.data).data)
-
-
-class UserLikedRoutesView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @user_liked_routes_schema
-    def get(self, request: Request) -> Response:
-        page, paginator = get_liked_routes(cast(User, request.user), request)
-        serializer = RouteListSerializer(page, many=True)
         return Response(paginator.get_paginated_response(serializer.data).data)
 
 

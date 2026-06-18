@@ -96,13 +96,24 @@ class QuizSubmitResponseSerializer(serializers.Serializer):  # type: ignore[type
     type_tags = serializers.ListField(child=serializers.CharField())
     detail_cards = DetailCardSerializer(many=True)
     result_vector = serializers.SerializerMethodField()
+    raw_vector = serializers.ListField(source="result_vector", child=serializers.FloatField(), read_only=True)
     accuracy = serializers.IntegerField()
-    compatible_type = TravelTypeBriefSerializer()
-    incompatible_type = TravelTypeBriefSerializer()
+    compatible_type = serializers.SerializerMethodField()
+    incompatible_type = serializers.SerializerMethodField()
     destinations = PlaceRecommendationSerializer(source="recommended_places", many=True)
 
     def get_result_vector(self, obj: QuizSubmitResult) -> list[dict[str, object]]:
         return label_vector(obj.result_vector)
+
+    def get_compatible_type(self, obj: QuizSubmitResult) -> dict[str, object]:
+        data = dict(TravelTypeBriefSerializer(obj.compatible_type).data)
+        data["reason"] = obj.compatible_reason
+        return data
+
+    def get_incompatible_type(self, obj: QuizSubmitResult) -> dict[str, object]:
+        data = dict(TravelTypeBriefSerializer(obj.incompatible_type).data)
+        data["reason"] = obj.incompatible_reason
+        return data
 
 
 class QuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]

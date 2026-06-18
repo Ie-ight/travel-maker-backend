@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from django.db.models import QuerySet
 from rest_framework.pagination import CursorPagination
 
@@ -17,9 +18,10 @@ class FollowService:
             raise BadRequest("자기 자신을 팔로우할 수 없습니다.")
         if not User.objects.filter(id=target_user_id, is_active=True).exists():
             raise NotFound("사용자를 찾을 수 없습니다.")
-        if Follow.objects.filter(follower=follower, following_id=target_user_id).exists():
-            raise Conflict("이미 팔로우한 사용자입니다.")
-        Follow.objects.create(follower=follower, following_id=target_user_id)
+        try:
+            Follow.objects.create(follower=follower, following_id=target_user_id)
+        except IntegrityError:
+            raise Conflict("이미 팔로우한 사용자입니다.") from None
 
     @staticmethod
     def unfollow(follower: User, target_user_id: int) -> None:

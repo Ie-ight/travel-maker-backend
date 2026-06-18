@@ -105,7 +105,7 @@ class TestQuizSubmit:
 
         for key in ("compatible_type", "incompatible_type"):
             travel_type = response.data[key]
-            assert travel_type.keys() == {"travel_type_id", "type_key", "type_tags", "name", "image_url"}
+            assert travel_type.keys() == {"travel_type_id", "type_key", "type_tags", "name", "image_url", "reason"}
             assert travel_type["type_key"] != response.data["type_key"]
             assert travel_type["type_tags"] == build_type_tags(travel_type["type_key"])
 

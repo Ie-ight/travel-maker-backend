@@ -12,7 +12,6 @@ from apps.user.views.profile_view import (
     PublicProfileView,
     PublicUserReviewView,
     UserBookmarkView,
-    UserLikedRoutesView,
     UserReviewView,
     UserRouteListView,
 )
@@ -27,8 +26,6 @@ urlpatterns = [
         ProfileImagePresignedUrlView.as_view(),
         name="profile-image-presigned-url",
     ),
-    # users/routes/likes 가 users/<str:nickname>/routes 보다 먼저 등록되어야 충돌 없음
-    path("users/routes/likes", UserLikedRoutesView.as_view(), name="user-liked-routes"),
     path("users/<str:nickname>/routes", UserRouteListView.as_view(), name="user-route-list"),
     path("users/<int:user_id>", PublicProfileView.as_view(), name="public-profile"),
     path("users/<int:user_id>/reviews", PublicUserReviewView.as_view(), name="public-user-reviews"),
