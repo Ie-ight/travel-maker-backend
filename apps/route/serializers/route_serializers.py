@@ -177,12 +177,6 @@ class RouteMyListSerializer(RouteListSerializer):
         read_only_fields = fields
 
 
-class RouteLikeResponseSerializer(serializers.Serializer[dict[str, str | int]]):
-    message = serializers.CharField()
-    like_id = serializers.IntegerField()
-    like_count = serializers.IntegerField()
-
-
 class RouteDetailSerializer(RouteListSerializer):
     # RouteListSerializer를 상속해 get_region_tag·get_theme_tags 중복 제거.
     # days·작성자 필드만 추가하고 Meta.fields를 재정의해 상세 응답에 맞게 조정.
