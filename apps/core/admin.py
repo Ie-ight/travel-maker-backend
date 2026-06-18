@@ -6,7 +6,7 @@ from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.db import models
 from django.utils.html import format_html
-from django.utils.safestring import SafeString
+from django.utils.safestring import SafeString, mark_safe
 from pgvector.django.vector import VectorWidget
 
 # 권한은 User.role로 처리하므로 Django 기본 Group(= "인증 및 권한" 섹션)은 메뉴에서 숨긴다.
@@ -96,3 +96,51 @@ class SmallTextFieldMixIn:
     formfield_overrides = {
         models.TextField: {"widget": forms.Textarea(attrs={"rows": 2, "cols": 80})},
     }
+
+
+class VectorChartMixIn:
+    """장소, 유저 등 성향 벡터(6축)를 가진 모델에서 레이더 차트를 렌더링하는 공통 믹스인"""
+
+    def get_vector_data(self, obj) -> list[float] | None:
+        """모델별로 다른 벡터 필드명(style_vector, result_vector 등)을 찾아 반환"""
+        if hasattr(obj, "style_vector") and obj.style_vector is not None:
+            return [float(x) for x in obj.style_vector]
+        if hasattr(obj, "result_vector") and obj.result_vector is not None:
+            return [float(x) for x in obj.result_vector]
+        return None
+
+    @admin.display(description="현재 성향 차트")
+    def vector_chart(self, obj):
+        vector_data = self.get_vector_data(obj) or [0, 0, 0, 0, 0, 0]
+
+        return mark_safe(f"""
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; margin-top: 10px;">
+                <div style="width: 400px; height: 400px; background: transparent; padding: 20px; border-radius: 8px;">
+                    <canvas id="vectorRadarChart" data-vector="{vector_data}"></canvas>
+                </div>
+                <div style="padding: 20px; background: var(--darkened-bg, var(--body-bg)); border-radius: 8px; font-size: 13px; color: var(--body-fg); min-width: 300px; border: 1px solid var(--border-color); box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <h4 style="margin-top: 0; color: var(--body-fg); font-weight: bold; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; font-size: 14px;">
+                        🧭 성향 지표 해석 가이드
+                    </h4>
+                    <ul style="list-style: none; padding: 0; margin: 0; line-height: 2.2;">
+                        <li><b>🏃 활동성:</b> <span style="color:#818cf8; font-weight:bold;">100% 액티비티형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 힐링·휴식형</span></li>
+                        <li><b>📅 계획성:</b> <span style="color:#818cf8; font-weight:bold;">100% 철저한 계획형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 즉흥·발길 닿는 대로</span></li>
+                        <li><b>🤝 사교성:</b> <span style="color:#818cf8; font-weight:bold;">100% 나홀로·독립형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 단체·어울림형</span></li>
+                        <li><b>🌲 공간지향:</b> <span style="color:#818cf8; font-weight:bold;">100% 대자연·한적함</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 화려한 도심형</span></li>
+                        <li><b>🖼️ 경험지향:</b> <span style="color:#818cf8; font-weight:bold;">100% 관람·문화감상</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 직접 체험·액션형</span></li>
+                        <li><b>💸 소비지향:</b> <span style="color:#818cf8; font-weight:bold;">100% 알뜰·가성비형</span> <span style="color:var(--body-quiet-color); margin:0 5px;">↔</span> <span style="color:#fb7185; font-weight:bold;">0% 프리미엄·럭셔리형</span></li>
+                    </ul>
+                </div>
+            </div>
+        """)
+
+    @property
+    def media(self):
+        base_media = super().media if hasattr(super(), "media") else forms.Media()
+        chart_media = forms.Media(
+            js=[
+                "https://cdn.jsdelivr.net/npm/chart.js",
+                "vector_chart.js",
+            ]
+        )
+        return base_media + chart_media

@@ -1,12 +1,9 @@
-from typing import Any
-
-from django import forms
 from django.contrib import admin
 from django.db.models import Count, QuerySet
 from django.http import HttpRequest
 
 from apps.bookmark.models import Bookmark
-from apps.core.admin import BaseAdmin, apply_vector_widget, format_style_vector
+from apps.core.admin import BaseAdmin, VectorChartMixIn
 from apps.travel_quiz.models import UserTestResult
 from apps.user.models import Follow, SocialUser, User
 
@@ -19,22 +16,13 @@ class SocialUserInline(admin.TabularInline):  # type: ignore[type-arg]
     readonly_fields = ["created_at"]
 
 
-class UserTestResultInline(admin.StackedInline):  # type: ignore[type-arg]
+class UserTestResultInline(VectorChartMixIn, admin.StackedInline):  # type: ignore[type-arg]
     model = UserTestResult
     extra = 0
     can_delete = True
-    classes = ["collapse"]
     autocomplete_fields = ["travel_type"]
-    fields = ["travel_type", "result_vector", "vector_readable", "updated_at"]
-    readonly_fields = ["vector_readable", "updated_at"]
-
-    def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
-        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
-        return apply_vector_widget(formfield, db_field.name, "result_vector")
-
-    @admin.display(description="현재 값(라벨)")
-    def vector_readable(self, obj: UserTestResult) -> str:
-        return format_style_vector(obj.result_vector)
+    fields = ["travel_type", "vector_chart", "updated_at"]
+    readonly_fields = ["vector_chart", "updated_at"]
 
 
 class FollowingInline(admin.TabularInline):  # type: ignore[type-arg]
@@ -43,7 +31,6 @@ class FollowingInline(admin.TabularInline):  # type: ignore[type-arg]
     model = Follow
     fk_name = "follower"
     extra = 0
-    classes = ["collapse"]
     fields = ["following", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["following"]
@@ -61,7 +48,6 @@ class FollowerInline(admin.TabularInline):  # type: ignore[type-arg]
     model = Follow
     fk_name = "following"
     extra = 0
-    classes = ["collapse"]
     fields = ["follower", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["follower"]
@@ -78,7 +64,6 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
     model = Bookmark
     extra = 0
-    classes = ["collapse"]
     fields = ["place", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["place"]
@@ -111,12 +96,12 @@ class UserAdmin(BaseAdmin):
     date_hierarchy = "created_at"
     readonly_fields = ["created_at", "updated_at", "last_login", "deleted_at"]
     exclude = ["password"]
-    autocomplete_fields = ["tags"]
+    filter_horizontal = ["tags"]
     save_on_top = True
-    inlines = [SocialUserInline, UserTestResultInline, FollowingInline, FollowerInline, BookmarkInline]
+    inlines = [UserTestResultInline, SocialUserInline, FollowingInline, FollowerInline, BookmarkInline]
     fieldsets = [
         (None, {"fields": ["nickname", "email", "role", "is_active", "is_staff"]}),
-        ("프로필", {"classes": ["collapse"], "fields": ["bio", "gender", "birthday", "profile_img_url", "tags"]}),
+        ("프로필", {"fields": ["bio", "gender", "birthday", "profile_img_url", "tags"]}),
         ("메타", {"classes": ["collapse"], "fields": ["last_login", "deleted_at", "created_at", "updated_at"]}),
     ]
 
