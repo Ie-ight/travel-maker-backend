@@ -5,13 +5,15 @@
 """
 
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 
-from apps.user.models import UserActionLog, UserPreference
+from apps.user.models import User, UserActionLog, UserPreference
 from apps.user.services import behavior_constants
+from apps.user.services.auth_service import KakaoAuthService
 from apps.user.services.user_content_vector_service import (
     apply_incremental_update,
     compute_user_content_vector_for_user,
@@ -70,3 +72,14 @@ def recompute_user_content_vectors_batch() -> None:
             updated += 1
 
     logger.info("유저 콘텐츠 벡터 배치 재계산 완료: 갱신 %d, 영벡터(미생성) %d", updated, skipped)
+
+
+@shared_task(ignore_result=True)  # type: ignore[misc]
+def purge_withdrawn_users() -> None:
+    """탈퇴 후 14일이 경과한 유저를 DB에서 영구 삭제한다."""
+    cutoff = timezone.now() - timedelta(days=KakaoAuthService.RECOVERY_WINDOW_DAYS)
+    deleted_count, _ = User.objects.filter(
+        is_active=False,
+        deleted_at__lt=cutoff,
+    ).delete()
+    logger.info("탈퇴 유저 하드 삭제 완료: %d건", deleted_count)

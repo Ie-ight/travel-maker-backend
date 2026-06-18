@@ -116,6 +116,53 @@ class TestKakaoAuthService:
         except Exception as e:
             pytest.fail(f"예외가 발생하면 안 됩니다: {e}")
 
+    @patch.object(KakaoAuthService, "get_user_info")
+    @patch.object(KakaoAuthService, "get_access_token")
+    def test_탈퇴_후_14일_이내_재로그인_자동복구(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
+        """14일 이내 탈퇴 유저가 재로그인하면 자동 복구되어 is_active=True, deleted_at=None이 된다."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        user = make_user(email="withdrawn@example.com", nickname="withdrawn_user")
+        SocialUser.objects.create(user=user, provider=SocialUser.Provider.KAKAO, provider_id="kakao_withdrawn")
+        user.is_active = False
+        user.deleted_at = timezone.now() - timedelta(days=3)
+        user.save(update_fields=["is_active", "deleted_at"])
+
+        mock_token.return_value = "fake_token"
+        mock_info.return_value = make_kakao_user_info(provider_id="kakao_withdrawn", email=user.email)
+
+        returned_user, is_new_user = KakaoAuthService.get_or_create_user("fake_code")
+
+        assert returned_user.pk == user.pk
+        assert is_new_user is False
+        returned_user.refresh_from_db()
+        assert returned_user.is_active is True
+        assert returned_user.deleted_at is None
+
+    @patch.object(KakaoAuthService, "get_user_info")
+    @patch.object(KakaoAuthService, "get_access_token")
+    def test_탈퇴_후_14일_초과_재로그인_에러(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
+        """14일 초과 탈퇴 유저가 재로그인하면 AlreadyWithdrawnError를 발생시킨다."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.user.utils.auth_exceptions import AlreadyWithdrawnError
+
+        user = make_user(email="expired@example.com", nickname="expired_user")
+        SocialUser.objects.create(user=user, provider=SocialUser.Provider.KAKAO, provider_id="kakao_expired")
+        user.is_active = False
+        user.deleted_at = timezone.now() - timedelta(days=15)
+        user.save(update_fields=["is_active", "deleted_at"])
+
+        mock_token.return_value = "fake_token"
+        mock_info.return_value = make_kakao_user_info(provider_id="kakao_expired", email=user.email)
+
+        with pytest.raises(AlreadyWithdrawnError):
+            KakaoAuthService.get_or_create_user("fake_code")
+
 
 @pytest.mark.django_db
 class TestKakaoLoginView:
@@ -301,102 +348,3 @@ class TestWithdrawView:
         res = self.client.delete(self.url, {"reason": "기타"}, format="json")
 
         assert res.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.django_db
-class TestRecoverService:
-    def _make_withdrawn_user(self, days_ago: int = 0) -> tuple[User, SocialUser]:
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        user = make_user()
-        social = SocialUser.objects.create(
-            user=user,
-            provider=SocialUser.Provider.KAKAO,
-            provider_id="kakao_99999",
-        )
-        user.is_active = False
-        user.deleted_at = timezone.now() - timedelta(days=days_ago)
-        user.save(update_fields=["is_active", "deleted_at"])
-        return user, social
-
-    @patch.object(KakaoAuthService, "get_user_info")
-    @patch.object(KakaoAuthService, "get_access_token")
-    def test_복구_성공(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
-        """14일 이내 탈퇴 계정은 복구되어 is_active=True, deleted_at=None이 된다."""
-        user, _ = self._make_withdrawn_user(days_ago=3)
-        mock_token.return_value = "fake_token"
-        mock_info.return_value = make_kakao_user_info(provider_id="kakao_99999", email=user.email)
-
-        recovered = KakaoAuthService.recover_user("fake_code")
-
-        assert recovered.pk == user.pk
-        recovered.refresh_from_db()
-        assert recovered.is_active is True
-        assert recovered.deleted_at is None
-
-    @patch.object(KakaoAuthService, "get_user_info")
-    @patch.object(KakaoAuthService, "get_access_token")
-    def test_14일_초과_복구_불가(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
-        """14일 초과 탈퇴 계정은 RecoveryAccountNotFoundError를 발생시킨다."""
-        from apps.user.utils.auth_exceptions import RecoveryAccountNotFoundError
-
-        user, _ = self._make_withdrawn_user(days_ago=15)
-        mock_token.return_value = "fake_token"
-        mock_info.return_value = make_kakao_user_info(provider_id="kakao_99999", email=user.email)
-
-        with pytest.raises(RecoveryAccountNotFoundError):
-            KakaoAuthService.recover_user("fake_code")
-
-    @patch.object(KakaoAuthService, "get_user_info")
-    @patch.object(KakaoAuthService, "get_access_token")
-    def test_활성_계정_복구_불가(self, mock_token: MagicMock, mock_info: MagicMock) -> None:
-        """활성 계정에 복구 시도 시 RecoveryAccountNotFoundError를 발생시킨다."""
-        from apps.user.utils.auth_exceptions import RecoveryAccountNotFoundError
-
-        user = make_user()
-        SocialUser.objects.create(user=user, provider=SocialUser.Provider.KAKAO, provider_id="kakao_99999")
-        mock_token.return_value = "fake_token"
-        mock_info.return_value = make_kakao_user_info(provider_id="kakao_99999", email=user.email)
-
-        with pytest.raises(RecoveryAccountNotFoundError):
-            KakaoAuthService.recover_user("fake_code")
-
-
-@pytest.mark.django_db
-class TestRecoveryView:
-    def setup_method(self) -> None:
-        self.client = APIClient()
-        self.url = reverse("recovery")
-
-    @patch.object(KakaoAuthService, "recover_user")
-    def test_복구_성공_200(self, mock_recover: MagicMock) -> None:
-        """복구 성공 시 200과 access_token, message를 반환한다."""
-        user = make_user()
-        mock_recover.return_value = user
-
-        res = self.client.post(self.url, {"code": "fake_code"}, format="json")
-
-        assert res.status_code == status.HTTP_200_OK
-        assert "access_token" in res.data
-        assert res.data["message"] == "계정이 복구되었습니다."
-        assert "refresh_token" in res.cookies
-
-    @patch.object(KakaoAuthService, "recover_user")
-    def test_복구_대상_없음_404(self, mock_recover: MagicMock) -> None:
-        """복구 불가 계정은 404를 반환한다."""
-        from apps.user.utils.auth_exceptions import RecoveryAccountNotFoundError
-
-        mock_recover.side_effect = RecoveryAccountNotFoundError()
-
-        res = self.client.post(self.url, {"code": "fake_code"}, format="json")
-
-        assert res.status_code == status.HTTP_404_NOT_FOUND
-        assert "error_detail" in res.data
-
-    def test_code_누락_400(self) -> None:
-        """code 없이 복구 요청 시 400을 반환한다."""
-        res = self.client.post(self.url, {}, format="json")
-
-        assert res.status_code == status.HTTP_400_BAD_REQUEST
