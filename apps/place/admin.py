@@ -5,98 +5,23 @@ from django.contrib import admin
 from django.db.models import Count, QuerySet
 from django.forms import Media
 from django.http import HttpRequest
-from django.utils.safestring import SafeString, mark_safe
+from django.utils.safestring import SafeString
 
 from apps.bookmark.models import Bookmark
-from apps.core.admin import BaseAdmin, SmallTextFieldMixIn, VectorChartMixIn, render_thumbnail
+from apps.core.admin import BaseAdmin, SmallTextFieldMixIn, VectorChartMixIn, VectorEditFormMixIn, render_thumbnail
 from apps.place.models import Place, PlaceFeature, PlaceImage, PlaceInfo, Tag
 from apps.review.models import Review
 
 
-class RangeSliderWidget(forms.NumberInput):
-    input_type = "range"
-
-    def render(self, name, value, attrs=None, renderer=None):
-        if attrs is None:
-            attrs = {}
-        # 슬라이더를 움직일 때 바로 옆에 있는 span의 텍스트를 실시간으로 업데이트
-        attrs["oninput"] = 'this.nextElementSibling.innerText = this.value + "%";'
-        attrs["style"] = "margin-right: 10px; cursor: pointer; vertical-align: middle;"
-
-        input_html = super().render(name, value, attrs, renderer)
-        display_value = value if value is not None else 50
-        # 인풋 태그와 실시간 수치(span)를 나란히 배치
-        return mark_safe(
-            f'<div style="display: inline-flex; align-items: center;">{input_html}<span style="font-weight: bold; min-width: 45px; color: #818cf8;">{display_value}%</span></div>'
-        )
-
-
-class PlaceFeatureForm(forms.ModelForm):
+class PlaceFeatureForm(VectorEditFormMixIn):
     """0~100% 형태의 슬라이더 바를 이용해 직관적으로 벡터값을 조작하는 커스텀 폼"""
-
-    v1_activity = forms.FloatField(
-        label="🏃 활동성 (힐링 ↔ 액티비티)",
-        widget=RangeSliderWidget(attrs={"min": "0", "max": "100", "step": "1"}),
-        required=False,
-    )
-    v2_plan = forms.FloatField(
-        label="📅 계획성 (즉흥 ↔ 계획)",
-        widget=RangeSliderWidget(attrs={"min": "0", "max": "100", "step": "1"}),
-        required=False,
-    )
-    v3_social = forms.FloatField(
-        label="🤝 사교성 (단체 ↔ 나홀로)",
-        widget=RangeSliderWidget(attrs={"min": "0", "max": "100", "step": "1"}),
-        required=False,
-    )
-    v4_nature = forms.FloatField(
-        label="🌲 공간지향 (도심 ↔ 자연)",
-        widget=RangeSliderWidget(attrs={"min": "0", "max": "100", "step": "1"}),
-        required=False,
-    )
-    v5_culture = forms.FloatField(
-        label="🖼️ 경험지향 (체험 ↔ 문화)",
-        widget=RangeSliderWidget(attrs={"min": "0", "max": "100", "step": "1"}),
-        required=False,
-    )
-    v6_cost = forms.FloatField(
-        label="💸 소비지향 (럭셔리 ↔ 가성비)",
-        widget=RangeSliderWidget(attrs={"min": "0", "max": "100", "step": "1"}),
-        required=False,
-    )
 
     class Meta:
         model = PlaceFeature
         fields = ("v1_activity", "v2_plan", "v3_social", "v4_nature", "v5_culture", "v6_cost")
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk and self.instance.style_vector is not None:
-            vec = self.instance.style_vector
-            if len(vec) >= 6:
-                self.initial["v1_activity"] = int(float(vec[0]) * 100)
-                self.initial["v2_plan"] = int(float(vec[1]) * 100)
-                self.initial["v3_social"] = int(float(vec[2]) * 100)
-                self.initial["v4_nature"] = int(float(vec[3]) * 100)
-                self.initial["v5_culture"] = int(float(vec[4]) * 100)
-                self.initial["v6_cost"] = int(float(vec[5]) * 100)
-        else:
-            for field in ["v1_activity", "v2_plan", "v3_social", "v4_nature", "v5_culture", "v6_cost"]:
-                self.initial[field] = 50
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        v1 = float(self.cleaned_data.get("v1_activity", 50)) / 100.0
-        v2 = float(self.cleaned_data.get("v2_plan", 50)) / 100.0
-        v3 = float(self.cleaned_data.get("v3_social", 50)) / 100.0
-        v4 = float(self.cleaned_data.get("v4_nature", 50)) / 100.0
-        v5 = float(self.cleaned_data.get("v5_culture", 50)) / 100.0
-        v6 = float(self.cleaned_data.get("v6_cost", 50)) / 100.0
-
-        instance.style_vector = [v1, v2, v3, v4, v5, v6]
-        if commit:
-            instance.save()
-        return instance
+    def get_vector_field_name(self) -> str:
+        return "style_vector"
 
 
 class PlaceFeatureInline(VectorChartMixIn, admin.StackedInline):
