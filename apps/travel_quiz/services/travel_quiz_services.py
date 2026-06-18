@@ -7,7 +7,7 @@ from django.db import transaction
 from pgvector.django import CosineDistance
 
 from apps.place.models import Place
-from apps.travel_quiz.exceptions import InvalidTravelTypeId, QuizResultNotFound
+from apps.travel_quiz.exceptions import InvalidTravelTypeId, InvalidTypeKey, QuizResultNotFound
 from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.travel_quiz.services.compatibility_data import _COMPATIBLE_MAP, _INCOMPATIBLE_MAP
 from apps.travel_quiz.services.compatibility_messages import COMPATIBILITY_MESSAGES
@@ -77,6 +77,21 @@ _CARD4: dict[tuple[bool, bool], DetailCard] = {
     (False, True): DetailCard("합리적인 체험", "직접 체험하는 여행을 합리적인 가격에 즐겨요."),
     (False, False): DetailCard("특별한 경험엔 아낌없이", "기억에 남을 순간엔 지갑을 열어요."),
 }
+
+
+@dataclass
+class SharedQuizResult:
+    travel_type: TravelType
+    type_tags: list[str]
+    description: str
+    detail_cards: list[DetailCard]
+    result_vector: list[float]
+    accuracy: int
+    recommended_places: list[Place]
+    compatible_type: TravelType
+    incompatible_type: TravelType
+    compatible_reason: str
+    incompatible_reason: str
 
 
 @dataclass
@@ -221,6 +236,30 @@ def submit_quiz(user: AbstractBaseUser | AnonymousUser, answers: list[str]) -> Q
         result_vector=norm,
         accuracy=calculate_accuracy(norm),
         recommended_places=recommended_places,
+        compatible_type=compatible_type,
+        incompatible_type=incompatible_type,
+        compatible_reason=messages["compatible"],
+        incompatible_reason=messages["incompatible"],
+    )
+
+
+def get_shared_quiz_result(type_key: str, norm: list[float]) -> SharedQuizResult:
+    try:
+        travel_type = TravelType.objects.get(type_key=type_key)
+    except TravelType.DoesNotExist:
+        raise InvalidTypeKey() from None
+
+    compatible_type, incompatible_type = find_compatible_types(travel_type)
+    messages = COMPATIBILITY_MESSAGES[type_key]
+
+    return SharedQuizResult(
+        travel_type=travel_type,
+        type_tags=build_type_tags(type_key),
+        description=make_description(norm),
+        detail_cards=build_detail_cards(norm),
+        result_vector=norm,
+        accuracy=calculate_accuracy(norm),
+        recommended_places=get_recommended_places(norm),
         compatible_type=compatible_type,
         incompatible_type=incompatible_type,
         compatible_reason=messages["compatible"],

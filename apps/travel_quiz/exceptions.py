@@ -20,3 +20,8 @@ class QuizResultNotFound(APIException):
 class InvalidTravelTypeId(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "유효하지 않은 travel_type_id입니다."
+
+
+class InvalidTypeKey(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "유효하지 않은 type_key입니다."
