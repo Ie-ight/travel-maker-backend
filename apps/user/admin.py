@@ -3,7 +3,7 @@ from django.db.models import Count, QuerySet
 from django.http import HttpRequest
 
 from apps.bookmark.models import Bookmark
-from apps.core.admin import BaseAdmin, VectorChartMixIn, VectorEditFormMixIn
+from apps.core.admin import BaseAdmin, VectorChartMixIn
 from apps.route.models import Route, RouteLike
 from apps.travel_quiz.models import UserTestResult
 from apps.user.models import Follow, SocialUser, User
@@ -17,37 +17,17 @@ class SocialUserInline(admin.TabularInline):  # type: ignore[type-arg]
     readonly_fields = ["created_at"]
 
 
-class UserTestResultForm(VectorEditFormMixIn):
-    class Meta:
-        model = UserTestResult
-        fields = ("travel_type", "v1_activity", "v2_plan", "v3_social", "v4_nature", "v5_culture", "v6_cost")
-
-    def get_vector_field_name(self) -> str:
-        return "result_vector"
-
-
 class UserTestResultInline(VectorChartMixIn, admin.StackedInline):  # type: ignore[type-arg]
     """사용자가 여행 성향 퀴즈를 본 결과 데이터."""
 
     model = UserTestResult
-    form = UserTestResultForm
     extra = 0
     can_delete = False
     verbose_name = "여행 성향 퀴즈 결과"
     verbose_name_plural = "여행 성향 퀴즈 결과 목록"
     readonly_fields = ["vector_chart", "updated_at"]
-    # 수동 편집과 차트를 모두 제공
-    fields = [
-        "travel_type",
-        "vector_chart",
-        "v1_activity",
-        "v2_plan",
-        "v3_social",
-        "v4_nature",
-        "v5_culture",
-        "v6_cost",
-        "updated_at",
-    ]
+    # 수동 편집은 안 쓰고 차트로 보기만 할 것이므로 result_vector(원시데이터) 제거
+    fields = ["travel_type", "vector_chart", "updated_at"]
 
 
 class FollowingInline(admin.TabularInline):  # type: ignore[type-arg]
