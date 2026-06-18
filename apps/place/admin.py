@@ -78,6 +78,8 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
 @admin.register(Place)
 class PlaceAdmin(SmallTextFieldMixIn, BaseAdmin):
+    large_text_fields = ["description"]
+
     list_display = [
         "id",
         "main_thumb",

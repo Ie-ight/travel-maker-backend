@@ -5,6 +5,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.db import models
+from django.http import HttpRequest
 from django.utils.html import format_html
 from django.utils.safestring import SafeString, mark_safe
 from pgvector.django.vector import VectorWidget
@@ -95,9 +96,20 @@ def apply_vector_widget(formfield: forms.Field | None, db_field_name: str, targe
 
 
 class SmallTextFieldMixIn:
-    formfield_overrides = {
-        models.TextField: {"widget": forms.Textarea(attrs={"rows": 2, "cols": 80})},
-    }
+    """기본적으로 텍스트필드(TextField)의 세로 길이를 2줄(rows=2)로 줄여서 어드민 UI를 깔끔하게 유지합니다.
+    크게 보여야 하는 필드명은 `large_text_fields = ["description"]` 처럼 선언해 예외 처리할 수 있습니다.
+    """
+
+    large_text_fields: Sequence[str] = ()
+
+    def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)  # type: ignore[misc]
+        if isinstance(db_field, models.TextField) and formfield is not None:
+            if db_field.name not in self.large_text_fields:
+                formfield.widget.attrs.update({"rows": 2, "cols": 80})
+            else:
+                formfield.widget.attrs.update({"rows": 10, "cols": 80})
+        return formfield
 
 
 class VectorChartMixIn:
