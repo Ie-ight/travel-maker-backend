@@ -12,16 +12,13 @@ from apps.route.schemas.route_schemas import (
     route_create_schema,
     route_delete_schema,
     route_detail_schema,
-    route_like_schema,
     route_list_schema,
-    route_unlike_schema,
     route_update_schema,
 )
 from apps.route.serializers.route_serializers import (
     RouteCreateResponseSerializer,
     RouteCreateSerializer,
     RouteDetailSerializer,
-    RouteLikeResponseSerializer,
     RouteListSerializer,
     RouteUpdateResponseSerializer,
     RouteUpdateSerializer,
@@ -32,8 +29,6 @@ from apps.route.services.route_services import (
     delete_route,
     get_route_detail,
     get_routes,
-    like_route,
-    unlike_route,
     update_route,
 )
 from apps.user.models import User
@@ -82,25 +77,6 @@ class RouteDetailView(APIView):
     @route_delete_schema
     def delete(self, request: Request, route_id: int) -> Response:
         delete_route(cast(User, request.user), route_id)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class RouteLikeView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @route_like_schema
-    def post(self, request: Request, route_id: int) -> Response:
-        like = like_route(cast(User, request.user), route_id)
-        data: dict[str, str | int] = {
-            "message": "좋아요가 추가되었습니다.",
-            "like_id": like.id,
-            "like_count": like.route.like_count,
-        }
-        return Response(RouteLikeResponseSerializer(data).data, status=status.HTTP_201_CREATED)
-
-    @route_unlike_schema
-    def delete(self, request: Request, route_id: int) -> Response:
-        unlike_route(cast(User, request.user), route_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

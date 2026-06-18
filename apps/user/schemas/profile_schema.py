@@ -4,10 +4,7 @@ from apps.core.presigned_url.serializers import (
     PresignedUrlRequestSerializer,
     PresignedUrlResponseSerializer,
 )
-from apps.route.serializers.route_serializers import (
-    RouteListSerializer,
-    RouteMyListSerializer,
-)
+from apps.route.serializers.route_serializers import RouteMyListSerializer
 from apps.user.serializers.profile_serializer import (
     NicknameCheckResponseSerializer,
     NicknameCheckSerializer,
@@ -189,15 +186,6 @@ user_route_list_schema = extend_schema(
     responses={200: RouteMyListSerializer(many=True)},
 )
 
-user_liked_routes_schema = extend_schema(
-    tags=["User"],
-    summary="내가 좋아요한 경로 목록",
-    description="로그인한 유저가 좋아요를 누른 경로 목록을 최신순으로 조회합니다.",
-    parameters=[
-        OpenApiParameter(name="page", type=int, required=False, description="페이지 번호 (기본값 1)"),
-    ],
-    responses={200: RouteListSerializer(many=True)},
-)
 
 public_profile_get_schema = extend_schema(
     tags=["User"],
