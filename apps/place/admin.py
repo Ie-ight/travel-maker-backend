@@ -24,7 +24,7 @@ class PlaceFeatureForm(VectorEditFormMixIn):
         return "style_vector"
 
 
-class PlaceFeatureInline(VectorChartMixIn, admin.StackedInline):
+class PlaceFeatureInline(VectorChartMixIn, admin.StackedInline):  # type: ignore[type-arg]
     model = PlaceFeature
     form = PlaceFeatureForm
     can_delete = False
@@ -103,7 +103,7 @@ class PlaceAdmin(SmallTextFieldMixIn, BaseAdmin):
     save_on_top = True
 
     @property
-    def media(self):
+    def media(self) -> Media:
         base_media = super().media
 
         chart_media = Media(

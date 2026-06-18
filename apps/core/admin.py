@@ -109,13 +109,13 @@ class SmallTextFieldMixIn:
                 formfield.widget.attrs.update({"rows": 2, "cols": 80})
             else:
                 formfield.widget.attrs.update({"rows": 10, "cols": 80})
-        return formfield
+        return formfield  # type: ignore
 
 
 class VectorChartMixIn:
     """장소, 유저 등 성향 벡터(6축)를 가진 모델에서 레이더 차트를 렌더링하는 공통 믹스인"""
 
-    def get_vector_data(self, obj) -> list[float] | None:
+    def get_vector_data(self, obj: Any) -> list[float] | None:
         """모델별로 다른 벡터 필드명(style_vector, result_vector 등)을 찾아 반환"""
         if hasattr(obj, "style_vector") and obj.style_vector is not None:
             return [float(x) for x in obj.style_vector]
@@ -124,7 +124,7 @@ class VectorChartMixIn:
         return None
 
     @admin.display(description="현재 성향 차트")
-    def vector_chart(self, obj):
+    def vector_chart(self, obj: Any) -> SafeString:
         vector_data = self.get_vector_data(obj) or [0, 0, 0, 0, 0, 0]
 
         return mark_safe(f"""
@@ -149,8 +149,8 @@ class VectorChartMixIn:
         """)
 
     @property
-    def media(self):
-        base_media = super().media if hasattr(super(), "media") else forms.Media()
+    def media(self) -> forms.Media:
+        base_media = super().media if hasattr(super(), "media") else forms.Media()  # type: ignore[misc]
         chart_media = forms.Media(
             js=[
                 "https://cdn.jsdelivr.net/npm/chart.js",
@@ -163,7 +163,9 @@ class VectorChartMixIn:
 class RangeSliderWidget(forms.NumberInput):
     input_type = "range"
 
-    def render(self, name, value, attrs=None, renderer=None):
+    def render(
+        self, name: str, value: Any, attrs: dict[str, str] | None = None, renderer: Any | None = None
+    ) -> SafeString:
         if attrs is None:
             attrs = {}
         # 슬라이더를 움직일 때 바로 옆에 있는 span의 텍스트를 실시간으로 업데이트
@@ -222,15 +224,15 @@ class VectorEditFormMixIn(forms.ModelForm):  # type: ignore[type-arg]
         if self.instance and self.instance.pk and getattr(self.instance, field_name, None) is not None:
             vec = getattr(self.instance, field_name)
             if len(vec) >= 6:
-                self.initial["v1_activity"] = int(float(vec[0]) * 100)
-                self.initial["v2_plan"] = int(float(vec[1]) * 100)
-                self.initial["v3_social"] = int(float(vec[2]) * 100)
-                self.initial["v4_nature"] = int(float(vec[3]) * 100)
-                self.initial["v5_culture"] = int(float(vec[4]) * 100)
-                self.initial["v6_cost"] = int(float(vec[5]) * 100)
+                self.initial["v1_activity"] = int(float(vec[0]) * 100)  # type: ignore[index]
+                self.initial["v2_plan"] = int(float(vec[1]) * 100)  # type: ignore[index]
+                self.initial["v3_social"] = int(float(vec[2]) * 100)  # type: ignore[index]
+                self.initial["v4_nature"] = int(float(vec[3]) * 100)  # type: ignore[index]
+                self.initial["v5_culture"] = int(float(vec[4]) * 100)  # type: ignore[index]
+                self.initial["v6_cost"] = int(float(vec[5]) * 100)  # type: ignore[index]
         else:
             for field in ["v1_activity", "v2_plan", "v3_social", "v4_nature", "v5_culture", "v6_cost"]:
-                self.initial[field] = 50
+                self.initial[field] = 50  # type: ignore[index]
 
     def save(self, commit: bool = True) -> Any:
         instance = super().save(commit=False)

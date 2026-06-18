@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.contrib import admin
 from django.db.models import Count, QuerySet
 from django.http import HttpRequest
@@ -158,7 +160,7 @@ class UserAdmin(BaseAdmin):
         )
 
     @admin.display(description="프로필 사진")
-    def profile_thumb(self, obj: User):
+    def profile_thumb(self, obj: User) -> Any:
         if not obj.profile_img_url:
             return "—"
         from django.utils.html import format_html

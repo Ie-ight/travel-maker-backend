@@ -1,4 +1,7 @@
+from typing import Any
+
 from django.contrib import admin
+from django.http import HttpRequest
 from django.utils.html import format_html
 
 from apps.core.admin import BaseAdmin, SmallTextFieldMixIn
@@ -22,7 +25,7 @@ class RouteDayAdmin(BaseAdmin):
     inlines = [RouteDayPlaceInline]
     search_fields = ["route__title"]
 
-    def get_model_perms(self, request):
+    def get_model_perms(self, request: HttpRequest) -> dict[str, bool]:
         # 사이드바 목록(인덱스)에서는 숨기되, 인라인의 '변경' 버튼을 통해서만 접근하도록 합니다.
         return {}
 
@@ -83,14 +86,14 @@ class RouteAdmin(SmallTextFieldMixIn, BaseAdmin):
         ("메타", {"classes": ["collapse"], "fields": ["created_at", "updated_at"]}),
     ]
 
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+    def formfield_for_foreignkey(self, db_field: Any, request: Any, **kwargs: Any) -> Any:  # type: ignore
         if db_field.name == "region_tag":
             from apps.place.models import Tag
 
             kwargs["queryset"] = Tag.objects.filter(tag_type=Tag.TagType.REGION)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    def formfield_for_manytomany(self, db_field, request, **kwargs):
+    def formfield_for_manytomany(self, db_field: Any, request: Any, **kwargs: Any) -> Any:  # type: ignore
         if db_field.name == "theme_tags":
             from apps.place.models import Tag
 
@@ -107,6 +110,6 @@ class RouteLikeAdmin(BaseAdmin):
     autocomplete_fields = ["user", "route"]
     readonly_fields = ["created_at"]
 
-    def get_model_perms(self, request):
+    def get_model_perms(self, request: HttpRequest) -> dict[str, bool]:
         # 유저 상세의 인라인에서 주로 관리하므로 메인 메뉴에서는 숨김
         return {}
