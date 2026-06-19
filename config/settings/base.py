@@ -7,7 +7,6 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-from celery.schedules import crontab
 from decouple import config  # type: ignore
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -210,12 +209,6 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_BEAT_SCHEDULE = {
-    "purge-withdrawn-users-daily": {
-        "task": "apps.user.tasks.purge_withdrawn_users",
-        "schedule": crontab(hour=3, minute=0),  # 매일 새벽 3시
-    },
-}
 
 
 # Redis Cache
