@@ -168,14 +168,29 @@ class KakaoAuthService:
                     pass
 
                 # Case 2: 이메일 중복 (앱 전환 등으로 provider_id가 달라진 경우)
-                user = User.objects.get(email=user_info.email)
+                try:
+                    user = User.objects.get(email=user_info.email)
+                except User.DoesNotExist:
+                    logger.error("IntegrityError 발생했으나 이메일로 유저를 찾을 수 없음: %s", user_info.email)
+                    raise
                 if not user.is_active:
-                    return cls._recover_or_raise(user), False
-                SocialUser.objects.create(
-                    user=user,
-                    provider=SocialUser.Provider.KAKAO,
-                    provider_id=user_info.provider_id,
-                )
+                    recovered = cls._recover_or_raise(user)
+                    with transaction.atomic():
+                        SocialUser.objects.create(
+                            user=recovered,
+                            provider=SocialUser.Provider.KAKAO,
+                            provider_id=user_info.provider_id,
+                        )
+                    return recovered, False
+                try:
+                    with transaction.atomic():
+                        SocialUser.objects.create(
+                            user=user,
+                            provider=SocialUser.Provider.KAKAO,
+                            provider_id=user_info.provider_id,
+                        )
+                except IntegrityError:
+                    pass  # 동시 요청으로 이미 생성된 경우
                 return user, False
 
         return user, True

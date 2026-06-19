@@ -104,12 +104,10 @@ infrastructure/docker/docker-compose.override.yml
 # place 데이터 덤프(바이너리, 공유는 별도 전달)
 dumps/*.dump
 
-.claude/now.md
+.claude/
 
 logs/*.log
 logs/*.log.*
-
-.claude/plan.md
 
 # 로컬 테스트 전용 — 하드코딩된 키 포함, 커밋 금지
 test_frontend/
