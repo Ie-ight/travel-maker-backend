@@ -52,7 +52,7 @@ class Command(BaseCommand):
             raise CommandError("--all과 --sync는 함께 쓸 수 없습니다.")
         num_rows = options["num_rows"]
         if num_rows is None:
-            num_rows = 50 if (is_all or is_sync) else 10
+            num_rows = 1000 if is_sync else (50 if is_all else 10)
         try:
             if is_sync:
                 summary = sync_incremental(
