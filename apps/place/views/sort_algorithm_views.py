@@ -59,10 +59,10 @@ class PlaceRecommendView(APIView):
                 ).values_list("place_id", flat=True)
             )
             for place in places:
-                place.is_bookmarked = place.id in bookmarked_ids
+                place.is_bookmarked = place.id in bookmarked_ids  # type: ignore[attr-defined]
         else:
             for place in places:
-                place.is_bookmarked = False
+                place.is_bookmarked = False  # type: ignore[attr-defined]
 
         serializer = PlaceListSerializer(places, many=True)
         return Response(serializer.data)
