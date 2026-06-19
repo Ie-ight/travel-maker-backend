@@ -30,6 +30,7 @@ class ReviewRouteSerializer(serializers.ModelSerializer[Route]):
 class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]):
     review_id = serializers.IntegerField(source="id")
     user_nickname = serializers.CharField(source="user.nickname")
+    user_profile_img_url = serializers.SerializerMethodField()
     route = ReviewRouteSerializer(read_only=True)
 
     class Meta:
@@ -38,6 +39,7 @@ class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]
             "review_id",
             "user_id",
             "user_nickname",
+            "user_profile_img_url",
             "rating",
             "content",
             "image_url",
@@ -46,6 +48,10 @@ class ReviewListItemSerializer(IsOwnerMixin, serializers.ModelSerializer[Review]
             "is_owner",
             "route",
         ]
+
+    def get_user_profile_img_url(self, obj: Review) -> str | None:
+        url = obj.user.profile_img_url
+        return url if url else None
 
 
 # 리뷰 등록 요청 검증
