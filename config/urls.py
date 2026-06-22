@@ -30,6 +30,7 @@ urlpatterns = [
     path("api/v1/", include("apps.place.urls")),
     path("api/v1/tags/", include(tag_urlpatterns)),
     path("api/v1/", include("apps.route.urls")),
+    path("api/v1/", include("apps.share.urls")),
 ]
 # Static & Media files (개발 환경에서만)
 if settings.DEBUG:

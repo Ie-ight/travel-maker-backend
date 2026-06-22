@@ -19,7 +19,6 @@ from apps.user.schemas.auth_schemas import (
     kakao_callback_schema,
     kakao_login_schema,
     logout_schema,
-    recovery_schema,
     token_refresh_schema,
     withdraw_schema,
 )
@@ -260,35 +259,5 @@ class KakaoCallbackView(APIView):
         is_new_str = "true" if is_new_user else "false"
         redirect_url = f"{settings.FRONTEND_URL}/auth/callback?access_token={access_token}&is_new_user={is_new_str}"
         response = HttpResponseRedirect(redirect_url)
-        _set_refresh_cookie(response, refresh_token)
-        return response
-
-
-class RecoveryView(APIView):
-    """POST /api/v1/auth/recovery"""
-
-    permission_classes = []
-
-    @recovery_schema
-    def post(self, request: Request) -> Response:
-        serializer = KakaoLoginSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"error_detail": MissingAuthCodeError.default_detail},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        code: str = serializer.validated_data["code"]
-
-        try:
-            user = KakaoAuthService.recover_user(code)
-        except AuthBaseException as e:
-            return Response({"error_detail": e.detail}, status=e.status_code)
-
-        access_token, refresh_token = KakaoAuthService.generate_token_pair(user)
-        response = Response(
-            {"access_token": access_token, "message": "계정이 복구되었습니다."},
-            status=status.HTTP_200_OK,
-        )
         _set_refresh_cookie(response, refresh_token)
         return response

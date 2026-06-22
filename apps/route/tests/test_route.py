@@ -2,12 +2,11 @@ import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from apps.route.models import Route, RouteLike
+from apps.route.models import Route
 from apps.route.tests.factories import (
     AdminUserFactory,
     PlaceFactory,
     RouteFactory,
-    RouteLikeFactory,
     TagFactory,
     UserFactory,
 )
@@ -234,39 +233,6 @@ class TestRouteList:
         response = client.get("/api/v1/routes?ordering=popular")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["results"][0]["like_count"] == 10
-
-
-@pytest.mark.django_db
-class TestRouteLike:
-    def test_좋아요_등록_성공(self, auth_client: APIClient, route: Route) -> None:
-        response = auth_client.post(f"/api/v1/routes/{route.id}/like")
-        assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["like_count"] == 1
-
-    def test_좋아요_중복_실패(self, auth_client: APIClient, user: User, route: Route) -> None:
-        RouteLikeFactory(route=route, user=user)
-        response = auth_client.post(f"/api/v1/routes/{route.id}/like")
-        assert response.status_code == status.HTTP_409_CONFLICT
-
-    def test_존재하지_않는_경로_좋아요_실패(self, auth_client: APIClient) -> None:
-        response = auth_client.post("/api/v1/routes/99999/like")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-    def test_비인증_좋아요_실패(self, client: APIClient, route: Route) -> None:
-        response = client.post(f"/api/v1/routes/{route.id}/like")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_좋아요_취소_성공(self, auth_client: APIClient, user: User) -> None:
-        # like_count=1 로 생성해야 취소 시 0으로 감소 (0에서 감소하면 DB 제약 위반)
-        route = RouteFactory(user=user, like_count=1)
-        RouteLikeFactory(route=route, user=user)
-        response = auth_client.delete(f"/api/v1/routes/{route.id}/like")
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert not RouteLike.objects.filter(route=route, user=user).exists()
-
-    def test_좋아요_내역_없음_취소_실패(self, auth_client: APIClient, route: Route) -> None:
-        response = auth_client.delete(f"/api/v1/routes/{route.id}/like")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db

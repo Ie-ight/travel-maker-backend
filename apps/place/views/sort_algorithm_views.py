@@ -3,6 +3,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.bookmark.models import Bookmark
 from apps.place.schemas.sort_algorithm_schemas import place_recommend_schema
 from apps.place.serializers.place_serializers import PlaceListSerializer
 from apps.place.serializers.sort_algorithm_serializers import RecommendQuerySerializer
@@ -32,7 +33,7 @@ class PlaceRecommendView(APIView):
         if request.user.is_authenticated:
             try:
                 result = UserTestResult.objects.get(user=request.user)
-                user_vector = list(result.result_vector) if result.result_vector else None
+                user_vector = list(result.result_vector) if result.result_vector is not None else None
                 if user_vector and len(user_vector) == 6:
                     places = get_places_sorted_by_vector(
                         user_vector,
@@ -49,6 +50,19 @@ class PlaceRecommendView(APIView):
                 region_tag_id=region_tag_id,
                 limit=limit,
             )
+
+        if request.user.is_authenticated and places:
+            bookmarked_ids = set(
+                Bookmark.objects.filter(
+                    user_id=request.user.pk,
+                    place_id__in=[p.id for p in places],
+                ).values_list("place_id", flat=True)
+            )
+            for place in places:
+                place.is_bookmarked = place.id in bookmarked_ids  # type: ignore[attr-defined]
+        else:
+            for place in places:
+                place.is_bookmarked = False  # type: ignore[attr-defined]
 
         serializer = PlaceListSerializer(places, many=True)
         return Response(serializer.data)

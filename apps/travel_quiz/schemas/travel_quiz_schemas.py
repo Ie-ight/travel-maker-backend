@@ -1,4 +1,5 @@
-from drf_spectacular.utils import OpenApiExample, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 
 from apps.travel_quiz.serializers.travel_quiz_serializers import (
     AvatarUpdateResponseSerializer,
@@ -7,6 +8,7 @@ from apps.travel_quiz.serializers.travel_quiz_serializers import (
     QuizResultSerializer,
     QuizSubmitResponseSerializer,
     QuizSubmitSerializer,
+    SharedQuizResultSerializer,
 )
 
 quiz_submit_schema = extend_schema(
@@ -34,7 +36,7 @@ quiz_submit_schema = extend_schema(
                     "체력을 아낌없이 쓰는 활동형 여행자예요. 철저한 준비로 혼자만의 루트를 만들며 "
                     "도시의 문화와 에너지에서 영감을 받는 타입이에요. 그 지역의 이야기와 역사에 아낌없이 투자해요."
                 ),
-                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttf.png",
+                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ttf-fox.webp",
                 "type_tags": ["액티비티형", "혼자형", "도시형"],
                 "detail_cards": [
                     {"title": "몸으로 떠나는 여행", "description": "체력을 아낌없이 쓰는 게 진짜 여행이에요."},
@@ -52,18 +54,20 @@ quiz_submit_schema = extend_schema(
                 ],
                 "accuracy": 40,
                 "compatible_type": {
-                    "travel_type_id": 1,
-                    "type_key": "ttt",
-                    "type_tags": ["액티비티형", "혼자형", "자연형"],
-                    "name": "새벽을 달리는 늑대",
-                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttt.png",
+                    "travel_type_id": 4,
+                    "type_key": "tff",
+                    "type_tags": ["액티비티형", "단체형", "도시형"],
+                    "name": "도시를 누비는 제비",
+                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/tff-swallow.webp",
+                    "reason": "통하는 게 많아요! 여행 스타일이 잘 맞는 제비예요.",
                 },
                 "incompatible_type": {
-                    "travel_type_id": 8,
-                    "type_key": "fff",
-                    "type_tags": ["힐링형", "단체형", "도시형"],
-                    "name": "카페에 둥지 트는 참새",
-                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/fff.png",
+                    "travel_type_id": 7,
+                    "type_key": "fft",
+                    "type_tags": ["힐링형", "단체형", "자연형"],
+                    "name": "강가에 모이는 백로",
+                    "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/fft-heron.webp",
+                    "reason": "지구 정반대편 사람! 모든 여행 스타일이 극과 극인 백로예요.",
                 },
                 "destinations": [
                     {
@@ -113,7 +117,7 @@ quiz_result_schema = extend_schema(
                     "체력을 아낌없이 쓰는 활동형 여행자예요. 철저한 준비로 혼자만의 루트를 만들며 "
                     "도시의 문화와 에너지에서 영감을 받는 타입이에요. 그 지역의 이야기와 역사에 아낌없이 투자해요."
                 ),
-                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/travel-types/ttf.png",
+                "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/avatar/ttf-fox.webp",
                 "type_tags": ["액티비티형", "혼자형", "도시형"],
                 "result_vector": [
                     {"label": "액티비티형", "value": 80},
@@ -150,6 +154,35 @@ quiz_result_schema = extend_schema(
         200: QuizResultSerializer,
         401: QuizErrorResponseSerializer,
         404: QuizErrorResponseSerializer,
+    },
+)
+
+quiz_shared_result_schema = extend_schema(
+    tags=["TravelQuiz"],
+    summary="공유 퀴즈 결과 조회",
+    description=(
+        "공유 링크의 type_key와 vector 쿼리 파라미터로 퀴즈 결과를 재구성합니다. "
+        "로그인·비로그인 모두 호출 가능하며 DB 저장 없이 그 자리에서 계산합니다."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="type_key",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="여행 유형 키 (ttt/ttf/tft/tff/ftt/ftf/fft/fff)",
+        ),
+        OpenApiParameter(
+            name="vector",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="6개 float 쉼표 구분 (예: 0.8,0.7,0.6,0.3,0.7,0.4)",
+        ),
+    ],
+    responses={
+        200: SharedQuizResultSerializer,
+        400: QuizErrorResponseSerializer,
     },
 )
 

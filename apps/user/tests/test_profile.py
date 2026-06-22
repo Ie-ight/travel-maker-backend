@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from apps.bookmark.models import Bookmark
 from apps.place.models import Place, Tag
 from apps.review.models import Review
-from apps.route.tests.factories import RouteFactory, RouteLikeFactory
+from apps.route.tests.factories import RouteFactory
 from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.user.models import Follow, User
 
@@ -324,6 +324,7 @@ class TestUserBookmarkList:
         response = auth_client.get("/api/v1/users/bookmarks")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 3
+        assert "description" in response.data["results"][0]
 
     def test_북마크_목록_비로그인_실패(self, client: APIClient) -> None:
         response = client.get("/api/v1/users/bookmarks")
@@ -367,18 +368,3 @@ class TestUserRouteList:
     def test_존재하지_않는_유저_404(self, auth_client: APIClient) -> None:
         response = auth_client.get("/api/v1/users/없는유저/routes")
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-@pytest.mark.django_db
-class TestUserLikedRoutes:
-    def test_좋아요한_경로_목록_성공(self, auth_client: APIClient, user: User) -> None:
-        routes = RouteFactory.create_batch(2)
-        RouteLikeFactory(route=routes[0], user=user)
-        RouteLikeFactory(route=routes[1], user=user)
-        response = auth_client.get("/api/v1/users/routes/likes")
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["count"] == 2
-
-    def test_비인증_좋아요_목록_실패(self, client: APIClient) -> None:
-        response = client.get("/api/v1/users/routes/likes")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED

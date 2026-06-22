@@ -97,16 +97,23 @@ reports/
 infrastructure/docker/docker-compose.override.yml
 
 # OMC runtime state
+.omc/
 .omc/state/
 .omc/sessions/
 .omc/artifacts/
 
 # place 데이터 덤프(바이너리, 공유는 별도 전달)
-dumps/*.dump
+dumps/
 
-.claude/now.md
+.claude/
 
 logs/*.log
 logs/*.log.*
 
 .claude/plan.md
+
+agent.local.md
+scratch*.py
+
+# 로컬 테스트 전용 — 하드코딩된 키 포함, 커밋 금지
+test_frontend/

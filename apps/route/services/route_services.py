@@ -1,20 +1,18 @@
 from typing import Any
 
 from django.db import transaction
-from django.db.models import Count, F, Prefetch, Q, QuerySet
+from django.db.models import Count, Prefetch, Q, QuerySet
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 
 from apps.core.search import apply_trigram_filter, extract_core_keyword
 from apps.place.models import Place, Tag
 from apps.route.exceptions import (
-    RouteAlreadyLiked,
     RouteForbidden,
-    RouteLikeNotFound,
     RouteNotFound,
     RouteValidationError,
 )
-from apps.route.models import Route, RouteDay, RouteDayPlace, RouteLike
+from apps.route.models import Route, RouteDay, RouteDayPlace
 from apps.user.models import User, UserActionLog
 from apps.user.services.action_log_service import record_action
 
@@ -250,36 +248,6 @@ def get_user_routes(nickname: str, request: Request) -> tuple[QuerySet[Route] | 
 
 
 @transaction.atomic
-def like_route(user: User, route_id: int) -> RouteLike:
-    route = _get_route_or_404(route_id)
-    if RouteLike.objects.filter(route=route, user=user).exists():
-        raise RouteAlreadyLiked()
-    like = RouteLike.objects.create(route=route, user=user)
-    # F() 표현식으로 원자적 증가 → 동시 요청 시 race condition 방지
-    Route.objects.filter(pk=route_id).update(like_count=F("like_count") + 1)
-    route.refresh_from_db(fields=["like_count"])
-    like.route = route
-    return like
-
-
-@transaction.atomic
-def unlike_route(user: User, route_id: int) -> None:
-    route = _get_route_or_404(route_id)
-    deleted, _ = RouteLike.objects.filter(route=route, user=user).delete()
-    if not deleted:
-        raise RouteLikeNotFound()
-    Route.objects.filter(pk=route_id).update(like_count=F("like_count") - 1)
-
-
-@transaction.atomic
 def admin_delete_route(route_id: int) -> None:
     route = _get_route_or_404(route_id)
     route.delete()
-
-
-def get_liked_routes(user: User, request: Request) -> tuple[QuerySet[Route] | None, RoutePagination]:
-    liked_ids = RouteLike.objects.filter(user=user).values_list("route_id", flat=True)
-    qs = _get_route_queryset().filter(id__in=liked_ids).order_by("-created_at", "-id")
-    paginator = RoutePagination()
-    page = paginator.paginate_queryset(qs, request)
-    return page, paginator  # type: ignore[return-value]

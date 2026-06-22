@@ -7,6 +7,7 @@ from apps.travel_quiz.exceptions import InvalidAnswerChoice, InvalidAnswersLengt
 from apps.travel_quiz.models import TravelType, UserTestResult
 from apps.travel_quiz.services.travel_quiz_services import (
     QuizSubmitResult,
+    SharedQuizResult,
     build_type_tags,
     calculate_accuracy,
     calculate_match_rate,
@@ -96,13 +97,24 @@ class QuizSubmitResponseSerializer(serializers.Serializer):  # type: ignore[type
     type_tags = serializers.ListField(child=serializers.CharField())
     detail_cards = DetailCardSerializer(many=True)
     result_vector = serializers.SerializerMethodField()
+    raw_vector = serializers.ListField(source="result_vector", child=serializers.FloatField(), read_only=True)
     accuracy = serializers.IntegerField()
-    compatible_type = TravelTypeBriefSerializer()
-    incompatible_type = TravelTypeBriefSerializer()
+    compatible_type = serializers.SerializerMethodField()
+    incompatible_type = serializers.SerializerMethodField()
     destinations = PlaceRecommendationSerializer(source="recommended_places", many=True)
 
     def get_result_vector(self, obj: QuizSubmitResult) -> list[dict[str, object]]:
         return label_vector(obj.result_vector)
+
+    def get_compatible_type(self, obj: QuizSubmitResult) -> dict[str, object]:
+        data = dict(TravelTypeBriefSerializer(obj.compatible_type).data)
+        data["reason"] = obj.compatible_reason
+        return data
+
+    def get_incompatible_type(self, obj: QuizSubmitResult) -> dict[str, object]:
+        data = dict(TravelTypeBriefSerializer(obj.incompatible_type).data)
+        data["reason"] = obj.incompatible_reason
+        return data
 
 
 class QuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]
@@ -131,6 +143,49 @@ class QuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]
     def get_destinations(self, obj: UserTestResult) -> list[dict[str, object]]:
         places = get_recommended_places(obj.result_vector)
         return cast(list[dict[str, object]], PlaceMatchSerializer(places, many=True).data)
+
+
+class SharedQuizRequestSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    type_key = serializers.CharField(max_length=3)
+    vector = serializers.CharField()
+
+    def validate_vector(self, value: str) -> list[float]:
+        try:
+            parts = [float(v) for v in value.split(",")]
+        except ValueError:
+            raise serializers.ValidationError("vector는 쉼표 구분 숫자여야 합니다.") from None
+        if len(parts) != 6 or any(not (0.0 <= v <= 1.0) for v in parts):
+            raise serializers.ValidationError("vector는 0.0~1.0 범위의 숫자 6개여야 합니다.")
+        return parts
+
+
+class SharedQuizResultSerializer(serializers.Serializer):  # type: ignore[type-arg]
+    travel_type_id = serializers.IntegerField(source="travel_type.id")
+    type_key = serializers.CharField(source="travel_type.type_key")
+    name = serializers.CharField(source="travel_type.name")
+    description = serializers.CharField()
+    image_url = serializers.CharField(source="travel_type.image_url")
+    type_tags = serializers.ListField(child=serializers.CharField())
+    detail_cards = DetailCardSerializer(many=True)
+    result_vector = serializers.SerializerMethodField()
+    raw_vector = serializers.ListField(source="result_vector", child=serializers.FloatField(), read_only=True)
+    accuracy = serializers.IntegerField()
+    compatible_type = serializers.SerializerMethodField()
+    incompatible_type = serializers.SerializerMethodField()
+    destinations = PlaceRecommendationSerializer(source="recommended_places", many=True)
+
+    def get_result_vector(self, obj: SharedQuizResult) -> list[dict[str, object]]:
+        return label_vector(obj.result_vector)
+
+    def get_compatible_type(self, obj: SharedQuizResult) -> dict[str, object]:
+        data = dict(TravelTypeBriefSerializer(obj.compatible_type).data)
+        data["reason"] = obj.compatible_reason
+        return data
+
+    def get_incompatible_type(self, obj: SharedQuizResult) -> dict[str, object]:
+        data = dict(TravelTypeBriefSerializer(obj.incompatible_type).data)
+        data["reason"] = obj.incompatible_reason
+        return data
 
 
 class AvatarUpdateSerializer(serializers.Serializer):  # type: ignore[type-arg]

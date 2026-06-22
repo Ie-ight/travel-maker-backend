@@ -4,10 +4,7 @@ from apps.core.presigned_url.serializers import (
     PresignedUrlRequestSerializer,
     PresignedUrlResponseSerializer,
 )
-from apps.route.serializers.route_serializers import (
-    RouteListSerializer,
-    RouteMyListSerializer,
-)
+from apps.route.serializers.route_serializers import RouteMyListSerializer
 from apps.user.serializers.profile_serializer import (
     NicknameCheckResponseSerializer,
     NicknameCheckSerializer,
@@ -124,6 +121,7 @@ user_bookmark_get_schema = extend_schema(
                     {
                         "place_id": 1,
                         "place_name": "부산 광안리 해수욕장",
+                        "description": "광안대교의 야경이 펼쳐지는 해변",
                         "image_url": "https://travel-maker-bucket.s3.ap-northeast-2.amazonaws.com/places/img.jpg",
                         "rating": 4.5,
                         "created_at": "2026-05-22T12:23:11Z",
@@ -189,15 +187,6 @@ user_route_list_schema = extend_schema(
     responses={200: RouteMyListSerializer(many=True)},
 )
 
-user_liked_routes_schema = extend_schema(
-    tags=["User"],
-    summary="내가 좋아요한 경로 목록",
-    description="로그인한 유저가 좋아요를 누른 경로 목록을 최신순으로 조회합니다.",
-    parameters=[
-        OpenApiParameter(name="page", type=int, required=False, description="페이지 번호 (기본값 1)"),
-    ],
-    responses={200: RouteListSerializer(many=True)},
-)
 
 public_profile_get_schema = extend_schema(
     tags=["User"],

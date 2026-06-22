@@ -1,12 +1,12 @@
 from typing import Any
 
-from django import forms
 from django.contrib import admin
 from django.db.models import Count, QuerySet
 from django.http import HttpRequest
 
 from apps.bookmark.models import Bookmark
-from apps.core.admin import BaseAdmin, apply_vector_widget, format_style_vector
+from apps.core.admin import BaseAdmin, VectorChartMixIn
+from apps.route.models import Route, RouteLike
 from apps.travel_quiz.models import UserTestResult
 from apps.user.models import Follow, SocialUser, User
 
@@ -19,22 +19,17 @@ class SocialUserInline(admin.TabularInline):  # type: ignore[type-arg]
     readonly_fields = ["created_at"]
 
 
-class UserTestResultInline(admin.StackedInline):  # type: ignore[type-arg]
+class UserTestResultInline(VectorChartMixIn, admin.StackedInline):  # type: ignore[type-arg]
+    """사용자가 여행 성향 퀴즈를 본 결과 데이터."""
+
     model = UserTestResult
     extra = 0
-    can_delete = True
-    classes = ["collapse"]
-    autocomplete_fields = ["travel_type"]
-    fields = ["travel_type", "result_vector", "vector_readable", "updated_at"]
-    readonly_fields = ["vector_readable", "updated_at"]
-
-    def formfield_for_dbfield(self, db_field: Any, request: HttpRequest, **kwargs: Any) -> forms.Field | None:
-        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
-        return apply_vector_widget(formfield, db_field.name, "result_vector")
-
-    @admin.display(description="현재 값(라벨)")
-    def vector_readable(self, obj: UserTestResult) -> str:
-        return format_style_vector(obj.result_vector)
+    can_delete = False
+    verbose_name = "여행 성향 퀴즈 결과"
+    verbose_name_plural = "여행 성향 퀴즈 결과 목록"
+    readonly_fields = ["vector_chart", "updated_at"]
+    # 수동 편집은 안 쓰고 차트로 보기만 할 것이므로 result_vector(원시데이터) 제거
+    fields = ["travel_type", "vector_chart", "updated_at"]
 
 
 class FollowingInline(admin.TabularInline):  # type: ignore[type-arg]
@@ -43,7 +38,6 @@ class FollowingInline(admin.TabularInline):  # type: ignore[type-arg]
     model = Follow
     fk_name = "follower"
     extra = 0
-    classes = ["collapse"]
     fields = ["following", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["following"]
@@ -61,7 +55,6 @@ class FollowerInline(admin.TabularInline):  # type: ignore[type-arg]
     model = Follow
     fk_name = "following"
     extra = 0
-    classes = ["collapse"]
     fields = ["follower", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["follower"]
@@ -78,7 +71,6 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
 
     model = Bookmark
     extra = 0
-    classes = ["collapse"]
     fields = ["place", "created_at"]
     readonly_fields = ["created_at"]
     autocomplete_fields = ["place"]
@@ -90,10 +82,39 @@ class BookmarkInline(admin.TabularInline):  # type: ignore[type-arg]
         return qs.select_related("place")
 
 
+class UserRouteInline(admin.TabularInline):  # type: ignore[type-arg]
+    """이 유저가 작성한 경로 목록"""
+
+    model = Route
+    extra = 0
+    fields = ["title", "region_tag", "start_date", "end_date", "like_count", "created_at"]
+    readonly_fields = ["like_count", "created_at"]
+    show_change_link = True
+    verbose_name = "작성한 경로"
+    verbose_name_plural = "작성한 경로 목록"
+
+
+class RouteLikeInline(admin.TabularInline):  # type: ignore[type-arg]
+    """이 유저가 좋아요를 누른 경로 목록"""
+
+    model = RouteLike
+    extra = 0
+    fields = ["route", "created_at"]
+    readonly_fields = ["created_at"]
+    autocomplete_fields = ["route"]
+    verbose_name = "좋아요 한 경로"
+    verbose_name_plural = "좋아요 한 경로 목록"
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet[RouteLike]:
+        qs: QuerySet[RouteLike] = super().get_queryset(request)
+        return qs.select_related("route")
+
+
 @admin.register(User)
 class UserAdmin(BaseAdmin):
     list_display = [
         "id",
+        "profile_thumb",
         "nickname",
         "email",
         "role",
@@ -109,14 +130,22 @@ class UserAdmin(BaseAdmin):
     list_filter = ["is_active", "role", "gender", "tags"]
     search_fields = ["nickname", "email"]
     date_hierarchy = "created_at"
-    readonly_fields = ["created_at", "updated_at", "last_login", "deleted_at"]
+    readonly_fields = ["profile_thumb", "created_at", "updated_at", "last_login", "deleted_at"]
     exclude = ["password"]
-    autocomplete_fields = ["tags"]
+    filter_horizontal = ["tags"]
     save_on_top = True
-    inlines = [SocialUserInline, UserTestResultInline, FollowingInline, FollowerInline, BookmarkInline]
+    inlines = [
+        SocialUserInline,
+        UserTestResultInline,
+        FollowingInline,
+        FollowerInline,
+        BookmarkInline,
+        UserRouteInline,
+        RouteLikeInline,
+    ]
     fieldsets = [
-        (None, {"fields": ["nickname", "email", "role", "is_active", "is_staff"]}),
-        ("프로필", {"classes": ["collapse"], "fields": ["bio", "gender", "birthday", "profile_img_url", "tags"]}),
+        (None, {"fields": ["profile_thumb", "nickname", "email", "role", "is_active", "is_staff"]}),
+        ("프로필", {"fields": ["bio", "gender", "birthday", "profile_img_url", "tags"]}),
         ("메타", {"classes": ["collapse"], "fields": ["last_login", "deleted_at", "created_at", "updated_at"]}),
     ]
 
@@ -128,6 +157,17 @@ class UserAdmin(BaseAdmin):
             # Follow.follower related_name="followers"(이 유저의 팔로잉), following related_name="followings"(이 유저의 팔로워)
             following_count=Count("followers", distinct=True),
             follower_count=Count("followings", distinct=True),
+        )
+
+    @admin.display(description="프로필 사진")
+    def profile_thumb(self, obj: User) -> Any:
+        if not obj.profile_img_url:
+            return "—"
+        from django.utils.html import format_html
+
+        return format_html(
+            '<img src="{}" style="width:48px;height:48px;object-fit:cover;border-radius:50%;border:1px solid #e5e7eb;" loading="lazy" />',
+            obj.profile_img_url,
         )
 
     @admin.display(description="관심 태그")
@@ -150,6 +190,3 @@ class UserAdmin(BaseAdmin):
     @admin.display(description="팔로잉수", ordering="following_count")
     def following_count(self, obj: User) -> int:
         return int(getattr(obj, "following_count", 0) or 0)
-
-
-# SocialUser·Follow는 User 상세 인라인에서 보고 편집하므로 독립 admin(메뉴 항목)은 두지 않는다.

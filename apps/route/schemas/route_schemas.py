@@ -4,7 +4,6 @@ from apps.route.serializers.route_serializers import (
     RouteCreateResponseSerializer,
     RouteCreateSerializer,
     RouteDetailSerializer,
-    RouteLikeResponseSerializer,
     RouteListSerializer,
     RouteUpdateResponseSerializer,
     RouteUpdateSerializer,
@@ -82,23 +81,6 @@ route_list_schema = extend_schema(
     responses={200: RouteListSerializer(many=True)},
 )
 
-route_like_schema = extend_schema(
-    tags=["Route"],
-    summary="경로 좋아요 등록",
-    description=(
-        "해당 경로에 좋아요를 등록합니다.\n존재하지 않는 경로 ID면 404, 이미 좋아요한 경로면 409 에러가 발생합니다."
-    ),
-    responses={201: RouteLikeResponseSerializer},
-)
-
-route_unlike_schema = extend_schema(
-    tags=["Route"],
-    summary="경로 좋아요 취소",
-    description=(
-        "해당 경로에 등록했던 좋아요를 취소합니다.\n경로가 존재하지 않거나 좋아요한 적이 없으면 404 에러가 발생합니다."
-    ),
-    responses={204: None},
-)
 
 admin_route_delete_schema = extend_schema(
     tags=["Admin"],

@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from apps.travel_quiz.schemas.travel_quiz_schemas import (
     quiz_avatar_schema,
     quiz_result_schema,
+    quiz_shared_result_schema,
     quiz_submit_schema,
 )
 from apps.travel_quiz.serializers.travel_quiz_serializers import (
@@ -18,8 +19,11 @@ from apps.travel_quiz.serializers.travel_quiz_serializers import (
     QuizResultSerializer,
     QuizSubmitResponseSerializer,
     QuizSubmitSerializer,
+    SharedQuizRequestSerializer,
+    SharedQuizResultSerializer,
 )
 from apps.travel_quiz.services.travel_quiz_services import (
+    get_shared_quiz_result,
     get_user_quiz_result,
     submit_quiz,
     update_user_avatar,
@@ -48,6 +52,20 @@ class QuizResultView(APIView):
     def get(self, request: Request) -> Response:
         result = get_user_quiz_result(cast(User, request.user))
         return Response(QuizResultSerializer(result).data, status=status.HTTP_200_OK)
+
+
+class SharedQuizResultView(APIView):
+    permission_classes = [AllowAny]
+
+    @quiz_shared_result_schema
+    def get(self, request: Request) -> Response:
+        serializer = SharedQuizRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        result = get_shared_quiz_result(
+            type_key=serializer.validated_data["type_key"],
+            norm=serializer.validated_data["vector"],
+        )
+        return Response(SharedQuizResultSerializer(result).data, status=status.HTTP_200_OK)
 
 
 class QuizAvatarView(APIView):
