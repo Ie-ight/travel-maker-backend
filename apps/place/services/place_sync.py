@@ -485,7 +485,7 @@ def _safe_area_based_list(
 def sync_incremental(
     content_type_ids: Sequence[int] = DEFAULT_CONTENT_TYPE_IDS,
     *,
-    num_of_rows: int = 50,
+    num_of_rows: int = 1000,
     max_pages: int | None = None,
     dry_run: bool = False,
     client: TourApiClient | None = None,
