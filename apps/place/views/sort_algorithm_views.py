@@ -10,14 +10,33 @@ from apps.place.models import Place
 from apps.place.schemas.sort_algorithm_schemas import place_recommend_schema
 from apps.place.serializers.place_serializers import PlaceListSerializer
 from apps.place.serializers.sort_algorithm_serializers import RecommendQuerySerializer
-from apps.place.services.sort_algorithm_service import get_places_sorted_by_vector, get_popular_places
+from apps.place.services.sort_algorithm_service import get_place_ids_sorted_by_vector, get_popular_places
 from apps.travel_quiz.models import UserTestResult
+
+_POPULAR_FALLBACK_LIMIT = 500
 
 
 class RecommendPagination(PageNumberPagination):
-    page_size = 8
+    page_size = 12
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class _CountProxy:
+    """DRF PageNumberPagination에 total count만 전달하는 경량 래퍼.
+
+    paginate_queryset()은 len()과 슬라이싱으로 count를 계산한다.
+    실제 Place 객체 로드는 별도로 처리하므로 슬라이싱은 빈 리스트를 반환한다.
+    """
+
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __getitem__(self, key: slice) -> list[Place]:  # type: ignore[override]
+        return []
 
 
 class PlaceRecommendView(APIView):
@@ -36,57 +55,62 @@ class PlaceRecommendView(APIView):
             if part.strip().isdigit()
         ] or None
 
-        vector_places: list[Place] = []
+        paginator = RecommendPagination()
+        page_size = paginator.get_page_size(request) or paginator.page_size
+        try:
+            page_num = int(request.query_params.get(paginator.page_query_param, 1))
+        except (TypeError, ValueError):
+            page_num = 1
+        offset = (page_num - 1) * page_size
+
+        page_places: list[Place] = []
 
         if request.user.is_authenticated:
             try:
                 result = UserTestResult.objects.get(user=request.user)
                 user_vector = list(result.result_vector) if result.result_vector is not None else None
                 if user_vector and len(user_vector) == 6:
-                    vector_places = list(
-                        get_places_sorted_by_vector(
-                            user_vector,
-                            tag_ids=tag_ids,
-                            region_tag_id=region_tag_id,
-                            limit=None,
-                        )
+                    # 현재 페이지 ID만 DB에서 가져옴 + total count (별도 COUNT 쿼리)
+                    page_ids, total_count = get_place_ids_sorted_by_vector(
+                        user_vector,
+                        tag_ids=tag_ids,
+                        region_tag_id=region_tag_id,
+                        offset=offset,
+                        page_size=page_size,
                     )
+                    # _CountProxy로 페이지네이터에 count만 전달 (실제 슬라이싱은 무시)
+                    paginator.paginate_queryset(_CountProxy(total_count), request)  # type: ignore[arg-type]
+
+                    id_order = {pid: i for i, pid in enumerate(page_ids)}
+                    page_places = sorted(  # type: ignore[assignment]
+                        Place.objects.filter(id__in=page_ids)
+                        .annotate(bookmark_count=Count("bookmarks", distinct=True))
+                        .prefetch_related("images", "tags"),
+                        key=lambda p: id_order[p.id],
+                    )
+
+                    if request.user.is_authenticated and page_places:
+                        bookmarked_ids = set(
+                            Bookmark.objects.filter(
+                                user_id=request.user.pk,
+                                place_id__in=[p.id for p in page_places],
+                            ).values_list("place_id", flat=True)
+                        )
+                        for place in page_places:
+                            place.is_bookmarked = place.id in bookmarked_ids  # type: ignore[attr-defined]
+
+                    serializer = PlaceListSerializer(page_places, many=True)
+                    return paginator.get_paginated_response(serializer.data)
             except UserTestResult.DoesNotExist:
                 pass
 
-        if vector_places:
-            vector_ids = {p.id for p in vector_places}
-            remaining_qs = (
-                Place.objects.filter(is_active=True)
-                .exclude(id__in=vector_ids)
-                .annotate(bookmark_count=Count("bookmarks", distinct=True))
-                .prefetch_related("images", "tags")
-                .order_by("-bookmark_count", "-rating_avg", "-view_count")
-            )
-            if tag_ids:
-                for tag_id in tag_ids:
-                    remaining_qs = remaining_qs.filter(tags__id=tag_id)
-            if region_tag_id:
-                remaining_qs = remaining_qs.filter(tags__id=region_tag_id)
-            places: list[Place] = vector_places + list(remaining_qs)
-        else:
-            places = list(get_popular_places(tag_ids=tag_ids, region_tag_id=region_tag_id, limit=None))
+        # 비로그인/퀴즈 미완료: 인기순 상위 _POPULAR_FALLBACK_LIMIT개
+        popular = list(get_popular_places(tag_ids=tag_ids, region_tag_id=region_tag_id, limit=_POPULAR_FALLBACK_LIMIT))
+        page_places_raw: list[Place] | None = paginator.paginate_queryset(popular, request)  # type: ignore[arg-type]
+        page_places = page_places_raw or []
 
-        paginator = RecommendPagination()
-        page: list[Place] | None = paginator.paginate_queryset(places, request)  # type: ignore[arg-type]
+        for place in page_places:
+            place.is_bookmarked = False  # type: ignore[attr-defined]
 
-        if request.user.is_authenticated and page:
-            bookmarked_ids = set(
-                Bookmark.objects.filter(
-                    user_id=request.user.pk,
-                    place_id__in=[p.id for p in page],
-                ).values_list("place_id", flat=True)
-            )
-            for place in page:
-                place.is_bookmarked = place.id in bookmarked_ids  # type: ignore[attr-defined]
-        else:
-            for place in page or []:
-                place.is_bookmarked = False  # type: ignore[attr-defined]
-
-        serializer = PlaceListSerializer(page, many=True)
+        serializer = PlaceListSerializer(page_places, many=True)
         return paginator.get_paginated_response(serializer.data)

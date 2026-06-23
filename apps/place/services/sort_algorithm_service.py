@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Any
 
 from django.core.cache import cache
 from django.db import connection, transaction
@@ -12,17 +13,37 @@ _OVER_FETCH = 4
 _FALLBACK_CACHE_TTL = 300
 
 
-def get_places_sorted_by_vector(
+def _collect_vector_ids(
+    pf_qs: Any,  # annotated QuerySet — generic type not expressible without stubs
+    limit: int | None,
+) -> list[int]:
+    """HNSW 거리 순 정렬된 QuerySet에서 중복 없는 place_id 목록을 반환한다 (객체 로드 없음)."""
+    seen: set[int] = set()
+    candidate_ids: list[int] = []
+    raw_ids = pf_qs.values_list("place_id", flat=True)
+    if limit is not None:
+        raw_ids = raw_ids[: limit * _OVER_FETCH]
+    for pid in raw_ids:
+        if pid not in seen:
+            seen.add(pid)
+            candidate_ids.append(pid)
+    return candidate_ids
+
+
+def get_place_ids_sorted_by_vector(
     user_vector: list[float],
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
-    limit: int | None = 20,
-) -> Sequence[Place]:
-    # SET LOCAL은 현재 트랜잭션 스코프에만 적용된다.
-    # 명시적 트랜잭션 없이 SET LOCAL을 사용하면 autocommit 모드에서
-    # 각 쿼리가 별개의 트랜잭션이 되어 설정이 ANN 쿼리에 전달되지 않는다.
+    offset: int = 0,
+    page_size: int = 12,
+) -> tuple[list[int], int]:
+    """HNSW 코사인 유사도 순으로 현재 페이지 place_id 목록과 전체 count를 반환한다.
+
+    - tag 필터 없음: DB LIMIT/OFFSET으로 정확히 page_size개만 가져옴 (가장 효율적)
+    - tag 필터 있음: M2M join 중복을 피하기 위해 offset 범위까지 over-fetch 후 Python 중복 제거
+    두 경우 모두 total count는 별도 COUNT 쿼리로 처리한다.
+    """
     with transaction.atomic():
-        # iterative scan: tag 필터와 함께 HNSW 인덱스 사용 시 under-recall 방지
         with connection.cursor() as cursor:
             cursor.execute("SET LOCAL hnsw.iterative_scan = strict_order")
 
@@ -37,16 +58,50 @@ def get_places_sorted_by_vector(
         if region_tag_id:
             pf_qs = pf_qs.filter(place__tags__id=region_tag_id)
 
-        # M2M join으로 중복 place_id 발생 가능 — 거리 순서 유지하며 Python 중복 제거
-        seen: set[int] = set()
-        candidate_ids: list[int] = []
-        raw_ids = pf_qs.values_list("place_id", flat=True)
-        if limit is not None:
-            raw_ids = raw_ids[: limit * _OVER_FETCH]
-        for pid in raw_ids:
-            if pid not in seen:
-                seen.add(pid)
-                candidate_ids.append(pid)
+        has_m2m = bool(tag_ids or region_tag_id)
+
+        # total count: tag 필터 있으면 DISTINCT COUNT로 중복 제거
+        total: int = pf_qs.values("place_id").distinct().count() if has_m2m else pf_qs.count()
+
+        if not has_m2m:
+            # tag 필터 없음 → M2M join 없으므로 중복 없음, DB LIMIT/OFFSET으로 직접 처리
+            page_ids = list(pf_qs.values_list("place_id", flat=True)[offset : offset + page_size])
+        else:
+            # tag 필터 있음 → M2M join 중복 가능, offset 범위까지 over-fetch 후 Python 중복 제거
+            fetch_count = (offset + page_size) * _OVER_FETCH
+            seen: set[int] = set()
+            all_ids: list[int] = []
+            for pid in pf_qs.values_list("place_id", flat=True)[:fetch_count]:
+                if pid not in seen:
+                    seen.add(pid)
+                    all_ids.append(pid)
+            page_ids = all_ids[offset : offset + page_size]
+
+    return page_ids, total
+
+
+def get_places_sorted_by_vector(
+    user_vector: list[float],
+    tag_ids: list[int] | None = None,
+    region_tag_id: int | None = None,
+    limit: int | None = 20,
+) -> Sequence[Place]:
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SET LOCAL hnsw.iterative_scan = strict_order")
+
+        pf_qs = (
+            PlaceFeature.objects.filter(place__is_active=True, style_vector__isnull=False)
+            .annotate(distance=CosineDistance("style_vector", user_vector))
+            .order_by("distance")
+        )
+
+        if tag_ids:
+            pf_qs = pf_qs.filter(place__tags__id__in=tag_ids)
+        if region_tag_id:
+            pf_qs = pf_qs.filter(place__tags__id=region_tag_id)
+
+        candidate_ids = _collect_vector_ids(pf_qs, limit)
 
     if not candidate_ids:
         return []
@@ -57,7 +112,6 @@ def get_places_sorted_by_vector(
         .prefetch_related("images", "tags")
     )
 
-    # HNSW 거리 순서 복원
     order = {pid: i for i, pid in enumerate(candidate_ids)}
     result = sorted(places, key=lambda p: order[p.id])
     return result[:limit] if limit is not None else result
