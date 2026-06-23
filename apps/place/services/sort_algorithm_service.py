@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Any
 
 from django.core.cache import cache
 from django.db import connection, transaction
@@ -12,17 +13,34 @@ _OVER_FETCH = 4
 _FALLBACK_CACHE_TTL = 300
 
 
-def get_places_sorted_by_vector(
+def _collect_vector_ids(
+    pf_qs: Any,  # annotated QuerySet — generic type not expressible without stubs
+    limit: int | None,
+) -> list[int]:
+    """HNSW 거리 순 정렬된 QuerySet에서 중복 없는 place_id 목록을 반환한다 (객체 로드 없음)."""
+    seen: set[int] = set()
+    candidate_ids: list[int] = []
+    raw_ids = pf_qs.values_list("place_id", flat=True)
+    if limit is not None:
+        raw_ids = raw_ids[: limit * _OVER_FETCH]
+    for pid in raw_ids:
+        if pid not in seen:
+            seen.add(pid)
+            candidate_ids.append(pid)
+    return candidate_ids
+
+
+def get_place_ids_sorted_by_vector(
     user_vector: list[float],
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
-    limit: int | None = 20,
-) -> Sequence[Place]:
-    # SET LOCAL은 현재 트랜잭션 스코프에만 적용된다.
-    # 명시적 트랜잭션 없이 SET LOCAL을 사용하면 autocommit 모드에서
-    # 각 쿼리가 별개의 트랜잭션이 되어 설정이 ANN 쿼리에 전달되지 않는다.
+) -> list[int]:
+    """HNSW 코사인 유사도 순 place_id 목록만 반환한다 (Place 객체 로드 없음).
+
+    뷰에서 이 ID 목록으로 페이지네이션한 뒤 현재 페이지 ID만 Place로 로드하면
+    전체 장소를 메모리에 올리지 않고 효율적으로 추천순 페이지네이션을 구현할 수 있다.
+    """
     with transaction.atomic():
-        # iterative scan: tag 필터와 함께 HNSW 인덱스 사용 시 under-recall 방지
         with connection.cursor() as cursor:
             cursor.execute("SET LOCAL hnsw.iterative_scan = strict_order")
 
@@ -37,16 +55,31 @@ def get_places_sorted_by_vector(
         if region_tag_id:
             pf_qs = pf_qs.filter(place__tags__id=region_tag_id)
 
-        # M2M join으로 중복 place_id 발생 가능 — 거리 순서 유지하며 Python 중복 제거
-        seen: set[int] = set()
-        candidate_ids: list[int] = []
-        raw_ids = pf_qs.values_list("place_id", flat=True)
-        if limit is not None:
-            raw_ids = raw_ids[: limit * _OVER_FETCH]
-        for pid in raw_ids:
-            if pid not in seen:
-                seen.add(pid)
-                candidate_ids.append(pid)
+        return _collect_vector_ids(pf_qs, limit=None)
+
+
+def get_places_sorted_by_vector(
+    user_vector: list[float],
+    tag_ids: list[int] | None = None,
+    region_tag_id: int | None = None,
+    limit: int | None = 20,
+) -> Sequence[Place]:
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SET LOCAL hnsw.iterative_scan = strict_order")
+
+        pf_qs = (
+            PlaceFeature.objects.filter(place__is_active=True, style_vector__isnull=False)
+            .annotate(distance=CosineDistance("style_vector", user_vector))
+            .order_by("distance")
+        )
+
+        if tag_ids:
+            pf_qs = pf_qs.filter(place__tags__id__in=tag_ids)
+        if region_tag_id:
+            pf_qs = pf_qs.filter(place__tags__id=region_tag_id)
+
+        candidate_ids = _collect_vector_ids(pf_qs, limit)
 
     if not candidate_ids:
         return []
@@ -57,7 +90,6 @@ def get_places_sorted_by_vector(
         .prefetch_related("images", "tags")
     )
 
-    # HNSW 거리 순서 복원
     order = {pid: i for i, pid in enumerate(candidate_ids)}
     result = sorted(places, key=lambda p: order[p.id])
     return result[:limit] if limit is not None else result
