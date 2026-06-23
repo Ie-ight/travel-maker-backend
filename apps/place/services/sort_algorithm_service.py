@@ -34,11 +34,14 @@ def get_place_ids_sorted_by_vector(
     user_vector: list[float],
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
-) -> list[int]:
-    """HNSW 코사인 유사도 순 place_id 목록만 반환한다 (Place 객체 로드 없음).
+    offset: int = 0,
+    page_size: int = 12,
+) -> tuple[list[int], int]:
+    """HNSW 코사인 유사도 순으로 현재 페이지 place_id 목록과 전체 count를 반환한다.
 
-    뷰에서 이 ID 목록으로 페이지네이션한 뒤 현재 페이지 ID만 Place로 로드하면
-    전체 장소를 메모리에 올리지 않고 효율적으로 추천순 페이지네이션을 구현할 수 있다.
+    - tag 필터 없음: DB LIMIT/OFFSET으로 정확히 page_size개만 가져옴 (가장 효율적)
+    - tag 필터 있음: M2M join 중복을 피하기 위해 offset 범위까지 over-fetch 후 Python 중복 제거
+    두 경우 모두 total count는 별도 COUNT 쿼리로 처리한다.
     """
     with transaction.atomic():
         with connection.cursor() as cursor:
@@ -55,7 +58,26 @@ def get_place_ids_sorted_by_vector(
         if region_tag_id:
             pf_qs = pf_qs.filter(place__tags__id=region_tag_id)
 
-        return _collect_vector_ids(pf_qs, limit=None)
+        has_m2m = bool(tag_ids or region_tag_id)
+
+        # total count: tag 필터 있으면 DISTINCT COUNT로 중복 제거
+        total: int = pf_qs.values("place_id").distinct().count() if has_m2m else pf_qs.count()
+
+        if not has_m2m:
+            # tag 필터 없음 → M2M join 없으므로 중복 없음, DB LIMIT/OFFSET으로 직접 처리
+            page_ids = list(pf_qs.values_list("place_id", flat=True)[offset : offset + page_size])
+        else:
+            # tag 필터 있음 → M2M join 중복 가능, offset 범위까지 over-fetch 후 Python 중복 제거
+            fetch_count = (offset + page_size) * _OVER_FETCH
+            seen: set[int] = set()
+            all_ids: list[int] = []
+            for pid in pf_qs.values_list("place_id", flat=True)[:fetch_count]:
+                if pid not in seen:
+                    seen.add(pid)
+                    all_ids.append(pid)
+            page_ids = all_ids[offset : offset + page_size]
+
+    return page_ids, total
 
 
 def get_places_sorted_by_vector(

@@ -22,6 +22,23 @@ class RecommendPagination(PageNumberPagination):
     max_page_size = 100
 
 
+class _CountProxy:
+    """DRF PageNumberPagination에 total count만 전달하는 경량 래퍼.
+
+    paginate_queryset()은 len()과 슬라이싱으로 count를 계산한다.
+    실제 Place 객체 로드는 별도로 처리하므로 슬라이싱은 빈 리스트를 반환한다.
+    """
+
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __getitem__(self, key: slice) -> list[Place]:  # type: ignore[override]
+        return []
+
+
 class PlaceRecommendView(APIView):
     permission_classes = [AllowAny]
 
@@ -39,59 +56,61 @@ class PlaceRecommendView(APIView):
         ] or None
 
         paginator = RecommendPagination()
+        page_size = paginator.get_page_size(request) or paginator.page_size
+        try:
+            page_num = int(request.query_params.get(paginator.page_query_param, 1))
+        except (TypeError, ValueError):
+            page_num = 1
+        offset = (page_num - 1) * page_size
 
-        # 벡터 추천: ID 목록만 가져온 뒤 현재 페이지 ID에 해당하는 객체만 DB에서 로드
-        # → 20,000개 정수(~160KB)만 메모리에 올림, Place 객체는 페이지당 8개만 로드
-        ordered_ids: list[int] = []
-        use_vector = False
+        page_places: list[Place] = []
 
         if request.user.is_authenticated:
             try:
                 result = UserTestResult.objects.get(user=request.user)
                 user_vector = list(result.result_vector) if result.result_vector is not None else None
                 if user_vector and len(user_vector) == 6:
-                    ordered_ids = get_place_ids_sorted_by_vector(
+                    # 현재 페이지 ID만 DB에서 가져옴 + total count (별도 COUNT 쿼리)
+                    page_ids, total_count = get_place_ids_sorted_by_vector(
                         user_vector,
                         tag_ids=tag_ids,
                         region_tag_id=region_tag_id,
+                        offset=offset,
+                        page_size=page_size,
                     )
-                    use_vector = True
+                    # _CountProxy로 페이지네이터에 count만 전달 (실제 슬라이싱은 무시)
+                    paginator.paginate_queryset(_CountProxy(total_count), request)  # type: ignore[arg-type]
+
+                    id_order = {pid: i for i, pid in enumerate(page_ids)}
+                    page_places = sorted(  # type: ignore[assignment]
+                        Place.objects.filter(id__in=page_ids)
+                        .annotate(bookmark_count=Count("bookmarks", distinct=True))
+                        .prefetch_related("images", "tags"),
+                        key=lambda p: id_order[p.id],
+                    )
+
+                    if request.user.is_authenticated and page_places:
+                        bookmarked_ids = set(
+                            Bookmark.objects.filter(
+                                user_id=request.user.pk,
+                                place_id__in=[p.id for p in page_places],
+                            ).values_list("place_id", flat=True)
+                        )
+                        for place in page_places:
+                            place.is_bookmarked = place.id in bookmarked_ids  # type: ignore[attr-defined]
+
+                    serializer = PlaceListSerializer(page_places, many=True)
+                    return paginator.get_paginated_response(serializer.data)
             except UserTestResult.DoesNotExist:
                 pass
 
-        if use_vector:
-            # ID 목록으로 페이지 슬라이싱 (정수만, 가벼움)
-            page_ids: list[int] | None = paginator.paginate_queryset(ordered_ids, request)  # type: ignore[arg-type]
-            if not page_ids:
-                return paginator.get_paginated_response([])
+        # 비로그인/퀴즈 미완료: 인기순 상위 _POPULAR_FALLBACK_LIMIT개
+        popular = list(get_popular_places(tag_ids=tag_ids, region_tag_id=region_tag_id, limit=_POPULAR_FALLBACK_LIMIT))
+        page_places_raw: list[Place] | None = paginator.paginate_queryset(popular, request)  # type: ignore[arg-type]
+        page_places = page_places_raw or []
 
-            id_order = {pid: i for i, pid in enumerate(page_ids)}
-            page_places: list[Place] = sorted(  # type: ignore[assignment]
-                Place.objects.filter(id__in=page_ids)
-                .annotate(bookmark_count=Count("bookmarks", distinct=True))
-                .prefetch_related("images", "tags"),
-                key=lambda p: id_order[p.id],
-            )
-        else:
-            # 비로그인/퀴즈 미완료: 인기순 상위 _POPULAR_FALLBACK_LIMIT개
-            popular = list(
-                get_popular_places(tag_ids=tag_ids, region_tag_id=region_tag_id, limit=_POPULAR_FALLBACK_LIMIT)
-            )
-            page_places_raw: list[Place] | None = paginator.paginate_queryset(popular, request)  # type: ignore[arg-type]
-            page_places = page_places_raw or []
-
-        if request.user.is_authenticated and page_places:
-            bookmarked_ids = set(
-                Bookmark.objects.filter(
-                    user_id=request.user.pk,
-                    place_id__in=[p.id for p in page_places],
-                ).values_list("place_id", flat=True)
-            )
-            for place in page_places:
-                place.is_bookmarked = place.id in bookmarked_ids  # type: ignore[attr-defined]
-        else:
-            for place in page_places:
-                place.is_bookmarked = False  # type: ignore[attr-defined]
+        for place in page_places:
+            place.is_bookmarked = False  # type: ignore[attr-defined]
 
         serializer = PlaceListSerializer(page_places, many=True)
         return paginator.get_paginated_response(serializer.data)
