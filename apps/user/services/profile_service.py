@@ -60,5 +60,5 @@ class ProfileImageService:
         user.profile_img_url = img_url
         user.save(update_fields=["profile_img_url"])
 
-        if old_img_url and old_img_url != img_url:
+        if old_img_url and old_img_url != img_url and "/profiles/" in old_img_url:
             PresignedUrlService.delete_by_img_url(old_img_url)
