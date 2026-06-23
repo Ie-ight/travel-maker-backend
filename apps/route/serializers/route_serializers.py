@@ -17,7 +17,7 @@ def _get_main_image_url(images: QuerySet[PlaceImage]) -> str | None:
 
 
 class RouteDayInputSerializer(serializers.Serializer[None]):
-    day_index = serializers.IntegerField(min_value=1, max_value=5)
+    day_index = serializers.IntegerField(min_value=1, max_value=3)
     place_ids = serializers.ListField(child=serializers.IntegerField(), min_length=1, max_length=5)
 
 
@@ -31,13 +31,13 @@ class RouteCreateSerializer(serializers.Serializer[None]):
     days = RouteDayInputSerializer(many=True)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        # 날짜 검증: 시작일 <= 종료일, 최대 4박 5일(차이 ≤ 4일)
+        # 날짜 검증: 시작일 <= 종료일, 최대 2박 3일(차이 ≤ 2일)
         start_date = attrs["start_date"]
         end_date = attrs["end_date"]
         if start_date > end_date:
             raise serializers.ValidationError("시작일이 종료일보다 늦을 수 없습니다.")
-        if (end_date - start_date).days > 4:
-            raise serializers.ValidationError("최대 4박 5일까지 설정할 수 있습니다.")
+        if (end_date - start_date).days > 2:
+            raise serializers.ValidationError("최대 2박 3일까지 설정할 수 있습니다.")
         return attrs
 
 
@@ -57,8 +57,8 @@ class RouteUpdateSerializer(serializers.Serializer[None]):
         if start_date and end_date:
             if start_date > end_date:
                 raise serializers.ValidationError("시작일이 종료일보다 늦을 수 없습니다.")
-            if (end_date - start_date).days > 4:
-                raise serializers.ValidationError("최대 4박 5일까지 설정할 수 있습니다.")
+            if (end_date - start_date).days > 2:
+                raise serializers.ValidationError("최대 2박 3일까지 설정할 수 있습니다.")
         return attrs
 
 

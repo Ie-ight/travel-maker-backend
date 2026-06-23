@@ -46,7 +46,7 @@ class Route(TimeStampModel):
 class RouteDay(models.Model):
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name="days", verbose_name="경로")
     day_index = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        validators=[MinValueValidator(1), MaxValueValidator(3)],
         verbose_name="일차",
     )
     places = models.ManyToManyField(Place, through="RouteDayPlace", verbose_name="장소")  # type: ignore[var-annotated]
