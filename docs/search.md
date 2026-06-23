@@ -1,4 +1,4 @@
-# 장소 검색 기능 명세
+트러# 장소 검색 기능 명세
 
 ---
 
@@ -267,6 +267,56 @@ places = tier1 or [p for p in places if address_matches(p)]
 |---|------|----------|
 | L1 | in-memory 폴백 경로(`get_place_list_recommend`)에서 주소가 항상 OR — DB 경로 3계층과 불일치 | tier1(이름/태그/핵심어) 결과 없을 때만 주소 폴백 적용 |
 | L2 | `address_primary` null 처리가 in-memory(`p.address_primary and ...`)와 DB(`icontains` → SQL NULL 처리) 간 표현 방식 불일치 | in-memory 경로를 tier1/tier2 분리 구조로 재작성하여 null 처리 일관성 확보 |
+
+---
+
+### 3차 수정 (feat/recommend-sort-full — 추천순 전체 장소 반환)
+
+#### HIGH
+
+| # | 문제 | 수정 내용 |
+|---|------|----------|
+| H1 | `sort=recommend` 응답에서 결과가 DB 전체 장소 수가 아닌 벡터 보유 장소 수(예: 12개)로 제한됨 | `get_places_sorted_by_vector`에 `limit=None` 지원 추가 후 `_append_remaining`으로 벡터 없는 나머지 장소를 인기순으로 이어 붙임 |
+
+**H1 원인 분석**
+
+```
+sort=recommend
+ └─ get_place_list_recommend()
+      └─ get_places_sorted_by_vector(limit=20)
+           └─ PlaceFeature.objects.filter(style_vector__isnull=False)
+                                            ↑
+                             이 조건 + limit=20으로
+                             벡터 있는 장소만 최대 20개 반환
+                             → DB에 style_vector 보유 장소가 12개면 12개만 노출
+```
+
+진단 쿼리:
+```sql
+SELECT COUNT(*)
+FROM place_placefeature pf
+JOIN place_place p ON p.id = pf.place_id
+WHERE p.is_active = TRUE AND pf.style_vector IS NOT NULL;
+-- 이 값이 실제 응답 count와 일치하면 H1 케이스
+```
+
+#### MEDIUM
+
+| # | 문제 | 수정 내용 |
+|---|------|----------|
+| M1 | S1(비로그인) 추천 결과가 인기순 상위 20개로 제한 — 다른 정렬과 달리 전체 장소를 탐색할 수 없었음 | `get_popular_places(limit=None)` 호출로 전체 인기순 반환 |
+| M2 | H1 수정 후 CI 테스트 `test_content_vector_없는_장소는_S3_결과에서_제외` 실패 | 테스트 기댓값을 "제외" → "벡터 결과 뒤에 포함, 순서 보장"으로 수정 |
+
+**M2 실패 패턴** — 동작 변경 시 테스트 기댓값이 구동작 기준으로 남아 CI에서 검출됨
+
+```python
+# 변경 전 테스트 (old behavior: 벡터 없는 장소 제외)
+assert without_vector.id not in place_ids  # ← 새 동작에서 실패
+
+# 변경 후 테스트 (new behavior: 하단 인기순으로 포함)
+assert without_vector.id in place_ids
+assert place_ids.index(with_vector.id) < place_ids.index(without_vector.id)
+```
 
 ---
 
