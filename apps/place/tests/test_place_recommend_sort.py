@@ -102,7 +102,7 @@ class TestGetPlaceListRecommendStages:
         place_ids = [p.id for p in places]
         assert place_ids.index(near.id) < place_ids.index(far.id)
 
-    def test_content_vector_없는_장소는_S3_결과에서_제외(self) -> None:
+    def test_content_vector_없는_장소는_S3_결과_하단에_포함(self) -> None:
         user = UserFactory()
         UserTestResultFactory(user=user)
 
@@ -117,9 +117,11 @@ class TestGetPlaceListRecommendStages:
 
         places = list(get_place_list_recommend(user_id=user.id))
 
-        place_ids = {p.id for p in places}
+        place_ids = [p.id for p in places]
+        # 벡터 있는 장소는 상단, 없는 장소는 하단(인기순)에 포함
         assert with_vector.id in place_ids
-        assert without_vector.id not in place_ids
+        assert without_vector.id in place_ids
+        assert place_ids.index(with_vector.id) < place_ids.index(without_vector.id)
 
     def test_단계전환_경계_action_count_9는_S2_10은_S3(self) -> None:
         user = UserFactory()
