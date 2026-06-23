@@ -69,7 +69,7 @@ def _validate_days(days_data: list[dict[str, Any]], start_date: object, end_date
     for day in days_data:
         day_index = day["day_index"]
         place_ids = day["place_ids"]
-        # 날짜 범위를 벗어난 일차 차단 (당일치기=1일, 4박5일=5일)
+        # 날짜 범위를 벗어난 일차 차단 (당일치기=1일, 2박3일=3일)
         if day_index < 1 or day_index > total_days:
             raise RouteValidationError(detail=f"{day_index}일차는 유효하지 않습니다. (총 {total_days}일)")
         # 일당 장소 1~5개 제한
