@@ -16,7 +16,7 @@ def get_places_sorted_by_vector(
     user_vector: list[float],
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
-    limit: int = 20,
+    limit: int | None = 20,
 ) -> Sequence[Place]:
     # SET LOCAL은 현재 트랜잭션 스코프에만 적용된다.
     # 명시적 트랜잭션 없이 SET LOCAL을 사용하면 autocommit 모드에서
@@ -40,7 +40,10 @@ def get_places_sorted_by_vector(
         # M2M join으로 중복 place_id 발생 가능 — 거리 순서 유지하며 Python 중복 제거
         seen: set[int] = set()
         candidate_ids: list[int] = []
-        for pid in pf_qs.values_list("place_id", flat=True)[: limit * _OVER_FETCH]:
+        raw_ids = pf_qs.values_list("place_id", flat=True)
+        if limit is not None:
+            raw_ids = raw_ids[: limit * _OVER_FETCH]
+        for pid in raw_ids:
             if pid not in seen:
                 seen.add(pid)
                 candidate_ids.append(pid)
@@ -56,14 +59,15 @@ def get_places_sorted_by_vector(
 
     # HNSW 거리 순서 복원
     order = {pid: i for i, pid in enumerate(candidate_ids)}
-    return sorted(places, key=lambda p: order[p.id])[:limit]
+    result = sorted(places, key=lambda p: order[p.id])
+    return result[:limit] if limit is not None else result
 
 
 def get_places_sorted_by_content_vector(
     user_vector: list[float],
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
-    limit: int = 20,
+    limit: int | None = 20,
 ) -> Sequence[Place]:
     """행동 기반 1024D 임베딩(content_vector) ANN 정렬 (S3, §7.2). content_vector 미생성 장소는 제외된다."""
     with transaction.atomic():
@@ -83,7 +87,10 @@ def get_places_sorted_by_content_vector(
 
         seen: set[int] = set()
         candidate_ids: list[int] = []
-        for pid in pf_qs.values_list("place_id", flat=True)[: limit * _OVER_FETCH]:
+        raw_ids = pf_qs.values_list("place_id", flat=True)
+        if limit is not None:
+            raw_ids = raw_ids[: limit * _OVER_FETCH]
+        for pid in raw_ids:
             if pid not in seen:
                 seen.add(pid)
                 candidate_ids.append(pid)
@@ -98,21 +105,23 @@ def get_places_sorted_by_content_vector(
     )
 
     order = {pid: i for i, pid in enumerate(candidate_ids)}
-    return sorted(places, key=lambda p: order[p.id])[:limit]
+    result = sorted(places, key=lambda p: order[p.id])
+    return result[:limit] if limit is not None else result
 
 
 def get_popular_places(
     tag_ids: list[int] | None = None,
     region_tag_id: int | None = None,
-    limit: int = 20,
+    limit: int | None = 20,
 ) -> Sequence[Place]:
     """퀴즈 미완료 또는 비로그인 시 인기순 폴백. 필터 없는 경우 Redis 캐싱(300s).
 
     ORM 인스턴스 대신 Place ID 목록만 캐싱한다.
     모델 스키마 변경 시 역직렬화 오류가 없고 캐시 페이로드도 작다.
     """
-    if not tag_ids and not region_tag_id:
-        cached_ids: list[int] | None = cache.get(popular_places_fallback_key(limit))
+    use_cache = limit is not None and not tag_ids and not region_tag_id
+    if use_cache:
+        cached_ids: list[int] | None = cache.get(popular_places_fallback_key(limit))  # type: ignore[arg-type]
         if cached_ids is not None:
             id_order = {pid: i for i, pid in enumerate(cached_ids)}
             cached_places = list(
@@ -134,9 +143,9 @@ def get_popular_places(
     if region_tag_id:
         qs = qs.filter(tags__id=region_tag_id)
 
-    result = list(qs[:limit])
+    result = list(qs) if limit is None else list(qs[:limit])
 
-    if not tag_ids and not region_tag_id:
-        cache.set(popular_places_fallback_key(limit), [p.id for p in result], _FALLBACK_CACHE_TTL)
+    if use_cache:
+        cache.set(popular_places_fallback_key(limit), [p.id for p in result], _FALLBACK_CACHE_TTL)  # type: ignore[arg-type]
 
     return result
