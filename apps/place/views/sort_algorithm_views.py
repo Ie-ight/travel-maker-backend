@@ -13,6 +13,9 @@ from apps.place.serializers.sort_algorithm_serializers import RecommendQuerySeri
 from apps.place.services.sort_algorithm_service import get_places_sorted_by_vector, get_popular_places
 from apps.travel_quiz.models import UserTestResult
 
+# 벡터 결과 이후 인기순 보충 상한 — 전체 장소를 메모리에 올리지 않기 위한 cap
+_REMAINING_CAP = 500
+
 
 class RecommendPagination(PageNumberPagination):
     page_size = 8
@@ -68,9 +71,9 @@ class PlaceRecommendView(APIView):
                     remaining_qs = remaining_qs.filter(tags__id=tag_id)
             if region_tag_id:
                 remaining_qs = remaining_qs.filter(tags__id=region_tag_id)
-            places: list[Place] = vector_places + list(remaining_qs)
+            places: list[Place] = vector_places + list(remaining_qs[:_REMAINING_CAP])
         else:
-            places = list(get_popular_places(tag_ids=tag_ids, region_tag_id=region_tag_id, limit=None))
+            places = list(get_popular_places(tag_ids=tag_ids, region_tag_id=region_tag_id, limit=_REMAINING_CAP))
 
         paginator = RecommendPagination()
         page: list[Place] | None = paginator.paginate_queryset(places, request)  # type: ignore[arg-type]

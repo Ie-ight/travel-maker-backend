@@ -232,8 +232,11 @@ def _get_places_hybrid(
     return [place_map[pid] for pid in sorted_ids if pid in place_map]
 
 
+_REMAINING_CAP = 500  # 전체 장소를 메모리에 올리지 않기 위한 인기순 보충 상한
+
+
 def _append_remaining(vector_places: list[Place], tags: list[int] | None) -> list[Place]:
-    """벡터 정렬 결과 뒤에 벡터 미적용 나머지 장소를 인기순으로 이어 붙인다."""
+    """벡터 정렬 결과 뒤에 벡터 미적용 나머지 장소를 인기순 상위 _REMAINING_CAP개로 이어 붙인다."""
     vector_ids = {p.id for p in vector_places}
     remaining_qs = (
         Place.objects.filter(is_active=True)
@@ -245,7 +248,7 @@ def _append_remaining(vector_places: list[Place], tags: list[int] | None) -> lis
     if tags:
         for tag_id in tags:
             remaining_qs = remaining_qs.filter(tags__id=tag_id)
-    return vector_places + list(remaining_qs)
+    return vector_places + list(remaining_qs[:_REMAINING_CAP])
 
 
 def get_place_list_recommend(
@@ -301,8 +304,8 @@ def get_place_list_recommend(
             ]
             places = tier1 or [p for p in popular if p.address_primary and kw in p.address_primary.lower()]
         else:
-            # 비로그인/퀴즈 미완료: 전체 장소를 인기순으로
-            places = list(get_popular_places(tag_ids=tags or [], limit=None))
+            # 비로그인/퀴즈 미완료: 인기순 상위 _REMAINING_CAP개
+            places = list(get_popular_places(tag_ids=tags or [], limit=_REMAINING_CAP))
 
     # PlaceListSerializer의 is_bookmarked 필드 요구에 맞게 Python 레벨에서 채운다 (쿼리 1회)
     if user_id is not None and places:
