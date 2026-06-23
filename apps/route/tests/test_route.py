@@ -113,8 +113,8 @@ class TestRouteCreate:
         response = auth_client.post("/api/v1/routes", payload, format="json")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_4박5일_초과_실패(self, auth_client: APIClient, tag: object, place: object) -> None:
-        payload = _route_payload(tag.id, place.id, start_date="2026-07-01", end_date="2026-07-06")  # type: ignore[attr-defined]
+    def test_2박3일_초과_실패(self, auth_client: APIClient, tag: object, place: object) -> None:
+        payload = _route_payload(tag.id, place.id, start_date="2026-07-01", end_date="2026-07-04")  # type: ignore[attr-defined]
         response = auth_client.post("/api/v1/routes", payload, format="json")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 

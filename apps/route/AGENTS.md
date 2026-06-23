@@ -13,7 +13,7 @@ Handles travel itinerary (route) CRUD. A `Route` has 1~5 `RouteDay`s, and each `
 ## Model Constraints
 
 - `Route`: `title` max 20 chars, `description` nullable, `region_tag` FK to `Tag` (`SET_NULL`, nullable), `theme_tags` M2M to `Tag`, `start_date`/`end_date`, `like_count` (default 0, `PositiveIntegerField`). `ordering = ["-created_at"]`.
-- `RouteDay`: FK `route` (`related_name="days"`), `day_index` (`PositiveSmallIntegerField`, 1~5 via `MinValueValidator`/`MaxValueValidator`), `unique_together = ("route", "day_index")`, `ordering = ["day_index"]`.
+- `RouteDay`: FK `route` (`related_name="days"`), `day_index` (`PositiveSmallIntegerField`, 1~3 via `MinValueValidator`/`MaxValueValidator`), `unique_together = ("route", "day_index")`, `ordering = ["day_index"]`.
 - `RouteDayPlace`: FK `route_day` (`related_name="day_places"`), FK `place`, `order` (1~5), `unique_together = ("route_day", "order")`, `ordering = ["order"]`.
 - `RouteLike`: `unique_together = ("route", "user")`.
 
@@ -21,8 +21,8 @@ Handles travel itinerary (route) CRUD. A `Route` has 1~5 `RouteDay`s, and each `
 
 ## Business Rules
 
-- `start_date <= end_date`, and the span is capped at 4박5일 (`(end_date - start_date).days + 1 <= 5`) — enforced in `RouteCreateSerializer.validate()`.
-- `_validate_days()`: `day_index` must fall within `1..total_days` (computed from the date range), no duplicate `day_index` values across `days`, and each day's `place_ids` must contain 1~5 entries.
+- `start_date <= end_date`, and the span is capped at 2박3일 (`(end_date - start_date).days + 1 <= 3`) — enforced in `RouteCreateSerializer.validate()`.
+- `_validate_days()`: `day_index` must fall within `1..total_days` (computed from the date range, max 3), no duplicate `day_index` values across `days`, and each day's `place_ids` must contain 1~5 entries.
 - `_validate_region_tag()` / `_validate_place_ids()` pre-check FK existence for `region_tag_id` and every `place_id` so invalid IDs raise `RouteValidationError` (400) instead of an `IntegrityError` (500).
 - On update, if `days` is provided, ALL existing `RouteDay`/`RouteDayPlace` rows are deleted and recreated from scratch (`route.days.all().delete()` + `_create_days()`) — there is no partial/diff-based day update.
 - `_create_days()` assigns `order` to each place based on its position in `place_ids` (1-indexed), preserving map line order.
